@@ -1,0 +1,18 @@
+{
+  "name": "AtomWorks Annotation Studio",
+  "short_name": "Annotation Studio",
+  "description": "Edit AtomWorks annotated CIF files with Patinae or Mol*.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#071017",
+  "theme_color": "#0b1720",
+  "icons": [
+    {
+      "src": "/annotation-studio.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

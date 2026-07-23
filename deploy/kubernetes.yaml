@@ -1,0 +1,142 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: annotation-studio
+  labels:
+    app.kubernetes.io/name: annotation-studio
+    app.kubernetes.io/managed-by: github-actions
+spec:
+  # One replica and Recreate are required by the RWO session volume.
+  replicas: 1
+  revisionHistoryLimit: 3
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: annotation-studio
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: annotation-studio
+    spec:
+      terminationGracePeriodSeconds: 30
+      imagePullSecrets:
+        - name: annotation-studio-ghcr
+      securityContext:
+        runAsNonRoot: true
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: studio
+          image: ${ANNOTATION_STUDIO_IMAGE}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: ANNOTATION_STUDIO_FRAME_ANCESTORS
+              value: "${ANNOTATION_STUDIO_FRAME_ANCESTORS}"
+            - name: ANNOTATION_STUDIO_SESSION_DIR
+              value: /var/lib/annotation-studio/sessions
+            - name: HOME
+              value: /tmp
+          startupProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            failureThreshold: 30
+            periodSeconds: 2
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "2"
+              memory: "4Gi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - name: sessions
+              mountPath: /var/lib/annotation-studio
+            - name: temporary
+              mountPath: /tmp
+      volumes:
+        - name: sessions
+          persistentVolumeClaim:
+            claimName: annotation-studio-sessions
+        - name: temporary
+          emptyDir:
+            sizeLimit: 512Mi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: annotation-studio-sessions
+  labels:
+    app.kubernetes.io/name: annotation-studio
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: annotation-studio
+  labels:
+    app.kubernetes.io/name: annotation-studio
+spec:
+  selector:
+    app.kubernetes.io/name: annotation-studio
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: annotation-studio
+  annotations:
+    cert-manager.io/cluster-issuer: ${ANNOTATION_STUDIO_CERT_ISSUER}
+    nginx.ingress.kubernetes.io/proxy-body-size: "32m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/limit-connections: "20"
+    nginx.ingress.kubernetes.io/limit-rps: "10"
+spec:
+  ingressClassName: ${ANNOTATION_STUDIO_INGRESS_CLASS}
+  tls:
+    - hosts:
+        - ${ANNOTATION_STUDIO_HOST}
+      secretName: ${ANNOTATION_STUDIO_TLS_SECRET}
+  rules:
+    - host: ${ANNOTATION_STUDIO_HOST}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: annotation-studio
+                port:
+                  name: http

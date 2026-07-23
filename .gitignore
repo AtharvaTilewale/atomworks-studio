@@ -1,0 +1,13 @@
+api/**/__pycache__/
+core/target/
+!core/Cargo.lock
+patinae-plugin/target/
+!patinae-plugin/Cargo.lock
+tests/__pycache__/
+vscode/*.vsix
+vscode/dist/
+vscode/node_modules/
+web/dist/
+web/node_modules/
+web/src/wasm/
+!web/public/annotation-studio.svg

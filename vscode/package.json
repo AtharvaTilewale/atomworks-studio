@@ -1,0 +1,85 @@
+{
+  "name": "atomworks-annotation-studio",
+  "displayName": "AtomWorks Annotation Studio",
+  "description": "Create, inspect, and submit RFD4 Proteina annotated CIFs with Mol*, Patinae, and native AtomWorks.",
+  "version": "0.1.0",
+  "publisher": "nvidia",
+  "license": "SEE LICENSE IN LICENSE.md",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/baker-laboratory/RFD4-Proteina-dev.git",
+    "directory": "apps/annotation-studio/vscode"
+  },
+  "homepage": "https://github.com/baker-laboratory/RFD4-Proteina-dev/tree/main/apps/annotation-studio",
+  "bugs": {
+    "url": "https://github.com/baker-laboratory/RFD4-Proteina-dev/issues"
+  },
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "extensionKind": [
+    "workspace",
+    "ui"
+  ],
+  "categories": [
+    "Visualization",
+    "Other"
+  ],
+  "keywords": [
+    "mmCIF",
+    "protein design",
+    "RFD4",
+    "AtomWorks",
+    "Molstar"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "annotationStudio.open",
+        "title": "AtomWorks: Open Annotation Studio"
+      },
+      {
+        "command": "annotationStudio.configureServer",
+        "title": "AtomWorks: Configure Annotation Studio Server"
+      },
+      {
+        "command": "annotationStudio.selectViewer",
+        "title": "AtomWorks: Select Annotation Studio Renderer"
+      }
+    ],
+    "configuration": {
+      "title": "AtomWorks Annotation Studio",
+      "properties": {
+        "annotationStudio.serverUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:8000",
+          "description": "URL of the running Annotation Studio web/API service."
+        },
+        "annotationStudio.viewerBackend": {
+          "type": "string",
+          "enum": [
+            "patinae",
+            "molstar"
+          ],
+          "enumDescriptions": [
+            "Use Patinae/WebGPU.",
+            "Use Mol*/WebGL."
+          ],
+          "description": "Molecular viewer used by the shared Annotation Studio client. You are prompted when unset; renderers never fall back to one another."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p tsconfig.json",
+    "package": "pnpm compile && vsce package --no-dependencies"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "@types/vscode": "^1.95.0",
+    "@vscode/vsce": "^3.9.2",
+    "ovsx": "^1.0.2",
+    "typescript": "^7.0.2"
+  }
+}
