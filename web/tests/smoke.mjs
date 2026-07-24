@@ -257,6 +257,7 @@ try {
     true,
     "canvas interaction does not hide controls",
   );
+  assert.equal(await page.evaluate(() => window.scrollY), 0, "canvas interaction cannot scroll controls away");
   await page.locator('[data-background="black"]').click();
   if (viewerMode === "patinae") {
     await page.locator('[data-menu="style"] > summary').click();
@@ -292,6 +293,10 @@ try {
   });
   assert.equal(await page.locator("#viewer-toolbar").isVisible(), true);
   assert.equal(await page.locator('[data-menu="studio"] > summary').isVisible(), true);
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  assert.equal(await page.evaluate(() => window.scrollY), 0, "application shell remains viewport-locked");
+  const toolbarBox = await page.locator("#viewer-toolbar").boundingBox();
+  assert.ok(toolbarBox && toolbarBox.y >= 0, "toolbar stays inside the viewport at browser zoom");
   await page.locator("body").evaluate((body) => {
     body.style.zoom = "";
   });
