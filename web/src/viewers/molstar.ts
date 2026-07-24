@@ -25,7 +25,18 @@ import {
   type ViewerInteraction,
   type ViewerMeasurement,
   type ViewerMeasurementRequest,
+  type ViewerStructure,
 } from "./contract";
+
+const COMPARISON_COLORS = {
+  cyan: 0x00ffff,
+  magenta: 0xff00ff,
+  orange: 0xffa500,
+  green: 0x00cc66,
+  yellow: 0xffff00,
+  red: 0xff3333,
+  blue: 0x3388ff,
+} as const;
 
 export class MolstarAdapter implements ViewerAdapter {
   readonly backend = "molstar" as const;
@@ -84,6 +95,27 @@ export class MolstarAdapter implements ViewerAdapter {
     if (!this.viewer) throw new Error("Mol* is not initialized");
     await this.viewer.plugin.clear();
     await this.viewer.loadStructureFromData(cif, "mmcif", { dataLabel: name });
+  }
+
+  async loadCifs(structures: ViewerStructure[]): Promise<void> {
+    if (!this.viewer) throw new Error("Mol* is not initialized");
+    await this.viewer.plugin.clear();
+    for (const [index, structure] of structures.entries()) {
+      await this.viewer.loadStructureFromData(structure.cif, "mmcif", { dataLabel: structure.name });
+      const reference = this.viewer.plugin.managers.structure.hierarchy.current.structures.at(-1);
+      if (!reference) continue;
+      const fallback = ["cyan", "magenta", "orange", "green"][index % 4] as keyof typeof COMPARISON_COLORS;
+      const colorName = structure.color && structure.color in COMPARISON_COLORS
+        ? structure.color as keyof typeof COMPARISON_COLORS
+        : fallback;
+      await setStructureOverpaint(
+        this.viewer.plugin,
+        reference.components,
+        Color(COMPARISON_COLORS[colorName]),
+        async (loadedStructure) => StructureElement.Loci.all(loadedStructure),
+      );
+    }
+    this.viewer.plugin.managers.camera.reset();
   }
 
   private currentStructure() {

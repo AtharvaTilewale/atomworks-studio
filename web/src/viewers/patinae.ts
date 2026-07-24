@@ -24,6 +24,7 @@ import {
   type ViewerObject,
   type ViewerRepresentation,
   type ViewerSelection,
+  type ViewerStructure,
   type ViewerTarget,
 } from "./contract";
 
@@ -167,6 +168,39 @@ export class PatinaeAdapter implements ViewerAdapter {
     this.cif = cif;
     this.name = name;
     await this.renderCif();
+  }
+
+  async loadCifs(structures: ViewerStructure[]): Promise<void> {
+    if (!this.viewer) throw new Error("Patinae is not initialized");
+    for (const objectName of this.viewer.getObjectNames()) this.viewer.execute(`delete ${objectName}`);
+    const loaded = structures.map((structure, index) => {
+      const objectName = `compare_${index + 1}_${structure.name.replace(/[^A-Za-z0-9_]/g, "_")}`;
+      this.viewer!.loadData(new TextEncoder().encode(structure.cif), objectName, "cif");
+      return { ...structure, objectName };
+    });
+    for (const command of this.displayCommands) this.viewer.execute(command);
+    this.viewer.execute(this.backgroundCommand);
+    this.atomIdentities = this.viewer.getAtomIdentityMap?.() ?? [];
+    for (const [index, structure] of loaded.entries()) {
+      const color = structure.color ?? (["cyan", "magenta", "orange", "green"][index % 4] as ViewerColor);
+      this.viewer.execute(`color ${color}, ${structure.objectName}`);
+      const coordinateRows = parseAtomSiteBooleanColumn(
+        structure.cif,
+        "_atom_site.mask_coordinate_1_atom",
+      );
+      const identities = this.atomIdentities.filter((atom) => atom.object_name === structure.objectName);
+      const nativeRows = nativeAtomIndices(identities, coordinateRows);
+      if (nativeRows.length) {
+        this.viewer.execute(
+          `show sticks, ${structure.objectName} and index ${compressIndices(nativeRows)}`,
+        );
+      }
+    }
+    this.viewer.execute("zoom all");
+    this.cif = null;
+    this.name = "comparison";
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    this.viewer.getObjectNames();
   }
 
   async showAnnotation(groups: AnnotationGroup[]): Promise<AnnotationRenderResult> {

@@ -405,6 +405,22 @@ try {
       () => document.querySelector("#design-job-status")?.textContent?.includes("Aligned"),
     );
     assert.match(await page.locator("#design-metric-summary").innerText(), /alignment · rmsd after/i);
+    const comparisonChecks = page.locator(".document-compare");
+    for (let index = 0; index < await comparisonChecks.count(); index += 1) {
+      await comparisonChecks.nth(index).check();
+    }
+    assert.equal(await page.locator("#compare-designs").isEnabled(), true);
+    assert.equal(await page.locator("#compare-designs").innerText(), "Compare selected (2)");
+    await page.locator("#compare-designs").click();
+    await page.waitForFunction(
+      () => document.querySelector("#viewer")?.getAttribute("data-comparison-structures") === "2",
+    );
+    assert.match(await page.locator("#design-job-status").innerText(), /Comparing/);
+    assert.equal(await page.locator("#clear-design-comparison").isEnabled(), true);
+    await page.locator("#clear-design-comparison").click();
+    await page.waitForFunction(
+      () => document.querySelector("#viewer")?.getAttribute("data-comparison-structures") === "0",
+    );
     await page.locator("#previous-design").click();
   }
 

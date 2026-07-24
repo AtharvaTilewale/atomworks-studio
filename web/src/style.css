@@ -267,6 +267,12 @@ button.compact { padding: 4px 7px; font-size: 10px; }
   display: flex; align-items: center; flex-wrap: wrap; gap: 5px; margin-top: 10px;
 }
 .document-toolbar span { flex: 1; min-width: 58px; text-align: center; font-size: 10px; }
+.document-row {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 7px;
+  padding-left: 5px; border: 1px solid transparent; border-radius: 6px;
+}
+.document-row.compared { border-color: #4a8aaa; background: #102733; }
+.document-compare { margin: 0; accent-color: #72e0bd; }
 .document-button {
   display: grid; grid-template-columns: auto 1fr auto; gap: 7px; align-items: center;
   width: 100%; color: #d8e7ef; background: #0b1922; border-color: #355064;

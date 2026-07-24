@@ -355,6 +355,30 @@ async function initialize(): Promise<void> {
       notifyHost("changed");
       log(`Opened ${designDocument.kind} structure ${designDocument.label}.`);
     },
+    compareDocuments: async (designDocuments) => {
+      const outputColors = ["magenta", "orange", "green", "yellow"] as const;
+      const structures = await Promise.all(designDocuments.map(async (designDocument, index) => {
+        const response = await fetch(`/api/sessions/${designDocument.session_id}/cif`);
+        if (!response.ok) throw new Error(await response.text());
+        return {
+          cif: await response.text(),
+          name: designDocument.label,
+          color: designDocument.kind === "input"
+            ? "cyan" as const
+            : outputColors[index % outputColors.length],
+        };
+      }));
+      selectionController.clear();
+      annotationController?.reset();
+      await molecularViewer.loadCifs(structures);
+      viewerToolbarController?.renderDrawers();
+      log(`Comparing ${designDocuments.length} design structures in one viewer.`);
+    },
+    clearComparison: async () => {
+      if (!lastSummary) return;
+      await refreshFromServer(lastSummary, false);
+      viewerToolbarController?.renderDrawers();
+    },
     log,
   });
   designController.updateSession();

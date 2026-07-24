@@ -50,6 +50,12 @@ export type ViewerObject = {
   enabled?: boolean;
 };
 
+export type ViewerStructure = {
+  cif: string;
+  name: string;
+  color?: ViewerColor;
+};
+
 export type ViewerCommand = {
   name: string;
   aliases?: string[];
@@ -134,6 +140,7 @@ export interface ViewerAdapter {
   readonly capabilities: ViewerCapabilities;
   initialize(): Promise<void>;
   loadCif(cif: string, name: string): Promise<void>;
+  loadCifs(structures: ViewerStructure[]): Promise<void>;
   showAnnotation(groups: AnnotationGroup[]): Promise<AnnotationRenderResult>;
   clearAnnotation(): Promise<void>;
   setSelection(atomIndices: number[]): void;

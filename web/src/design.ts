@@ -3,7 +3,7 @@ type StructureSummary = {
   atom_count: number;
 };
 
-type DesignDocument = {
+export type DesignDocument = {
   id: string;
   label: string;
   kind: "input" | "generated" | "refolded";
@@ -35,7 +35,7 @@ type DesignJob = {
   };
 };
 
-type OpenedDesignDocument = DesignDocument & {
+export type OpenedDesignDocument = DesignDocument & {
   session_id: string;
   editor_path: string;
   structure: StructureSummary;
@@ -79,6 +79,8 @@ type DesignControllerOptions = {
   request: <T>(path: string, init?: RequestInit) => Promise<T>;
   getSessionId: () => string | null;
   openDocument: (document: OpenedDesignDocument) => Promise<void>;
+  compareDocuments: (documents: OpenedDesignDocument[]) => Promise<void>;
+  clearComparison: () => Promise<void>;
   log: (message: string) => void;
 };
 
@@ -186,6 +188,8 @@ const metricSummary = byId<HTMLDivElement>("design-metric-summary");
 const previousDesign = byId<HTMLButtonElement>("previous-design");
 const nextDesign = byId<HTMLButtonElement>("next-design");
 const alignDesign = byId<HTMLButtonElement>("align-design");
+const compareDesigns = byId<HTMLButtonElement>("compare-designs");
+const clearDesignComparison = byId<HTMLButtonElement>("clear-design-comparison");
 const designPosition = byId<HTMLSpanElement>("design-position");
 let currentMetricRanges: DesignJob["metric_summary"] = {};
 
@@ -391,6 +395,10 @@ export async function initializeDesignController(options: DesignControllerOption
   let activeDocuments: DesignDocument[] = [];
   let activeButtons: HTMLButtonElement[] = [];
   let activeDocumentIndex = -1;
+  const comparedDocumentKeys = new Set<string>();
+  let comparisonActive = false;
+
+  const documentKey = (document: DesignDocument): string => `${document.kind}:${document.id}`;
 
   function updateDocumentControls(): void {
     const hasDocuments = activeDocuments.length > 0;
@@ -400,6 +408,9 @@ export async function initializeDesignController(options: DesignControllerOption
       !hasDocuments
       || activeDocumentIndex < 0
       || activeDocuments[activeDocumentIndex]?.kind === "input";
+    compareDesigns.disabled = comparedDocumentKeys.size < 2;
+    compareDesigns.textContent = `Compare selected (${comparedDocumentKeys.size})`;
+    clearDesignComparison.disabled = !comparisonActive;
     designPosition.textContent = hasDocuments && activeDocumentIndex >= 0
       ? `${activeDocumentIndex + 1} / ${activeDocuments.length}`
       : "No results";
@@ -431,7 +442,7 @@ export async function initializeDesignController(options: DesignControllerOption
     return selected;
   }
 
-  async function open(document: DesignDocument, button: HTMLButtonElement): Promise<void> {
+  async function resolveDocument(document: DesignDocument): Promise<OpenedDesignDocument> {
     const opened = document.session_id
       ? document
       : await options.request<OpenedDesignDocument>(
@@ -441,14 +452,20 @@ export async function initializeDesignController(options: DesignControllerOption
     if (!opened.session_id || !opened.structure || !opened.editor_path) {
       throw new Error("design output did not include an editor session");
     }
+    return opened as OpenedDesignDocument;
+  }
+
+  async function open(document: DesignDocument, button: HTMLButtonElement): Promise<void> {
+    const opened = await resolveDocument(document);
     for (const other of documents.querySelectorAll(".document-button")) other.classList.remove("active");
     button.classList.add("active");
     activeDocumentIndex = activeDocuments.findIndex(
       (candidate) => candidate.id === document.id && candidate.kind === document.kind,
     );
     if (activeDocumentIndex >= 0) activeDocuments[activeDocumentIndex] = opened;
+    comparisonActive = false;
     updateDocumentControls();
-    await options.openDocument(opened as OpenedDesignDocument);
+    await options.openDocument(opened);
     renderMetrics(opened.metrics);
   }
 
@@ -459,6 +476,23 @@ export async function initializeDesignController(options: DesignControllerOption
   }
 
   let currentJobId = "";
+
+  async function compareSelectedDocuments(): Promise<void> {
+    const selected = activeDocuments.filter((document) => comparedDocumentKeys.has(documentKey(document)));
+    if (selected.length < 2) return;
+    status.textContent = `Loading ${selected.length} structures for comparison…`;
+    const opened = await Promise.all(selected.map(resolveDocument));
+    for (const document of opened) {
+      const index = activeDocuments.findIndex((candidate) => documentKey(candidate) === documentKey(document));
+      if (index >= 0) activeDocuments[index] = document;
+    }
+    await options.compareDocuments(opened);
+    comparisonActive = true;
+    updateDocumentControls();
+    status.textContent =
+      `Comparing ${opened.map((document) => document.label).join(" · ")}. `
+      + "Input is cyan; outputs use magenta, orange, and green.";
+  }
 
   function cycleDocument(offset: number): void {
     if (activeDocuments.length < 2) return;
@@ -489,6 +523,10 @@ export async function initializeDesignController(options: DesignControllerOption
   }
 
   function renderJob(job: DesignJob): void {
+    if (currentJobId && currentJobId !== job.id) {
+      comparedDocumentKeys.clear();
+      comparisonActive = false;
+    }
     currentJobId = job.id;
     currentMetricRanges = job.metric_summary;
     const running = job.status === "queued" || job.status === "running";
@@ -513,6 +551,14 @@ export async function initializeDesignController(options: DesignControllerOption
         )
       : 0;
     for (const designDocument of allDocuments) {
+      const row = document.createElement("div");
+      row.className = "document-row";
+      const compare = document.createElement("input");
+      compare.type = "checkbox";
+      compare.className = "document-compare";
+      compare.title = `Include ${designDocument.label} in the structure comparison`;
+      compare.setAttribute("aria-label", `Compare ${designDocument.label}`);
+      compare.checked = comparedDocumentKeys.has(documentKey(designDocument));
       const button = document.createElement("button");
       button.className = "document-button";
       if (allDocuments[activeDocumentIndex] === designDocument) button.classList.add("active");
@@ -532,7 +578,16 @@ export async function initializeDesignController(options: DesignControllerOption
           : formatValue(primaryMetric);
       button.append(kind, label, score);
       button.addEventListener("click", () => openSafely(designDocument, button));
-      documents.append(button);
+      compare.addEventListener("change", () => {
+        const key = documentKey(designDocument);
+        if (compare.checked) comparedDocumentKeys.add(key);
+        else comparedDocumentKeys.delete(key);
+        row.classList.toggle("compared", compare.checked);
+        updateDocumentControls();
+      });
+      row.classList.toggle("compared", compare.checked);
+      row.append(compare, button);
+      documents.append(row);
       activeButtons.push(button);
     }
     updateDocumentControls();
@@ -573,6 +628,23 @@ export async function initializeDesignController(options: DesignControllerOption
     void alignActiveDocument().catch((error) => {
       status.textContent = `Could not align output: ${String(error)}`;
     }).finally(updateDocumentControls);
+  });
+  compareDesigns.addEventListener("click", () => {
+    compareDesigns.disabled = true;
+    void compareSelectedDocuments().catch((error) => {
+      status.textContent = `Could not compare structures: ${String(error)}`;
+    }).finally(updateDocumentControls);
+  });
+  clearDesignComparison.addEventListener("click", () => {
+    clearDesignComparison.disabled = true;
+    void options.clearComparison().then(() => {
+      comparisonActive = false;
+      updateDocumentControls();
+      status.textContent = "Structure comparison cleared.";
+    }).catch((error) => {
+      status.textContent = `Could not clear comparison: ${String(error)}`;
+      updateDocumentControls();
+    });
   });
 
   mode.addEventListener("change", () => {

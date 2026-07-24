@@ -14,6 +14,7 @@ import type {
   ViewerMeasurementRequest,
   ViewerInteraction,
   ViewerSelection,
+  ViewerStructure,
   ViewerTarget,
 } from "./contract";
 import {
@@ -34,6 +35,7 @@ export type {
   ViewerMeasurementRequest,
   ViewerInteraction,
   ViewerSelection,
+  ViewerStructure,
   ViewerTarget,
 } from "./contract";
 
@@ -56,8 +58,7 @@ async function createAdapter(
 
 export class MolecularViewer {
   private adapter: ViewerAdapter | null = null;
-  private cif: string | null = null;
-  private name = "structure";
+  private structures: ViewerStructure[] = [];
   private selectedAtomIndices: number[] = [];
   private annotationGroups: AnnotationGroup[] = [];
   private interactionOverlays: ViewerInteraction[] = [];
@@ -136,9 +137,14 @@ export class MolecularViewer {
     if (this.adapter?.backend === mode) return;
     this.mode = mode;
     await this.activate(mode);
-    if (this.cif !== null) {
-      await this.adapter?.loadCif(this.cif, this.name);
-      if (this.annotationGroups.length) {
+    if (this.structures.length) {
+      if (this.structures.length === 1) {
+        const [structure] = this.structures;
+        await this.adapter?.loadCif(structure.cif, structure.name);
+      } else {
+        await this.adapter?.loadCifs(this.structures);
+      }
+      if (this.structures.length === 1 && this.annotationGroups.length) {
         this.updateAnnotationDiagnostics(await this.adapter?.showAnnotation(this.annotationGroups));
       }
       await this.replayTransientVisuals();
@@ -147,11 +153,23 @@ export class MolecularViewer {
   }
 
   async loadCif(cif: string, name: string): Promise<void> {
-    this.cif = cif;
-    this.name = name;
+    this.structures = [{ cif, name }];
+    this.container.dataset.comparisonStructures = "0";
     this.updateAnnotationDiagnostics();
     await this.adapter?.loadCif(cif, name);
     await this.replayTransientVisuals();
+  }
+
+  async loadCifs(structures: ViewerStructure[]): Promise<void> {
+    if (!structures.length) throw new Error("Choose at least one structure to visualize.");
+    this.structures = structures.map((structure) => ({ ...structure }));
+    this.annotationGroups = [];
+    this.selectedAtomIndices = [];
+    this.interactionOverlays = [];
+    this.measurementRequests = [];
+    this.updateAnnotationDiagnostics();
+    await this.adapter?.loadCifs(this.structures);
+    this.container.dataset.comparisonStructures = String(this.structures.length);
   }
 
   clearSelection(): void {
@@ -271,7 +289,8 @@ export class MolecularViewer {
     this.container.replaceChildren();
     delete this.container.dataset.backend;
     delete this.container.dataset.picking;
-    this.cif = null;
+    delete this.container.dataset.comparisonStructures;
+    this.structures = [];
     this.selectedAtomIndices = [];
     this.annotationGroups = [];
     this.interactionOverlays = [];
