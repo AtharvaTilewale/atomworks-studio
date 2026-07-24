@@ -307,8 +307,14 @@
               </div>
               <label>Checkpoints<input id="search-checkpoints" value="0,50,100" /></label>
               <label>Reward metric group<select id="search-reward-tag"></select></label>
-              <label>Reward metric<input id="search-reward" value="interchain_interactions.hbond_atom_pair_count_coi" /></label>
+              <label>Reward metric
+                <input id="search-reward" list="search-reward-options" value="interchain_interactions.hbond_atom_pair_count_coi" />
+                <datalist id="search-reward-options"></datalist>
+              </label>
               <label>Reward weight<input id="search-weight" type="number" step="0.1" value="1" /></label>
+              <p id="search-af3-note" class="menu-note" hidden>
+                AF3 refolding runs at every search checkpoint for this reward group. It is substantially slower than inline metrics.
+              </p>
             </div>
             <label class="file-button secondary compact">
               Load model-options YAML

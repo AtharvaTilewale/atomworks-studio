@@ -106,6 +106,39 @@ try {
       { timeout: 30_000 },
     );
     assert.match(await page.locator("#structure-summary").innerText(), /sequence: 1/);
+    assert.equal(
+      await page.locator("#atomworks-studio-popover").evaluate(
+        (element) => getComputedStyle(element).resize,
+      ),
+      "both",
+      "AtomWorks Studio can be resized in both directions",
+    );
+    await page.locator("#design-mode").evaluate((select) => {
+      select.value = "search";
+      select.dispatchEvent(new Event("change"));
+    });
+    const af3Available = await page.locator("#search-reward-tag option").evaluateAll(
+      (options) => options.some((option) => option.value === "unconditional_refolding" && !option.disabled),
+    );
+    await page.locator("#search-reward-tag").evaluate((select, useAf3) => {
+      select.value = useAf3 ? "unconditional_refolding" : "interchain_interactions";
+      select.dispatchEvent(new Event("change"));
+    }, af3Available);
+    assert.equal(await page.locator("#search-af3-note").evaluate((element) => element.hidden), !af3Available);
+    const expectedReward = af3Available
+      ? "oracle.plddt_coi"
+      : "interchain_interactions.hbond_atom_pair_count_coi";
+    assert.equal(await page.locator("#search-reward").inputValue(), expectedReward);
+    assert.ok(
+      (await page.locator("#search-reward-options option").evaluateAll(
+        (options) => options.map((option) => option.value),
+      )).includes(expectedReward),
+      "reward metrics are offered as guided choices",
+    );
+    await page.locator("#design-mode").evaluate((select) => {
+      select.value = "generate";
+      select.dispatchEvent(new Event("change"));
+    });
   }
 
   await page.locator("#file-input").setInputFiles(
@@ -282,6 +315,7 @@ try {
       () => document.querySelector("#design-metric-summary")?.textContent?.includes("plddt coi"),
     );
     assert.match(await page.locator("#design-metric-summary").innerText(), /91.2/);
+    assert.ok(await page.locator("#design-metric-summary .metric-visual").count(), "output metrics include range visuals");
     assert.equal(await page.locator("#design-position").innerText(), "2 / 2");
     await page.locator("#previous-design").click();
     await page.waitForFunction(

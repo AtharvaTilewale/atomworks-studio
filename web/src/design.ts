@@ -44,6 +44,9 @@ type OpenedDesignDocument = DesignDocument & {
 type DesignSchema = {
   enabled: boolean;
   provider: string;
+  capabilities?: {
+    af3?: boolean;
+  };
   metrics_tags: string[];
   defaults?: {
     num_designs?: number;
@@ -64,6 +67,12 @@ type SearchPreset = {
   rewardTag: string;
   rewardMetric: string;
   rewardWeight: number;
+};
+
+type RewardMetricPreset = {
+  value: string;
+  label: string;
+  weight: number;
 };
 
 type DesignControllerOptions = {
@@ -88,6 +97,58 @@ const METRIC_META: Record<string, { label: string; hint: string; refolding?: tru
   unconditional_refolding:      { label: "Unconditional",  hint: "Backbone RMSD only",                                  refolding: true },
 };
 
+const REWARD_METRIC_PRESETS: Record<string, RewardMetricPreset[]> = {
+  design: [
+    { value: "clash_metrics.frac_atoms_clashing_1p5A", label: "Clashing atoms (minimize)", weight: -1 },
+    { value: "bond_length_metrics.bond_length.frac_unreasonable", label: "Unreasonable bonds (minimize)", weight: -1 },
+  ],
+  interchain_interactions: [
+    { value: "interchain_interactions.hbond_atom_pair_count_coi", label: "Interface H-bond pairs (maximize)", weight: 1 },
+    { value: "interchain_interactions.hydrophobic_atom_pair_count_coi", label: "Hydrophobic contact pairs (maximize)", weight: 1 },
+    { value: "interchain_interactions.saltbridge_residue_pair_count_coi", label: "Salt-bridge residue pairs (maximize)", weight: 1 },
+  ],
+  hotspot_conditioning: [
+    { value: "hotspot_obedience.hotspot_obedience", label: "Hotspot obedience (maximize)", weight: 1 },
+  ],
+  rasa_conditioning: [
+    { value: "rasa_adherence.buried_conditioning_adherence", label: "Buried RASA adherence (maximize)", weight: 1 },
+    { value: "rasa_adherence.exposed_conditioning_adherence", label: "Exposed RASA adherence (maximize)", weight: 1 },
+  ],
+  "3d_coordinate_conditioning": [
+    { value: "design_motif_allatom_rmsd.rmsd", label: "Motif all-atom RMSD (minimize)", weight: -1 },
+  ],
+  unindexed: [
+    { value: "design_unindexed_motif_allatom_rmsd.rmsd", label: "Insertion RMSD (minimize)", weight: -1 },
+  ],
+  unconditional_refolding: [
+    { value: "oracle.plddt_coi", label: "AF3 chain pLDDT (maximize)", weight: 1 },
+    { value: "refolded_backbone_rmsd.rmsd", label: "AF3 backbone RMSD (minimize)", weight: -1 },
+  ],
+  ppi_refolding: [
+    { value: "oracle_ppi.ptm_coi", label: "AF3 binder pTM (maximize)", weight: 1 },
+    { value: "oracle_ppi.min_ipae_coi", label: "AF3 minimum interface PAE (minimize)", weight: -1 },
+    { value: "refolded_target_aligned_binder_rmsd.rmsd", label: "AF3 target-aligned binder RMSD (minimize)", weight: -1 },
+  ],
+  ame_refolding: [
+    { value: "oracle.plddt_coi", label: "AF3 chain pLDDT (maximize)", weight: 1 },
+    { value: "refolded_motif_allatom_rmsd.rmsd", label: "AF3 catalytic motif RMSD (minimize)", weight: -1 },
+  ],
+  disco_refolding: [
+    { value: "oracle.plddt_coi", label: "AF3 chain pLDDT (maximize)", weight: 1 },
+    { value: "max_ligand_centroid_distance.ligand_centroid_distance", label: "AF3 ligand-centroid distance (minimize)", weight: -1 },
+  ],
+  sm_binder_refolding: [
+    { value: "oracle.iptm_coi", label: "AF3 interface pTM (maximize)", weight: 1 },
+    { value: "oracle.min_ipae_coi", label: "AF3 minimum interface PAE (minimize)", weight: -1 },
+    { value: "refolded_backbone_aligned_ligand_rmsd.rmsd", label: "AF3 aligned ligand RMSD (minimize)", weight: -1 },
+  ],
+  motif_scaffold_refolding: [
+    { value: "oracle.plddt_coi", label: "AF3 chain pLDDT (maximize)", weight: 1 },
+    { value: "refolded_motif_allatom_rmsd.rmsd", label: "AF3 motif all-atom RMSD (minimize)", weight: -1 },
+    { value: "refolded_motif_ca_rmsd.rmsd", label: "AF3 motif Cα RMSD (minimize)", weight: -1 },
+  ],
+};
+
 const byId = <T extends HTMLElement>(id: string): T => {
   const value = document.getElementById(id);
   if (!value) throw new Error(`Missing element #${id}`);
@@ -107,7 +168,9 @@ const searchBeam = byId<HTMLInputElement>("search-beam");
 const searchCheckpoints = byId<HTMLInputElement>("search-checkpoints");
 const searchRewardTag = byId<HTMLSelectElement>("search-reward-tag");
 const searchReward = byId<HTMLInputElement>("search-reward");
+const searchRewardOptions = byId<HTMLDataListElement>("search-reward-options");
 const searchWeight = byId<HTMLInputElement>("search-weight");
+const searchAf3Note = byId<HTMLParagraphElement>("search-af3-note");
 const configFile = byId<HTMLInputElement>("design-config-file");
 const configText = byId<HTMLTextAreaElement>("design-config");
 const submit = byId<HTMLButtonElement>("submit-design");
@@ -122,6 +185,7 @@ const previousDesign = byId<HTMLButtonElement>("previous-design");
 const nextDesign = byId<HTMLButtonElement>("next-design");
 const alignDesign = byId<HTMLButtonElement>("align-design");
 const designPosition = byId<HTMLSpanElement>("design-position");
+let currentMetricRanges: DesignJob["metric_summary"] = {};
 
 function numberValue(input: HTMLInputElement): number {
   return Number(input.value);
@@ -200,6 +264,23 @@ function buildMetricsPicker(tags: string[], defaults: string[]): void {
   if (refolding.length) makeGroup(refolding, "AF3 refolding", "metrics-group-refolding");
 }
 
+function updateRewardMetricOptions(selectDefault = true): void {
+  const presets = REWARD_METRIC_PRESETS[searchRewardTag.value] ?? [];
+  searchRewardOptions.replaceChildren(
+    ...presets.map((preset) => {
+      const option = document.createElement("option");
+      option.value = preset.value;
+      option.label = preset.label;
+      return option;
+    }),
+  );
+  searchAf3Note.hidden = !METRIC_META[searchRewardTag.value]?.refolding;
+  if (selectDefault && presets.length) {
+    searchReward.value = presets[0].value;
+    searchWeight.value = String(presets[0].weight);
+  }
+}
+
 function renderMetrics(values: Record<string, unknown>): void {
   metricSummary.replaceChildren();
   const entries = Object.entries(values)
@@ -211,6 +292,10 @@ function renderMetrics(values: Record<string, unknown>): void {
     return;
   }
   metricSummary.className = "metric-summary";
+  const heading = document.createElement("div");
+  heading.className = "metric-summary-heading";
+  heading.textContent = "Output metrics · bars show this output within the job range";
+  metricSummary.append(heading);
 
   // Pass/fail badges
   const passEntries = entries.filter(([key]) => key.endsWith(".pass") || key === "pass_criteria");
@@ -233,14 +318,27 @@ function renderMetrics(values: Record<string, unknown>): void {
     row.className = "metric-row";
     const label = document.createElement("span");
     label.textContent = metricLabel(key);
+    const visual = document.createElement("span");
+    visual.className = "metric-visual";
+    const range = currentMetricRanges[key];
+    if (typeof value === "number" && range) {
+      const span = range.max - range.min;
+      const position = span > 0 ? Math.max(0, Math.min(1, (value - range.min) / span)) : 0.5;
+      visual.style.setProperty("--metric-position", `${position * 100}%`);
+      visual.title = `job range ${formatValue(range.min)}–${formatValue(range.max)} · mean ${formatValue(range.mean)}`;
+    } else {
+      visual.classList.add("metric-visual-empty");
+    }
     const formatted = document.createElement("strong");
     formatted.textContent = formatValue(value);
-    row.append(label, formatted);
+    row.append(label, visual, formatted);
     parent.append(row);
   };
-  const importantPattern = /(search\.reward|plddt|iptm|ptm|ipae|rmsd|ddg|tmol|pass_criteria)/i;
+  const importantPattern =
+    /(search\.reward|plddt|iptm|ptm|ipae|rmsd|ddg|tmol|pass_criteria|interchain|hotspot|clash)/i;
   const important = nonPassEntries.filter(([key]) => importantPattern.test(key));
-  const highlighted = (important.length ? important : nonPassEntries).slice(0, 12);
+  const prioritized = [...important, ...nonPassEntries.filter((entry) => !important.includes(entry))];
+  const highlighted = prioritized.slice(0, 12);
   for (const entry of highlighted) appendMetric(metricSummary, entry);
   const highlightedKeys = new Set(highlighted.map(([key]) => key));
   const remaining = nonPassEntries.filter(([key]) => !highlightedKeys.has(key));
@@ -324,6 +422,7 @@ export async function initializeDesignController(options: DesignControllerOption
       if ([...searchRewardTag.options].some((option) => option.value === search.rewardTag)) {
         searchRewardTag.value = search.rewardTag;
       }
+      updateRewardMetricOptions(false);
       searchReward.value = search.rewardMetric;
       searchWeight.value = String(search.rewardWeight);
     }
@@ -389,6 +488,7 @@ export async function initializeDesignController(options: DesignControllerOption
 
   function renderJob(job: DesignJob): void {
     currentJobId = job.id;
+    currentMetricRanges = job.metric_summary;
     const running = job.status === "queued" || job.status === "running";
     status.textContent =
       job.status === "failed"
@@ -477,7 +577,14 @@ export async function initializeDesignController(options: DesignControllerOption
     searchOptions.hidden = mode.value !== "search";
     if (mode.value === "search") {
       searchCheckpoints.value = `0,${Math.floor(numberValue(steps) / 2)},${numberValue(steps)}`;
+      updateRewardMetricOptions(false);
     }
+  });
+  searchRewardTag.addEventListener("change", () => updateRewardMetricOptions());
+  searchReward.addEventListener("change", () => {
+    const preset = (REWARD_METRIC_PRESETS[searchRewardTag.value] ?? [])
+      .find((candidate) => candidate.value === searchReward.value);
+    if (preset) searchWeight.value = String(preset.weight);
   });
   steps.addEventListener("change", () => {
     if (mode.value === "search") {
@@ -521,7 +628,12 @@ export async function initializeDesignController(options: DesignControllerOption
       : schema.metrics_tags.includes("design") ? ["design"] : [];
     buildMetricsPicker(schema.metrics_tags, defaults);
     for (const tag of schema.metrics_tags) {
-      searchRewardTag.add(new Option(metricOptionLabel(tag), tag));
+      const option = new Option(metricOptionLabel(tag), tag);
+      if (METRIC_META[tag]?.refolding && schema.capabilities?.af3 === false) {
+        option.disabled = true;
+        option.textContent += " · AF3 unavailable";
+      }
+      searchRewardTag.add(option);
     }
     if (schema.defaults?.num_designs) count.value = String(schema.defaults.num_designs);
     if (schema.defaults?.batch_size) batch.value = String(schema.defaults.batch_size);
@@ -536,6 +648,7 @@ export async function initializeDesignController(options: DesignControllerOption
     if (defaultRewardTag && [...searchRewardTag.options].some((option) => option.value === defaultRewardTag)) {
       searchRewardTag.value = defaultRewardTag;
     }
+    updateRewardMetricOptions(!Object.keys(searchDefaults?.weights ?? {}).length);
     const defaultReward = Object.entries(searchDefaults?.weights ?? {})[0];
     if (defaultReward) {
       searchReward.value = defaultReward[0];
