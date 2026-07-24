@@ -28,7 +28,9 @@ function patinaeWasmAsset(): Plugin {
 
 function versionServiceWorker(): Plugin {
   const rawVersion =
-    process.env.ANNOTATION_STUDIO_REVISION ?? process.env.ANNOTATION_STUDIO_VERSION ?? "development";
+    process.env.ANNOTATION_STUDIO_REVISION
+    ?? process.env.ANNOTATION_STUDIO_VERSION
+    ?? `development-${Date.now()}`;
   const version = rawVersion.replace(/[^A-Za-z0-9_.-]/g, "-");
   return {
     name: "version-service-worker",
