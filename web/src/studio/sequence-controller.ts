@@ -9,7 +9,9 @@ export interface SequenceControllerOptions {
 }
 
 export class SequenceController {
+  private readonly dock = element<HTMLDivElement>("sequence-dock");
   private readonly view = element<HTMLDivElement>("sequence-view");
+  private readonly toggle = element<HTMLButtonElement>("sequence-toggle");
   private anchor: number[] | null = null;
   private anchorOrder: number | null = null;
   private dragging = false;
@@ -17,11 +19,21 @@ export class SequenceController {
   constructor(private readonly options: SequenceControllerOptions) {}
 
   bind(): void {
+    this.toggle.addEventListener("click", () => {
+      const hidden = !this.view.hidden;
+      this.view.hidden = hidden;
+      this.dock.classList.toggle("collapsed", hidden);
+      this.toggle.textContent = hidden ? "Show sequence" : "Hide sequence";
+      this.toggle.setAttribute("aria-expanded", String(!hidden));
+    });
     element("sequence-realize").addEventListener("click", () => {
       void this.options.mutate("/segments/realize", {});
     });
     element("sequence-collapse").addEventListener("click", () => {
       void this.options.mutate("/segments/collapse");
+    });
+    document.addEventListener("pointerup", () => {
+      this.dragging = false;
     });
   }
 
@@ -42,8 +54,8 @@ export class SequenceController {
     let hasCollapsed = false;
     let hasRealized = false;
     let sequenceOrder = 0;
-    const selectResidue = (token: HTMLButtonElement, atoms: number[], additive: boolean): void => {
-      if (additive) this.options.selection.add(atoms);
+    const selectResidue = (token: HTMLButtonElement, atoms: number[], toggle: boolean): void => {
+      if (toggle) this.options.selection.toggle(atoms);
       else this.options.selection.replace(atoms);
       this.anchor = atoms;
       this.anchorOrder = Number(token.dataset.order);
@@ -78,16 +90,20 @@ export class SequenceController {
             );
           });
         } else {
-          token.textContent = item.code;
+          token.textContent = item.code.length === 1 ? item.code : "X";
           token.dataset.atoms = item.atom_indices.join(",");
           token.dataset.order = String(sequenceOrder++);
           token.title = `${chain.chain_id}/${item.residue_name} ${item.residue_id}`
-            + (item.conditions.length ? ` · ${item.conditions.join(", ")}` : "");
+            + (item.conditions.length ? ` · ${item.conditions.join(", ")}` : "")
+            + " · drag, Shift-click range, Ctrl/⌘-click toggle";
+          token.setAttribute(
+            "aria-label",
+            `${item.residue_name} ${item.residue_id} in chain ${chain.chain_id}`,
+          );
           for (const condition of item.conditions) token.classList.add(`condition-${condition}`);
           token.addEventListener("pointerdown", (event) => {
             if (event.shiftKey) return;
             this.dragging = true;
-            token.setPointerCapture(event.pointerId);
             selectResidue(token, item.atom_indices, event.ctrlKey || event.metaKey);
           });
           token.addEventListener("pointerenter", (event) => {
@@ -98,7 +114,7 @@ export class SequenceController {
               const current = Number(token.dataset.order);
               const low = Math.min(this.anchorOrder, current);
               const high = Math.max(this.anchorOrder, current);
-              const rangeAtoms = [...this.view.querySelectorAll<HTMLButtonElement>("[data-order]")]
+              const rangeAtoms = [...track.querySelectorAll<HTMLButtonElement>("[data-order]")]
                 .filter((candidate) => {
                   const order = Number(candidate.dataset.order);
                   return order >= low && order <= high;
@@ -119,9 +135,6 @@ export class SequenceController {
     }
     this.view.className = chains.length ? "sequence-view" : "sequence-view muted";
     if (!chains.length) this.view.textContent = "No polymer sequence is available.";
-    document.addEventListener("pointerup", () => {
-      this.dragging = false;
-    }, { once: true });
     element<HTMLButtonElement>("sequence-realize").disabled = !hasCollapsed;
     element<HTMLButtonElement>("sequence-collapse").disabled = !hasRealized;
     this.syncSelection();

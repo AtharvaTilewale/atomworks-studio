@@ -159,8 +159,20 @@ try {
   await page.locator("#atomworks-studio-menu > summary").click();
   assert.deepEqual(await page.locator("#pick-scope option").allTextContents(), ["Atom", "Residue", "Chain"]);
   assert.ok(await page.locator(".sequence-dock .sequence-token").count(), "top sequence dock has residues");
-  await page.locator(".sequence-dock .sequence-token[data-atoms]").first().click();
+  const sequenceResidues = page.locator(".sequence-dock .sequence-token[data-atoms]");
+  await sequenceResidues.first().click();
   assert.equal(await page.locator(".sequence-dock .sequence-token.selected").count(), 1);
+  if (await sequenceResidues.count() >= 4) {
+    await sequenceResidues.nth(1).click({ modifiers: ["Control"] });
+    assert.equal(await page.locator(".sequence-dock .sequence-token.selected").count(), 2);
+    await sequenceResidues.nth(3).click({ modifiers: ["Shift"] });
+    assert.equal(await page.locator(".sequence-dock .sequence-token.selected").count(), 3);
+  }
+  await page.locator("#sequence-toggle").click();
+  assert.equal(await page.locator("#sequence-view").isHidden(), true);
+  assert.equal(await page.locator("#sequence-toggle").innerText(), "Show sequence");
+  await page.locator("#sequence-toggle").click();
+  assert.equal(await page.locator("#sequence-view").isVisible(), true);
   const selectedBeforeMutation = await page.locator("#selection-count").innerText();
   await page.locator("#atomworks-studio-menu > summary").click();
   assert.equal(await page.locator("#atomworks-studio-menu").getAttribute("open"), "");
@@ -200,6 +212,15 @@ try {
   await page.locator("#run-viewer-command").click();
   await page.waitForFunction(() => document.querySelector("#selection-count")?.textContent?.startsWith("2 atoms"));
   await page.locator('[data-menu="analyze"] > summary').click();
+  assert.equal(
+    await page.locator('[data-menu="analyze"] .viewer-menu-popover').evaluate((popover) => {
+      const bounds = popover.getBoundingClientRect();
+      const hit = document.elementFromPoint(bounds.left + 5, bounds.top + 5);
+      return hit !== null && (hit === popover || popover.contains(hit));
+    }),
+    true,
+    "Analyze popover is not clipped behind the sequence dock",
+  );
   assert.equal(await page.locator("#add-measurement").isEnabled(), true);
   await page.locator("#add-measurement").click();
   await page.waitForFunction(

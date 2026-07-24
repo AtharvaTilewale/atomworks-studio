@@ -192,10 +192,14 @@
             <span id="selection-count" class="selection-count">0 atoms selected</span>
             <button id="clear-selection" class="secondary compact" type="button">Clear</button>
           </div>
-          <div class="sequence-dock">
+          <div id="sequence-dock" class="sequence-dock">
             <div class="sequence-dock-heading">
               <strong>Sequence</strong>
+              <span class="sequence-help">Drag · Shift range · Ctrl/⌘ toggle</span>
               <div class="button-row">
+                <button id="sequence-toggle" class="secondary compact" type="button" aria-expanded="true">
+                  Hide sequence
+                </button>
                 <button id="sequence-realize" class="secondary compact" disabled>Expand segments</button>
                 <button id="sequence-collapse" class="secondary compact" disabled>Collapse segments</button>
               </div>
