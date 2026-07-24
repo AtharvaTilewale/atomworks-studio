@@ -126,7 +126,7 @@ try {
     }, af3Available);
     assert.equal(await page.locator("#search-af3-note").evaluate((element) => element.hidden), !af3Available);
     const expectedReward = af3Available
-      ? "oracle.plddt_coi"
+      ? "oracle.ranking_score"
       : "interchain_interactions.hbond_atom_pair_count_coi";
     assert.equal(await page.locator("#search-reward").inputValue(), expectedReward);
     assert.ok(

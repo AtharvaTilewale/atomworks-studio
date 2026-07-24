@@ -327,12 +327,13 @@ search:
     reward_metrics_tags:
       - unconditional_refolding
     weights:
-      oracle.plddt_coi: 1.0
+      oracle.ranking_score: 1.0
 ```
 
 In the Studio, choose Search mode, select `unconditional_refolding`, set the
-reward key to `oracle.plddt_coi`, then set diffusion checkpoints, branching,
-and beam width. RFD4 writes generated CIFs and per-example metric CSV files.
+reward key to `oracle.ranking_score`, then set diffusion checkpoints, branching,
+and beam width. Use `oracle.plddt_coi` only for inputs with a chain-of-interest
+annotation. RFD4 writes generated CIFs and per-example metric CSV files.
 The Studio collects and ranks outputs, returns generated and AF3-refolded CIFs,
 shows numeric metrics, and exposes pLDDT/confidence-like CIF fields for viewer
 coloring.

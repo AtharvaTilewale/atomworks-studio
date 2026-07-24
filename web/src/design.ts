@@ -121,7 +121,9 @@ const REWARD_METRIC_PRESETS: Record<string, RewardMetricPreset[]> = {
     { value: "design_unindexed_motif_allatom_rmsd.rmsd", label: "Insertion RMSD (minimize)", weight: -1 },
   ],
   unconditional_refolding: [
-    { value: "oracle.plddt_coi", label: "AF3 chain pLDDT (maximize)", weight: 1 },
+    { value: "oracle.ranking_score", label: "AF3 ranking score (maximize)", weight: 1 },
+    { value: "oracle.overall_ptm", label: "AF3 overall pTM (maximize)", weight: 1 },
+    { value: "oracle.plddt_coi", label: "AF3 chain pLDDT (maximize; requires COI)", weight: 1 },
     { value: "refolded_backbone_rmsd.rmsd", label: "AF3 backbone RMSD (minimize)", weight: -1 },
   ],
   ppi_refolding: [

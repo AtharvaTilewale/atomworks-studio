@@ -110,8 +110,9 @@ defaults its reward group to `interchain_interactions` and maximizes
 groups does not accidentally run them during every beam rollout. Quick starts
 also set task-aware search rewards: PPI/DISCO use interface hydrogen bonds,
 while MCSA minimizes `clash_metrics.frac_atoms_clashing_1p5A`. The reward group,
-metric key, and weight remain editable, including AF3 `oracle.plddt_coi` search
-when the corresponding refolding group is available.
+metric key, and weight remain editable, including AF3 `oracle.ranking_score`
+search when unconditional refolding is available. Chain-specific AF3 rewards
+such as `oracle.plddt_coi` require a chain-of-interest annotation.
 
 These are modes of the same application, not separate Patinae and Mol*
 implementations. Upload, editing, annotation summaries, export, and API calls
