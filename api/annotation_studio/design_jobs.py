@@ -402,7 +402,7 @@ class ProcessDesignProvider:
         project_root: Path,
         command: list[str] | None,
         timeout_seconds: int = 4 * 60 * 60,
-        max_active_jobs: int = 4,
+        max_active_jobs: int = 1,
         retention_seconds: int = 7 * 24 * 60 * 60,
     ) -> None:
         self.root = root
@@ -444,7 +444,7 @@ class ProcessDesignProvider:
             project_root=project_root,
             command=shlex.split(command_value) if command_value else None,
             timeout_seconds=int(os.environ.get("ANNOTATION_STUDIO_JOB_TIMEOUT_SECONDS", 4 * 60 * 60)),
-            max_active_jobs=int(os.environ.get("ANNOTATION_STUDIO_MAX_ACTIVE_JOBS", 4)),
+            max_active_jobs=int(os.environ.get("ANNOTATION_STUDIO_MAX_ACTIVE_JOBS", 1)),
             retention_seconds=int(os.environ.get("ANNOTATION_STUDIO_JOB_RETENTION_SECONDS", 7 * 24 * 60 * 60)),
         )
 

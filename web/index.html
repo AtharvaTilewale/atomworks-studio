@@ -48,7 +48,7 @@
         </div>
       </header>
 
-      <section class="workspace">
+      <section id="workspace" class="workspace">
         <div class="viewer-column">
           <div id="viewer-toolbar" class="viewer-toolbar">
             <label class="viewer-choice compact-choice">Renderer
@@ -240,7 +240,7 @@
         </div>
 
         <aside id="atomworks-studio-popover" class="studio-menu-popover" aria-label="Studio controls">
-          <section class="drawer-stack" aria-label="Viewer data drawers">
+          <section class="drawer-stack" data-studio-panel="atomworks" aria-label="Viewer data drawers">
             <details id="objects-drawer" class="card drawer">
               <summary>Objects</summary>
               <div id="object-list" class="drawer-list muted">Open a structure to list objects.</div>
@@ -255,7 +255,7 @@
               <div id="analysis-results" class="drawer-list"></div>
             </details>
           </section>
-          <details class="card quick-start-card" open>
+          <details class="card quick-start-card" data-studio-panel="atomworks" open>
             <summary>Quick-start examples</summary>
             <p class="muted">Load a ready-to-run annotated CIF, inspect its conditions, then edit or generate.</p>
             <div class="example-list">
@@ -295,7 +295,7 @@
             </div>
           </details>
 
-          <section class="card">
+          <section class="card" data-studio-panel="atomworks">
             <h2>Structure</h2>
             <div id="structure-summary" class="muted">Open an annotated CIF to begin.</div>
             <div class="button-row">
@@ -304,7 +304,7 @@
             </div>
           </section>
 
-          <details id="design-card" class="card rfd4-card" open>
+          <details id="design-card" class="card" data-studio-panel="rfd4" open>
             <summary>Generate with RFD4</summary>
             <p id="design-availability" class="muted">Checking GPU design service…</p>
             <label>Workflow
@@ -369,7 +369,7 @@
             <div id="design-metric-summary" class="metric-summary"></div>
           </details>
 
-          <section class="card">
+          <section class="card" data-studio-panel="atomworks">
             <div class="card-title-row">
               <h2>Annotation summary</h2>
               <button id="clear-annotation-view" class="secondary compact" disabled>Clear colors</button>
@@ -382,7 +382,7 @@
             </div>
           </section>
 
-          <section class="card">
+          <section class="card" data-studio-panel="atomworks">
             <h2>Condition</h2>
             <label>Type<select id="condition"></select></label>
             <label>Selection scope
@@ -397,7 +397,7 @@
             <button id="apply-condition" disabled>Apply to selection</button>
           </section>
 
-          <details class="card">
+          <details class="card" data-studio-panel="atomworks">
             <summary>Charges and bonds</summary>
             <div class="inline-fields">
               <label>Charge action
@@ -415,7 +415,7 @@
             <p class="muted">Bond actions require exactly two selected atoms.</p>
           </details>
 
-          <details class="card">
+          <details class="card" data-studio-panel="atomworks">
             <summary>Structure editing</summary>
             <div class="button-row">
               <button id="delete-atoms" class="danger" disabled>Delete selected</button>
@@ -451,7 +451,7 @@
             </div>
           </details>
 
-          <section class="card log-card">
+          <section class="card log-card" data-studio-panel="atomworks">
             <h2>Status</h2>
             <pre id="status">Initializing molecular viewer and CIF WASM…</pre>
           </section>

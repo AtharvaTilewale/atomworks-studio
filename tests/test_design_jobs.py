@@ -18,6 +18,17 @@ FIXTURE = ROOT / "data" / "benchmarks" / "SAM_hbonds.cif"
 FAKE_RFD4 = Path(__file__).parent / "fake_rfd4.py"
 
 
+def test_single_gpu_provider_defaults_to_one_active_job(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("ANNOTATION_STUDIO_JOB_DIR", str(tmp_path / "jobs"))
+    monkeypatch.setenv("ANNOTATION_STUDIO_RFD4_COMMAND", "rfd4")
+    monkeypatch.delenv("ANNOTATION_STUDIO_MAX_ACTIVE_JOBS", raising=False)
+    manager = ProcessDesignProvider.from_environment(tmp_path)
+    assert manager.max_active_jobs == 1
+    manager.close()
+
+
 def test_schema_only_advertises_af3_metrics_when_configured(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

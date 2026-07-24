@@ -44,20 +44,32 @@ export class ViewerToolbarController {
   private readonly viewerActionTarget = element<HTMLSelectElement>("viewer-action-target");
   private readonly representationExclusive = element<HTMLInputElement>("representation-exclusive");
   private readonly studioMenu = element<HTMLDetailsElement>("atomworks-studio-menu");
+  private readonly workspace = element<HTMLElement>("workspace");
 
   constructor(private readonly options: ViewerToolbarControllerOptions) {}
 
   bind(): void {
     for (const menu of document.querySelectorAll<HTMLDetailsElement>(".viewer-menu")) {
       menu.addEventListener("toggle", () => {
+        const studioTab = menu.id === "atomworks-studio-menu"
+          ? "atomworks"
+          : menu.id === "rfd4-proteina-menu"
+          ? "rfd4"
+          : null;
         if (menu.open) {
           closeToolbarMenus(menu);
-          if (menu.id === "atomworks-studio-menu" || menu.id === "rfd4-proteina-menu") {
+          if (studioTab) {
+            this.workspace.dataset.studioTab = studioTab;
             element("atomworks-studio-popover").setAttribute(
               "aria-label",
-              menu.id === "rfd4-proteina-menu" ? "RFD4-Proteina" : "AtomWorks Studio",
+              studioTab === "rfd4" ? "RFD4-Proteina" : "AtomWorks Studio",
             );
           }
+        } else if (
+          studioTab === this.workspace.dataset.studioTab
+          && !document.querySelector(".studio-menu[open]")
+        ) {
+          delete this.workspace.dataset.studioTab;
         }
       });
     }

@@ -98,10 +98,9 @@ h2 { margin: 0 0 12px; font-size: 14px; text-transform: uppercase; letter-spacin
   border: 1px solid #355064; border-radius: 6px; background: #0e1a23;
   box-shadow: 0 10px 30px #000a;
 }
-.workspace:has(#atomworks-studio-menu[open]) > .studio-menu-popover,
-.workspace:has(#rfd4-proteina-menu[open]) > .studio-menu-popover { display: grid; }
-.workspace:has(#atomworks-studio-menu[open]) > .studio-menu-popover > .rfd4-card,
-.workspace:has(#rfd4-proteina-menu[open]) > .studio-menu-popover > :not(.rfd4-card) { display: none; }
+.workspace[data-studio-tab] > .studio-menu-popover { display: grid; }
+.workspace[data-studio-tab="atomworks"] > .studio-menu-popover > [data-studio-panel="rfd4"],
+.workspace[data-studio-tab="rfd4"] > .studio-menu-popover > [data-studio-panel="atomworks"] { display: none; }
 .studio-menu-popover > * { grid-column: 1; width: 100%; }
 .studio-menu-popover > .card { margin: 0; align-self: start; }
 .viewer-menu-popover label { margin: 0 0 8px; font-size: 10px; }

@@ -175,10 +175,14 @@ try {
   assert.equal(await page.locator("#sequence-view").isVisible(), true);
   const selectedBeforeMutation = await page.locator("#selection-count").innerText();
   await page.locator("#atomworks-studio-menu > summary").click();
+  await page.waitForFunction(
+    () => document.querySelector("#workspace")?.getAttribute("data-studio-tab") === "atomworks",
+  );
   assert.equal(await page.locator("#atomworks-studio-menu").getAttribute("open"), "");
   assert.ok(await page.locator("#annotation-list").isVisible(), "AtomWorks annotations are in the Studio menu");
   assert.equal(await page.locator("#design-card").isHidden(), true, "RFD4 controls are separate from AtomWorks");
-  const studioCards = page.locator("#atomworks-studio-popover > :not(.rfd4-card)");
+  assert.equal(await page.locator("#workspace").getAttribute("data-studio-tab"), "atomworks");
+  const studioCards = page.locator('#atomworks-studio-popover > [data-studio-panel="atomworks"]');
   assert.equal(
     await studioCards.evaluateAll((cards) =>
       cards.every((card) => Math.abs(card.getBoundingClientRect().width - cards[0].getBoundingClientRect().width) < 1)
@@ -194,6 +198,7 @@ try {
   );
   assert.equal(await page.locator("#design-card").isVisible(), true);
   assert.equal(await page.locator("#annotation-list").isHidden(), true);
+  assert.equal(await page.locator("#workspace").getAttribute("data-studio-tab"), "rfd4");
   assert.equal(await page.locator("#design-card #submit-design").count(), 1);
   await page.locator("#atomworks-studio-menu > summary").click();
   assert.deepEqual(await page.locator("#charge-action option").allTextContents(), ["Set", "Add delta"]);

@@ -51,7 +51,6 @@ mkdir -p \
 configure_persistent_compile_cache "${state_root}"
 
 gpu_device="${RFD4_GPU_DEVICE:-0}"
-export CUDA_VISIBLE_DEVICES="${gpu_device}"
 export ANNOTATION_STUDIO_HOST="${ANNOTATION_STUDIO_HOST:-127.0.0.1}"
 export ANNOTATION_STUDIO_PORT="${ANNOTATION_STUDIO_PORT:-8000}"
 export ANNOTATION_STUDIO_JOB_DIR="${state_root}/jobs"
@@ -68,9 +67,10 @@ if [[ -n "${LOCAL_RFD4_IMAGE:-}" ]]; then
   }
   export ANNOTATION_STUDIO_RFD4_COMMAND="docker run --rm --gpus device=${gpu_device} --volume ${project_root}:${project_root} --volume ${DATA_PATH}:${DATA_PATH}:ro --volume ${state_root}:${state_root} --volume /tmp:/tmp --env DATA_PATH=${DATA_PATH} --env CLUSTER=local --env PROJECT_ROOT=${project_root} --env PYTHONPATH=${project_root}/src:${project_root}/lib/atomworks/src --env TORCHINDUCTOR_CACHE_DIR=${TORCHINDUCTOR_CACHE_DIR} --env TRITON_CACHE_DIR=${TRITON_CACHE_DIR} --env CUDA_CACHE_PATH=${CUDA_CACHE_PATH} --env TORCHINDUCTOR_FX_GRAPH_CACHE=${TORCHINDUCTOR_FX_GRAPH_CACHE} --env AF3_LAUNCHER_SOCKET_TEMPLATE --workdir ${project_root} ${LOCAL_RFD4_IMAGE} ${project_root}/src/rfproteina/generate.py"
 elif [[ -n "${LOCAL_RFD4_COMMAND:-}" ]]; then
-  export ANNOTATION_STUDIO_RFD4_COMMAND="${LOCAL_RFD4_COMMAND}"
+  export ANNOTATION_STUDIO_RFD4_COMMAND="env CUDA_VISIBLE_DEVICES=${gpu_device} ${LOCAL_RFD4_COMMAND}"
 else
-  CLUSTER=local RFPROTEINA_LIGHTWEIGHT_IMPORT=0 "${project_root}/.venv/bin/python" - <<'PY' || {
+  CUDA_VISIBLE_DEVICES="${gpu_device}" CLUSTER=local RFPROTEINA_LIGHTWEIGHT_IMPORT=0 \
+    "${project_root}/.venv/bin/python" - <<'PY' || {
 import torch
 raise SystemExit(0 if torch.cuda.is_available() else 1)
 PY
@@ -78,7 +78,7 @@ PY
     echo "Upgrade to a driver compatible with its CUDA stack, or set LOCAL_RFD4_IMAGE to a CUDA-compatible image." >&2
     exit 1
   }
-  export ANNOTATION_STUDIO_RFD4_COMMAND="env RFPROTEINA_LIGHTWEIGHT_IMPORT=0 ${project_root}/.venv/bin/python ${project_root}/src/rfproteina/generate.py"
+  export ANNOTATION_STUDIO_RFD4_COMMAND="env CUDA_VISIBLE_DEVICES=${gpu_device} RFPROTEINA_LIGHTWEIGHT_IMPORT=0 ${project_root}/.venv/bin/python ${project_root}/src/rfproteina/generate.py"
 fi
 export RFPROTEINA_LIGHTWEIGHT_IMPORT=1
 
