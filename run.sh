@@ -6,8 +6,13 @@ repo_dir="$(cd "${studio_dir}/../.." && pwd)"
 web_dir="${studio_dir}/web"
 dist_index="${web_dir}/dist/index.html"
 
-if ! command -v pnpm >/dev/null 2>&1 && [[ -x "${HOME}/.local/share/pnpm/pnpm" ]]; then
-  export PATH="${HOME}/.local/share/pnpm:${PATH}"
+if ! command -v pnpm >/dev/null 2>&1; then
+  for pnpm_dir in "${HOME}/.local/bin" "${HOME}/.local/share/pnpm"; do
+    if [[ -x "${pnpm_dir}/pnpm" ]]; then
+      export PATH="${pnpm_dir}:${PATH}"
+      break
+    fi
+  done
 fi
 if ! command -v uv >/dev/null 2>&1 && [[ -x "${HOME}/.local/bin/uv" ]]; then
   export PATH="${HOME}/.local/bin:${PATH}"
