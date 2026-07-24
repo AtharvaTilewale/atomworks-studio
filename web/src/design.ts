@@ -397,6 +397,9 @@ export async function initializeDesignController(options: DesignControllerOption
   let activeDocumentIndex = -1;
   const comparedDocumentKeys = new Set<string>();
   let comparisonActive = false;
+  let comparisonLoading = false;
+  let comparisonGeneration = 0;
+  let comparisonQueue = Promise.resolve();
 
   const documentKey = (document: DesignDocument): string => `${document.kind}:${document.id}`;
 
@@ -408,8 +411,8 @@ export async function initializeDesignController(options: DesignControllerOption
       !hasDocuments
       || activeDocumentIndex < 0
       || activeDocuments[activeDocumentIndex]?.kind === "input";
-    compareDesigns.disabled = comparedDocumentKeys.size < 2;
-    compareDesigns.textContent = `Compare selected (${comparedDocumentKeys.size})`;
+    compareDesigns.disabled = comparisonLoading || comparedDocumentKeys.size < 2;
+    compareDesigns.textContent = `Visualize selected (${comparedDocumentKeys.size})`;
     clearDesignComparison.disabled = !comparisonActive;
     designPosition.textContent = hasDocuments && activeDocumentIndex >= 0
       ? `${activeDocumentIndex + 1} / ${activeDocuments.length}`
@@ -492,6 +495,27 @@ export async function initializeDesignController(options: DesignControllerOption
     status.textContent =
       `Comparing ${opened.map((document) => document.label).join(" · ")}. `
       + "Input is cyan; outputs use magenta, orange, and green.";
+  }
+
+  function compareSelectedSafely(): void {
+    const generation = ++comparisonGeneration;
+    comparisonLoading = true;
+    updateDocumentControls();
+    comparisonQueue = comparisonQueue.then(async () => {
+      if (generation !== comparisonGeneration) return;
+      try {
+        await compareSelectedDocuments();
+      } catch (error) {
+        if (generation === comparisonGeneration) {
+          status.textContent = `Could not compare structures: ${String(error)}`;
+        }
+      } finally {
+        if (generation === comparisonGeneration) {
+          comparisonLoading = false;
+          updateDocumentControls();
+        }
+      }
+    });
   }
 
   function cycleDocument(offset: number): void {
@@ -577,13 +601,25 @@ export async function initializeDesignController(options: DesignControllerOption
             : "generated"
           : formatValue(primaryMetric);
       button.append(kind, label, score);
-      button.addEventListener("click", () => openSafely(designDocument, button));
+      button.addEventListener("click", () => {
+        if (comparedDocumentKeys.size >= 2) compareSelectedSafely();
+        else {
+          comparisonGeneration += 1;
+          comparisonLoading = false;
+          openSafely(designDocument, button);
+        }
+      });
       compare.addEventListener("change", () => {
         const key = documentKey(designDocument);
         if (compare.checked) comparedDocumentKeys.add(key);
         else comparedDocumentKeys.delete(key);
         row.classList.toggle("compared", compare.checked);
-        updateDocumentControls();
+        if (comparedDocumentKeys.size >= 2) compareSelectedSafely();
+        else {
+          comparisonGeneration += 1;
+          comparisonLoading = false;
+          updateDocumentControls();
+        }
       });
       row.classList.toggle("compared", compare.checked);
       row.append(compare, button);
@@ -630,12 +666,11 @@ export async function initializeDesignController(options: DesignControllerOption
     }).finally(updateDocumentControls);
   });
   compareDesigns.addEventListener("click", () => {
-    compareDesigns.disabled = true;
-    void compareSelectedDocuments().catch((error) => {
-      status.textContent = `Could not compare structures: ${String(error)}`;
-    }).finally(updateDocumentControls);
+    compareSelectedSafely();
   });
   clearDesignComparison.addEventListener("click", () => {
+    comparisonGeneration += 1;
+    comparisonLoading = false;
     clearDesignComparison.disabled = true;
     void options.clearComparison().then(() => {
       comparisonActive = false;

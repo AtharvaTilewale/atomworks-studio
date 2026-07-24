@@ -164,7 +164,7 @@ export class AnalysisController {
       type: interaction.interaction_type,
       atom1: interaction.atom1,
       atom2: interaction.atom2,
-      label: `${interaction.interaction_type} ${interaction.distance.toFixed(2)} Å`,
+      label: `${interaction.distance.toFixed(2)} Å`,
       color: colors[interaction.interaction_type] ?? 0xffd54f,
     }));
     const visualLimit = Number(element<HTMLInputElement>("interaction-visual-limit").value);

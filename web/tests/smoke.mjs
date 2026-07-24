@@ -283,6 +283,8 @@ try {
     { timeout: 30_000 },
   );
   assert.equal(await page.locator(".interaction-result").count(), 1);
+  assert.match(await page.locator("#measurement-list").innerText(), /^\d+\.\d{2} Å/);
+  assert.doesNotMatch(await page.locator("#measurement-list").innerText(), /hbond/i);
   await page.locator(".interaction-result").click();
   assert.match(await page.locator("#selection-count").innerText(), /^2 atoms/);
   await page.locator("#atomworks-studio-menu > summary").click();
@@ -409,13 +411,15 @@ try {
     for (let index = 0; index < await comparisonChecks.count(); index += 1) {
       await comparisonChecks.nth(index).check();
     }
-    assert.equal(await page.locator("#compare-designs").isEnabled(), true);
-    assert.equal(await page.locator("#compare-designs").innerText(), "Compare selected (2)");
-    await page.locator("#compare-designs").click();
+    assert.equal(await page.locator("#compare-designs").innerText(), "Visualize selected (2)");
     await page.waitForFunction(
       () => document.querySelector("#viewer")?.getAttribute("data-comparison-structures") === "2",
     );
     assert.match(await page.locator("#design-job-status").innerText(), /Comparing/);
+    await page.locator(".document-button").last().click();
+    await page.waitForFunction(
+      () => document.querySelector("#viewer")?.getAttribute("data-comparison-structures") === "2",
+    );
     assert.equal(await page.locator("#clear-design-comparison").isEnabled(), true);
     await page.locator("#clear-design-comparison").click();
     await page.waitForFunction(

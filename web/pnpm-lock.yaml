@@ -272,7 +272,7 @@ packages:
     engines: {node: '>= 10.0.0'}
 
   '@patinae/viewer@file:vendor/patinae-viewer-0.4.4.tgz':
-    resolution: {integrity: sha512-Dpnq+uuFtqtsv4LAmrZbU5dlaYMXY0jCUbOnTKJeqbGn/BzUH8fY1PeYouofOty0yeEaSIazHJ5U0XpXvIuhdQ==, tarball: file:vendor/patinae-viewer-0.4.4.tgz}
+    resolution: {integrity: sha512-qU3png9sIsjMR/spKqtS3Fvo2BiOD+Yp/LilLCHiGIJIedBHMhKzoffdaIKeLIVxADrxzcvp0+hCRXtQltnnyA==, tarball: file:vendor/patinae-viewer-0.4.4.tgz}
     version: 0.4.4
 
   '@rollup/rollup-android-arm-eabi@4.62.2':
