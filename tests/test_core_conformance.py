@@ -5,23 +5,30 @@ from pathlib import Path
 import numpy as np
 import pytest
 from annotation_studio.core import StudioDocument
-from annotation_studio.rfd4_provider import CONDITION_PROVIDER
+from annotation_studio.rfd4_provider import CONDITION_PROVIDER, VALIDATION_PROVIDER
 from atomworks.io.utils.validation import validate_atom_array
 from atomworks.ml.conditions import C_DIS
 from atomworks.ml.conditions.mutations import edit_distance_restraint
-
 from rfproteina.condition_specs import INTERACTIVE_CONDITION_SPECS
 
-ROOT = Path(__file__).resolve().parents[3]
-FIXTURE = ROOT / "data" / "benchmarks" / "SAM_hbonds.cif"
+FIXTURE = Path(__file__).parent / "fixtures" / "SAM_hbonds.cif"
 CONDITIONS = {
     definition.key: definition.condition for definition in CONDITION_PROVIDER.definitions
 }
 
 
+def _rfd4_document(cif: str, name: str = "structure") -> StudioDocument:
+    return StudioDocument.from_cif(
+        cif,
+        name,
+        condition_provider=CONDITION_PROVIDER,
+        validation_provider=VALIDATION_PROVIDER,
+    )
+
+
 @pytest.fixture
 def document() -> StudioDocument:
-    return StudioDocument.from_cif(FIXTURE.read_text(), FIXTURE.stem)
+    return _rfd4_document(FIXTURE.read_text(), FIXTURE.stem)
 
 
 @pytest.mark.parametrize(
@@ -45,7 +52,7 @@ def test_every_plugin_condition_survives_cif_roundtrip(
     scope: str,
 ) -> None:
     document.set_condition(name, [0], enabled=True, value=value, scope=scope)
-    reparsed = StudioDocument.from_cif(document.to_cif())
+    reparsed = _rfd4_document(document.to_cif())
     condition = CONDITIONS[name]
 
     expected_mask = condition.mask(document.array, default="generate")
@@ -59,8 +66,8 @@ def test_every_plugin_condition_survives_cif_roundtrip(
 
 
 def test_export_is_semantically_idempotent(document: StudioDocument) -> None:
-    first = StudioDocument.from_cif(document.to_cif())
-    second = StudioDocument.from_cif(first.to_cif())
+    first = _rfd4_document(document.to_cif())
+    second = _rfd4_document(first.to_cif())
 
     assert len(first.array) == len(second.array)
     assert np.allclose(first.array.coord, second.array.coord, equal_nan=True)
@@ -68,7 +75,7 @@ def test_export_is_semantically_idempotent(document: StudioDocument) -> None:
 
 
 def test_align_to_restores_common_backbone_coordinates(document: StudioDocument) -> None:
-    reference = StudioDocument.from_cif(document.to_cif())
+    reference = _rfd4_document(document.to_cif())
     rotation = np.array([[0.0, -1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]])
     finite = np.isfinite(document.array.coord).all(axis=1)
     document.array.coord[finite] = document.array.coord[finite] @ rotation + [11.0, -7.0, 3.0]
@@ -85,12 +92,12 @@ def test_add_modify_delete_annotations_survive_each_export(document: StudioDocum
     all_indices = list(range(len(document.array)))
     document.set_condition("hotspot", all_indices, enabled=False)
     document.set_condition("hotspot", [0, 1], enabled=True)
-    added = StudioDocument.from_cif(document.to_cif())
+    added = _rfd4_document(document.to_cif())
     assert added.annotation_details("hotspot")[0]["values"][0]["atom_indices"] == [0, 1]
 
     added.set_condition("hotspot", [0], enabled=False)
     added.set_condition("rasa", [1], enabled=True, value=3)
-    modified = StudioDocument.from_cif(added.to_cif())
+    modified = _rfd4_document(added.to_cif())
     assert modified.annotation_details("hotspot")[0]["values"][0]["atom_indices"] == [1]
     rasa = modified.annotation_details("rasa")[0]
     assert rasa["values"][0]["label"] == "EXPOSED"
@@ -99,7 +106,7 @@ def test_add_modify_delete_annotations_survive_each_export(document: StudioDocum
 
     modified.set_condition("hotspot", [1], enabled=False)
     modified.set_condition("rasa", [1], enabled=False)
-    cleared = StudioDocument.from_cif(modified.to_cif())
+    cleared = _rfd4_document(modified.to_cif())
     assert cleared.annotation_details("hotspot") == []
     assert cleared.annotation_details("rasa") == []
 
@@ -138,7 +145,7 @@ def test_distance_restraints_use_shared_canonical_mutation(document: StudioDocum
     assert actual.values.tolist() == expected.values.tolist() == [3.25]
     assert document.annotation_details("distance")[0]["count"] == 1
     assert document.annotation_details("distance")[0]["values"][0]["atom_indices"] == [0, 1]
-    reparsed = StudioDocument.from_cif(document.to_cif())
+    reparsed = _rfd4_document(document.to_cif())
     assert reparsed.distance_restraints()[0]["distance"] == 3.25
 
     revision = document.revision
@@ -209,7 +216,7 @@ def test_expandable_only_protein_chain_survives_cif_roundtrip(document: StudioDo
         chain_type="polypeptide(L)",
     )
 
-    reparsed = StudioDocument.from_cif(document.to_cif())
+    reparsed = _rfd4_document(document.to_cif())
     chain = reparsed.array[reparsed.array.chain_id == "Z"]
 
     assert len(chain) == 1
@@ -218,7 +225,7 @@ def test_expandable_only_protein_chain_survives_cif_roundtrip(document: StudioDo
 
 
 def test_combine_resolves_chain_conflicts_and_reset_ids(document: StudioDocument) -> None:
-    other = StudioDocument.from_cif(FIXTURE.read_text(), "other")
+    other = _rfd4_document(FIXTURE.read_text(), "other")
     original_count = len(document.array)
     document.combine([other])
 

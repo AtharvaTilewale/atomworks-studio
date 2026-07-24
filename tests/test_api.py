@@ -5,11 +5,11 @@ from urllib.parse import parse_qs, urlparse
 
 from annotation_studio.core import StudioDocument
 from annotation_studio.main import DocumentStore, app
+from annotation_studio.rfd4_provider import CONDITION_PROVIDER, VALIDATION_PROVIDER
 from fastapi.testclient import TestClient
 from pytest import MonkeyPatch
 
-ROOT = Path(__file__).resolve().parents[3]
-FIXTURE = ROOT / "data" / "benchmarks" / "SAM_hbonds.cif"
+FIXTURE = Path(__file__).parent / "fixtures" / "SAM_hbonds.cif"
 client = TestClient(app)
 
 
@@ -43,6 +43,14 @@ def test_session_deep_link_and_optional_embedding_policy(monkeypatch: MonkeyPatc
     assert health.json()["revision"] == "test-revision"
 
 
+def test_versioned_api_is_canonical_and_legacy_routes_remain_compatible() -> None:
+    assert client.get("/api/v1/health").status_code == 200
+    assert client.get("/api/health").status_code == 200
+    paths = client.get("/openapi.json").json()["paths"]
+    assert "/api/v1/health" in paths
+    assert "/api/health" not in paths
+
+
 def test_upload_accepts_desktop_parse_options() -> None:
     response = client.post(
         "/api/sessions",
@@ -60,20 +68,41 @@ def test_upload_accepts_desktop_parse_options() -> None:
 
 
 def test_persistent_store_restores_mutations_after_restart(tmp_path: Path) -> None:
-    first_process = DocumentStore(tmp_path)
-    session_id = first_process.add(StudioDocument.from_cif(FIXTURE.read_text(), "persistent"))
+    first_process = DocumentStore(
+        tmp_path,
+        condition_provider=CONDITION_PROVIDER,
+        validation_provider=VALIDATION_PROVIDER,
+    )
+    session_id = first_process.add(
+        StudioDocument.from_cif(
+            FIXTURE.read_text(),
+            "persistent",
+            condition_provider=CONDITION_PROVIDER,
+            validation_provider=VALIDATION_PROVIDER,
+        )
+    )
     first_process.call(
         session_id,
         lambda document: document.set_condition("hotspot", [0], enabled=True),
         persist=True,
     )
 
-    restarted_process = DocumentStore(tmp_path)
+    restarted_process = DocumentStore(
+        tmp_path,
+        condition_provider=CONDITION_PROVIDER,
+        validation_provider=VALIDATION_PROVIDER,
+    )
     summary = restarted_process.call(session_id, lambda document: document.summary())
     assert summary["name"] == "persistent"
     assert summary["condition_counts"]["hotspot"] == 1
     assert summary["undo_depth"] == 0
     assert len(list(tmp_path.glob("*.session"))) == 1
+
+
+def test_readiness_endpoint() -> None:
+    response = client.get("/api/ready")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ready"}
 
 
 def test_full_condition_api_and_download_roundtrip() -> None:

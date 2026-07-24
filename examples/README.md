@@ -33,12 +33,13 @@ canonical repository inputs with:
 
 ```bash
 export CLUSTER=local
-export PYTHONPATH="$PWD/apps/annotation-studio/api:$PWD/src:$PWD/lib/atomworks/src"
-.venv/bin/python apps/annotation-studio/scripts/build_examples.py
+export ANNOTATION_STUDIO_RFD4_ROOT=/path/to/RFD4-Proteina-dev
+export PYTHONPATH="$PWD/packages/api:$ANNOTATION_STUDIO_RFD4_ROOT/src"
+uv run python scripts/build_examples.py
 ```
 
 Local generation requires the two checkpoints checked by
-`local/start.sh`:
+`deploy/local/start.sh`:
 
 ```text
 $DATA_PATH/latent_checkpoints/ldm_checkpoints/arch_sweep_2026_07_03_pair_trimult_every2_720k-ema.ckpt
@@ -47,4 +48,4 @@ $DATA_PATH/latent_checkpoints/ae_checkpoints/AE_ucond_512.ckpt
 
 AF3-backed PPI, MCSA, and DISCO refolding metrics additionally require a
 running AF3 daemon. They are intentionally not advertised by the Studio unless
-all AF3 runtime assets are configured; see `../local/README.md`.
+all AF3 runtime assets are configured; see `../deploy/local/README.md`.

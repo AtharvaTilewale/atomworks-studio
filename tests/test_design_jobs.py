@@ -13,8 +13,7 @@ from annotation_studio.design_jobs import (
     build_rfd4_config,
 )
 
-ROOT = Path(__file__).resolve().parents[3]
-FIXTURE = ROOT / "data" / "benchmarks" / "SAM_hbonds.cif"
+FIXTURE = Path(__file__).parent / "fixtures" / "SAM_hbonds.cif"
 FAKE_RFD4 = Path(__file__).parent / "fake_rfd4.py"
 
 
@@ -132,8 +131,6 @@ def test_local_gpu_provider_collects_cifs_and_metrics(tmp_path: Path) -> None:
         assert record["progress"]["elapsed_seconds"] >= 0
         assert time.monotonic() < deadline
         time.sleep(0.05)
-    manager.close()
-
     assert record["status"] == "completed", record["log_tail"]
     assert record["progress"]["phase"] == "Completed"
     assert record["progress"]["indeterminate"] is False
@@ -143,3 +140,20 @@ def test_local_gpu_provider_collects_cifs_and_metrics(tmp_path: Path) -> None:
     cif, output = manager.output_cif(record["id"], record["outputs"][0]["id"])
     assert "_atom_site." in cif
     assert output["kind"] == "generated"
+    manager.close()
+
+
+def test_running_job_can_be_cancelled(tmp_path: Path) -> None:
+    manager = ProcessDesignProvider(
+        root=tmp_path / "jobs",
+        project_root=tmp_path,
+        command=[sys.executable, "-c", "import time; time.sleep(30)"],
+    )
+    submitted = manager.submit(FIXTURE.read_text(encoding="utf-8"), "fixture", DesignJobRequest(num_designs=1))
+    deadline = time.monotonic() + 5
+    while manager.get(submitted["id"])["status"] == "queued" and time.monotonic() < deadline:
+        time.sleep(0.01)
+    cancelled = manager.cancel(submitted["id"])
+    assert cancelled["status"] == "cancelled"
+    assert manager.get(submitted["id"])["status"] == "cancelled"
+    manager.close()

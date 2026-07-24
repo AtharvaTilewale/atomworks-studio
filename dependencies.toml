@@ -1,0 +1,17 @@
+[atomworks]
+package = "atomworks"
+version = "2.1.1"
+repository = "https://github.com/baker-laboratory/atomworks-dev.git"
+revision = "8e4b2c39dc87a5097fbac1553154a99a46cf9bb7"
+
+[rfd4]
+repository = "https://github.com/baker-laboratory/RFD4-Proteina-dev.git"
+revision = "db94ca937fba69c390731f7688b3a4bf0c0a6495"
+runtime_variable = "ANNOTATION_STUDIO_RFD4_ROOT"
+
+[patinae]
+metadata = "vendor/patinae/UPSTREAM.toml"
+
+[molstar]
+package = "molstar"
+version = "5.11.0"

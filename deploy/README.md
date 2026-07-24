@@ -16,11 +16,11 @@ The production contract is intentionally split:
 
 ## 1. Quick local website
 
-From the repository root, the shortest path on a machine where `setup.sh` and
-the web dependencies have already run is:
+From the standalone Studio repository root, the shortest path on a machine
+where the web dependencies have already run is:
 
 ```bash
-RFPROTEINA_LIGHTWEIGHT_IMPORT=1 bash apps/annotation-studio/run.sh
+RFPROTEINA_LIGHTWEIGHT_IMPORT=1 bash run.sh
 ```
 
 Open either renderer explicitly:
@@ -39,21 +39,25 @@ rustup target add wasm32-unknown-unknown
 cargo install --locked --version 0.13.1 wasm-pack
 corepack enable
 corepack prepare pnpm@11.16.0 --activate
-pnpm --dir apps/annotation-studio/web install --frozen-lockfile
-RFPROTEINA_LIGHTWEIGHT_IMPORT=1 bash apps/annotation-studio/run.sh
+pnpm --dir packages/web install --frozen-lockfile
+RFPROTEINA_LIGHTWEIGHT_IMPORT=1 bash run.sh
 ```
 
 To test the exact production container:
 
 ```bash
 docker build \
-  --file apps/annotation-studio/Dockerfile \
+  --file deploy/Dockerfile \
   --tag annotation-studio:local \
   .
 docker run --rm --publish 8000:8000 annotation-studio:local
 ```
 
-Local editor mode intentionally has GPU design disabled unless
+The CPU image installs the published `atomworks[ml]` distribution and does not
+copy an RFD4 source tree. The standalone provider package can be added with
+`--build-arg ANNOTATION_STUDIO_INSTALL_RFD4_PROVIDER=true`; its `rfproteina`
+dependency is resolved as a package, not copied from another checkout. Local editor mode
+intentionally has GPU design disabled unless
 `ANNOTATION_STUDIO_JOB_DIR`, `ANNOTATION_STUDIO_RFD4_ROOT`, and
 `ANNOTATION_STUDIO_RFD4_COMMAND` are configured.
 
@@ -62,8 +66,7 @@ Local editor mode intentionally has GPU design disabled unless
 Before enabling deployment:
 
 1. Fetch `origin/main` and ensure the feature branch contains the latest main.
-2. Commit the Annotation Studio application, workflow, condition registry, and
-   required AtomWorks submodule revision.
+2. Commit the Studio application and deployment workflow.
 3. Open a pull request and require the `annotation-studio` workflow.
 4. Merge only after Python tests, both renderer E2E tests, the VSIX package,
    desktop plugin builds, and the production-container boot test pass.
@@ -78,7 +81,7 @@ git rev-list --left-right --count HEAD...origin/main
 The expected first number is branch-only commits and the second is commits
 missing from `origin/main`. Before a merge, the second number must be `0`.
 
-`apps/annotation-studio/VERSION` is the release version authority. The web and
+The Studio release version is the release authority. The web and
 VS Code `package.json` versions must match it. A tagged release uses:
 
 ```bash
@@ -113,7 +116,7 @@ cluster-admin.
 The workflow publishes:
 
 ```text
-ghcr.io/baker-laboratory/rfd4-proteina-dev/annotation-studio:<git-sha>
+ghcr.io/baker-laboratory/atomworks-studio:<git-sha>
 ```
 
 Keep the SHA tag as deployment authority. `latest` is only a convenience tag.
@@ -147,18 +150,18 @@ environment secrets, not in repository files or chat:
 
 ```bash
 gh variable set ANNOTATION_STUDIO_HOST \
-  --repo baker-laboratory/RFD4-Proteina-dev \
+  --repo baker-laboratory/atomworks-studio \
   --env annotation-studio \
   --body studio.example.com
 
 base64 -w0 deploy-kubeconfig.yaml |
   gh secret set KUBE_CONFIG_B64 \
-    --repo baker-laboratory/RFD4-Proteina-dev \
+    --repo baker-laboratory/atomworks-studio \
     --env annotation-studio
 
 printf '%s' "$GHCR_READ_PACKAGES_TOKEN" |
   gh secret set GHCR_PULL_TOKEN \
-    --repo baker-laboratory/RFD4-Proteina-dev \
+    --repo baker-laboratory/atomworks-studio \
     --env annotation-studio
 ```
 
@@ -178,7 +181,7 @@ deployment gate:
 
 ```bash
 gh variable set ANNOTATION_STUDIO_DEPLOY_ENABLED \
-  --repo baker-laboratory/RFD4-Proteina-dev \
+  --repo baker-laboratory/atomworks-studio \
   --body true
 ```
 
@@ -203,14 +206,17 @@ back to the other.
 
 Create a Brev Launchable in VM Mode:
 
-1. Select this Git repository, including its AtomWorks submodule.
-2. Set `apps/annotation-studio/brev/launchable-setup.sh` as the setup script.
+1. Select the standalone Studio Git repository.
+2. Set `deploy/brev/launchable-setup.sh` as the setup script.
 3. Disable Jupyter unless separately required.
 4. Add an authenticated Secure Link named `studio` for port `8000`.
 5. Use a GPU with enough VRAM for RFD4 and the intended input sizes.
 6. Use persistent disk mounted under `/home/ubuntu/workspace`.
-7. Set `DATA_PATH` to a persistent directory containing the RFD4 checkpoints.
-8. Set `BREV_RFD4_STATE_DIR` to
+7. Clone RFD4 separately and set `RFPROTEINA_ROOT` (or
+   `ANNOTATION_STUDIO_RFD4_ROOT`) to that checkout. The launcher never derives
+   RFD4 from the Studio path.
+8. Set `DATA_PATH` to a persistent directory containing the RFD4 checkpoints.
+9. Set `BREV_RFD4_STATE_DIR` to
    `/home/ubuntu/workspace/rfd4-annotation-studio`.
 
 The setup installs the web toolchain, reuses the repository `setup.sh`, creates
@@ -292,8 +298,8 @@ refolding metrics, and beam-search rewards reuse the daemon.
 To validate AF3 independently on a configured GPU host:
 
 ```bash
-source .ipd/.env.local
-./scripts/run_af3_daemon_smoke.sh --gpu 0
+source "${RFPROTEINA_ROOT}/.ipd/.env.local"
+"${RFPROTEINA_ROOT}/scripts/run_af3_daemon_smoke.sh" --gpu 0
 ```
 
 The smoke test starts the actual daemon and waits for the worker status to

@@ -7,8 +7,7 @@ from annotation_studio.contracts import ConditionDefinition
 from annotation_studio.core import StudioDocument
 from atomworks.io.utils.atom_array_plus import AtomArrayPlus
 
-ROOT = Path(__file__).resolve().parents[3]
-FIXTURE = ROOT / "data" / "benchmarks" / "SAM_hbonds.cif"
+FIXTURE = Path(__file__).parent / "fixtures" / "SAM_hbonds.cif"
 
 
 class EmptyConditionProvider:
@@ -45,3 +44,10 @@ def test_document_uses_explicit_model_providers() -> None:
         "message": "basic",
     }
     assert document.validate(full_pipeline=True)[-1]["message"] == "full"
+
+
+def test_document_defaults_are_model_neutral() -> None:
+    document = StudioDocument.from_cif(FIXTURE.read_text(encoding="utf-8"))
+
+    assert document.annotation_details() == []
+    assert document.condition_provider.definitions == ()

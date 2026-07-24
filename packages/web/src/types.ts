@@ -1,0 +1,100 @@
+export type ConditionDefinition = {
+  label: string;
+  kind: "mask" | "enum" | "integer" | "vector3" | "pair";
+  level: string;
+  default: number | boolean | null;
+  values?: Record<string, number>;
+};
+
+export type StudioSchema = {
+  conditions: Record<string, ConditionDefinition>;
+  bond_types: string[];
+};
+
+export type AnnotationValue = {
+  label: string;
+  value?: number | number[] | string | boolean | null;
+  count: number;
+  atom_indices?: number[];
+  color?: { name: string; value: number };
+};
+
+export type AnnotationSummary = {
+  name: string;
+  label: string;
+  count: number;
+  unit: string;
+  values: AnnotationValue[];
+  truncated?: boolean;
+};
+
+export type SequenceResidue = {
+  kind: "residue";
+  atom_indices: number[];
+  residue_id: number;
+  residue_name: string;
+  code: string;
+  conditions: string[];
+};
+
+export type SequenceSegment = {
+  kind: "segment";
+  atom_indices: number[];
+  minimum: number;
+  maximum: number;
+  realized: boolean;
+  realized_length: number | null;
+};
+
+export type SequenceChain = {
+  chain_id: string;
+  items: Array<SequenceResidue | SequenceSegment>;
+};
+
+export type StructureSummary = {
+  name: string;
+  atom_count: number;
+  chain_ids: string[];
+  sequence: SequenceChain[];
+  condition_counts: Record<string, number>;
+  annotations: AnnotationSummary[];
+  stored_fields: AnnotationSummary[];
+  scalar_fields: AnnotationSummary[];
+  undo_depth: number;
+  validation: Array<{ severity: string; check: string; message: string }>;
+};
+
+export type SessionResponse = {
+  session_id: string;
+  editor_path?: string;
+  structure: StructureSummary;
+};
+
+export type SelectionScope = "atom" | "residue" | "chain";
+export type SelectionSyntax = "patinae" | "expression" | "path";
+
+export type AnalysisResult = {
+  label?: string;
+  name?: string;
+  value?: number | string;
+  unit?: string;
+  atom_indices?: number[];
+  [key: string]: unknown;
+};
+
+export type InteractionResult = {
+  type: string;
+  interaction_type: string;
+  atom1: number;
+  atom2: number;
+  atom1_role: string;
+  atom2_role: string;
+  distance: number;
+};
+
+export type InteractionAnalysisResponse = {
+  revision: number;
+  cached: boolean;
+  interaction_count: number;
+  interactions: InteractionResult[];
+};

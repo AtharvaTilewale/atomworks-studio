@@ -3,14 +3,16 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import numpy as np
 from annotation_studio.core import StudioDocument
 from annotation_studio.rfd4_provider import CONDITION_PROVIDER, VALIDATION_PROVIDER
 
-ROOT = Path(__file__).resolve().parents[3]
-OUTPUT = ROOT / "apps" / "annotation-studio" / "examples"
+STUDIO_ROOT = Path(__file__).resolve().parents[1]
+RFD4_ROOT = Path(os.environ["ANNOTATION_STUDIO_RFD4_ROOT"]).resolve()
+OUTPUT = STUDIO_ROOT / "examples"
 
 
 def document(path: Path, name: str) -> StudioDocument:
@@ -24,7 +26,7 @@ def document(path: Path, name: str) -> StudioDocument:
 
 def write_ppi() -> None:
     model = document(
-        ROOT / "data" / "benchmarks" / "rfd3_ppi_paper_benchmark" / "5o45_cropped.cif",
+        RFD4_ROOT / "data" / "benchmarks" / "rfd3_ppi_paper_benchmark" / "5o45_cropped.cif",
         "ppi_pdl1",
     )
     target = list(range(len(model.array)))
@@ -41,7 +43,7 @@ def write_ppi() -> None:
 
 
 def write_mcsa() -> None:
-    model = document(ROOT / "data" / "benchmarks" / "mcsa_40" / "M0664_2dhn.cif", "mcsa_ph2")
+    model = document(RFD4_ROOT / "data" / "benchmarks" / "mcsa_40" / "M0664_2dhn.cif", "mcsa_ph2")
     motif = np.flatnonzero(model.array.chain_id == "A").tolist()
     ligand = np.flatnonzero(model.array.chain_id == "B").tolist()
     model.set_condition("sequence", motif + ligand, enabled=True, scope="residue")
@@ -58,7 +60,7 @@ def write_mcsa() -> None:
 
 def write_disco() -> None:
     model = document(
-        ROOT
+        RFD4_ROOT
         / "data"
         / "benchmarks"
         / "rfbench"

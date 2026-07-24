@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+metadata="${root}/vendor/patinae/UPSTREAM.toml"
+cache_root="${ATOMWORKS_STUDIO_CACHE_DIR:-${HOME}/.cache/atomworks-studio}"
+source_dir="${cache_root}/patinae"
+artifact_dir="${root}/packages/web/vendor"
+
+read_metadata() {
+  awk -F ' = ' -v key="$1" '$1 == key { gsub(/^"|"$/, "", $2); print $2 }' "${metadata}"
+}
+
+repository="$(read_metadata repository)"
+revision="$(read_metadata revision)"
+package_name="$(read_metadata package)"
+version="$(read_metadata version)"
+artifact="${artifact_dir}/patinae-viewer-${version}.tgz"
+if command -v pnpm >/dev/null 2>&1; then
+  package_manager=(pnpm)
+else
+  package_manager=(corepack pnpm)
+fi
+wasm_pack="${WASM_PACK:-$(command -v wasm-pack || true)}"
+[[ -n "${wasm_pack}" ]] || {
+  echo "Install wasm-pack 0.13+ before building Patinae." >&2
+  exit 1
+}
+
+if [[ -f "${artifact}" && "${ATOMWORKS_STUDIO_REBUILD_PATINAE:-0}" != "1" ]]; then
+  exit 0
+fi
+
+mkdir -p "${cache_root}" "${artifact_dir}"
+if [[ ! -d "${source_dir}/.git" ]]; then
+  git clone --filter=blob:none "${repository}" "${source_dir}"
+fi
+if [[ -n "$(git -C "${source_dir}" status --porcelain)" ]]; then
+  git -C "${source_dir}" stash push --include-untracked --message atomworks-studio-build-cleanup >/dev/null
+fi
+git -C "${source_dir}" fetch --quiet origin "${revision}"
+git -C "${source_dir}" checkout --quiet -B atomworks-studio-build "${revision}"
+git -C "${source_dir}" clean -ffdqx
+git -C "${source_dir}" am --abort >/dev/null 2>&1 || true
+git -C "${source_dir}" am "${root}"/vendor/patinae/patches/*.patch
+
+node - "${source_dir}/web/package.json" "${package_name}" "${version}" <<'JS'
+const fs = require("node:fs");
+const [path, name, version] = process.argv.slice(2);
+const manifest = JSON.parse(fs.readFileSync(path, "utf8"));
+manifest.name = name;
+manifest.version = version;
+fs.writeFileSync(path, `${JSON.stringify(manifest, null, 2)}\n`);
+JS
+cat >"${source_dir}/web/pnpm-workspace.yaml" <<'YAML'
+allowBuilds:
+  esbuild: true
+  wasm-pack: false
+YAML
+
+(
+  cd "${source_dir}/web"
+  "${package_manager[@]}" install --no-frozen-lockfile
+  "${wasm_pack}" build --target web --out-dir pkg --no-opt
+  "${package_manager[@]}" exec vite build
+  "${package_manager[@]}" exec tsc --emitDeclarationOnly
+  packed="$("${package_manager[@]}" pack --pack-destination "${artifact_dir}")"
+  packed="${packed##*$'\n'}"
+  mv "${packed}" "${artifact}"
+)
+patches=("${root}"/vendor/patinae/patches/*.patch)
+printf 'Built %s from %s plus %s patches\n' \
+  "${artifact}" "${revision}" "${#patches[@]}"

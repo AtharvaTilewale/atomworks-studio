@@ -1,0 +1,3 @@
+repository = "https://github.com/baker-laboratory/RFD4-Proteina-dev.git"
+revision = "db94ca937fba69c390731f7688b3a4bf0c0a6495"
+runtime_variable = "ANNOTATION_STUDIO_RFD4_ROOT"

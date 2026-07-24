@@ -1,11 +1,13 @@
 # ruff: noqa: I001
 """Cross-check browser mutations against the existing PyMOL bridge."""
 
+import os
 from pathlib import Path
 
 import numpy as np
 import pytest
 
+os.environ.setdefault("RFPROTEINA_LIGHTWEIGHT_IMPORT", "1")
 pymol = pytest.importorskip("pymol", reason="PyMOL is not installed")
 pymol.finish_launching(["pymol", "-qck"])
 
@@ -22,9 +24,18 @@ from rfproteina.condition_specs import INTERACTIVE_CONDITION_SPECS  # noqa: E402
 from rfproteina.pymol.editors import _run_pipeline_validation  # noqa: E402
 
 from annotation_studio.core import StudioDocument  # noqa: E402
+from annotation_studio.rfd4_provider import CONDITION_PROVIDER, VALIDATION_PROVIDER  # noqa: E402
 
-ROOT = Path(__file__).resolve().parents[3]
-FIXTURE = ROOT / "data" / "benchmarks" / "SAM_hbonds.cif"
+FIXTURE = Path(__file__).parent / "fixtures" / "SAM_hbonds.cif"
+
+
+def _rfd4_document(cif: str, name: str) -> StudioDocument:
+    return StudioDocument.from_cif(
+        cif,
+        name,
+        condition_provider=CONDITION_PROVIDER,
+        validation_provider=VALIDATION_PROVIDER,
+    )
 
 
 def test_selection_and_condition_outputs_match_pymol_plugin() -> None:
@@ -37,7 +48,7 @@ def test_selection_and_condition_outputs_match_pymol_plugin() -> None:
     )
     name = load_structure(FIXTURE, config=config, obj_name="conformance")
     plugin_array = STATE.arrays[name]
-    document = StudioDocument.from_cif(FIXTURE.read_text(), FIXTURE.stem)
+    document = _rfd4_document(FIXTURE.read_text(), FIXTURE.stem)
 
     chain = str(plugin_array.chain_iid[0])
     residue = int(plugin_array.res_id[0])
@@ -79,7 +90,7 @@ def test_selection_and_condition_outputs_match_pymol_plugin() -> None:
 
 
 def test_every_shared_condition_roundtrips_into_pymol(tmp_path: Path) -> None:
-    document = StudioDocument.from_cif(FIXTURE.read_text(), "all_conditions")
+    document = _rfd4_document(FIXTURE.read_text(), "all_conditions")
     mutations = [
         ("sequence", True, None, "residue"),
         ("coordinate", True, None, "atom"),
@@ -139,7 +150,8 @@ def test_distance_condition_uses_existing_pair_editor() -> None:
 
 
 def test_pymol_and_studio_share_structural_validation() -> None:
-    document = StudioDocument.from_cif(FIXTURE.read_text(), "validation")
+    pytest.importorskip("rootutils", reason="full RFD4 validation dependencies are tested in GPU acceptance")
+    document = _rfd4_document(FIXTURE.read_text(), "validation")
     document.array.coord[0, 0] = np.inf
 
     expected = next(issue for issue in document.validate() if issue["check"] == "coordinates")

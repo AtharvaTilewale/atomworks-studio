@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "atomworks-pymol-plugin"
+version = "0.1.0"
+description = "PyMOL interface for authoring AtomWorks annotated CIF files"
+readme = "README.md"
+requires-python = ">=3.12,<=3.12.10"
+license = "LicenseRef-NVIDIA-Source-Code-License"
+dependencies = [
+    "atomworks[ml] @ git+https://github.com/baker-laboratory/atomworks-dev.git@8e4b2c39dc87a5097fbac1553154a99a46cf9bb7",
+]
+
+[project.optional-dependencies]
+test = [
+    "pymol-open-source>=3.2.0a0",
+    "pyqt5>=5.15.11",
+    "pytest>=8.2,<9",
+]
+
+[project.entry-points."pymol.plugins"]
+atomworks = "atomworks.pymol_plugin:__init_plugin__"
+
+[tool.setuptools]
+packages = [
+    "atomworks.pymol_plugin",
+    "atomworks.pymol_plugin.editors",
+]
+include-package-data = true
+
+[tool.setuptools.package-dir]
+"atomworks.pymol_plugin" = "."
+"atomworks.pymol_plugin.editors" = "editors"
+
+[tool.setuptools.package-data]
+"atomworks.pymol_plugin" = ["pymol_env.yaml"]
+
+[tool.pytest.ini_options]
+testpaths = ["smoke", "tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"

@@ -1,0 +1,161 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  UV_FROZEN: "1"
+  CARGO_TERM_COLOR: always
+
+jobs:
+  policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with: { enable-cache: true }
+      - run: python scripts/verify_distribution.py
+      - run: uv run --python 3.12 python scripts/pin_deps.py
+      - run: test -f LICENSE.md && test -f docs/PROVENANCE.md && test -f vendor/patinae/UPSTREAM.toml
+      - run: docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.24.2 detect --source=/repo --no-git
+
+  static:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with: { enable-cache: true }
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .node-version, cache: pnpm }
+      - uses: dtolnay/rust-toolchain@stable
+        with: { components: rustfmt,clippy }
+      - run: uv sync --all-packages --all-extras --all-groups
+      - run: bash scripts/build_patinae_viewer.sh
+      - run: pnpm install --frozen-lockfile
+      - run: bash scripts/generate_api_types.sh
+      - run: git diff --exit-code -- packages/web/src/generated/api.d.ts
+      - run: uv run ruff check packages providers tests
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: pnpm typecheck
+      - run: bash -n run.sh deploy/brev/*.sh deploy/local/*.sh scripts/*.sh
+
+  unit:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: ${{ github.workspace }}/.deps/rfd4/src
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: baker-laboratory/RFD4-Proteina-dev
+          ref: db94ca937fba69c390731f7688b3a4bf0c0a6495
+          path: .deps/rfd4
+      - uses: astral-sh/setup-uv@v6
+        with: { enable-cache: true }
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .node-version, cache: pnpm }
+      - uses: dtolnay/rust-toolchain@stable
+      - run: uv sync --all-packages --all-extras --all-groups
+      - run: bash scripts/build_patinae_viewer.sh
+      - run: pnpm install --frozen-lockfile
+      - run: cargo test --workspace --locked
+      - run: uv run pytest -q tests packages/pymol-plugin/tests
+      - run: pnpm --dir packages/web test:unit
+
+  package:
+    runs-on: ubuntu-latest
+    needs: [policy, static, unit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .node-version, cache: pnpm }
+      - uses: dtolnay/rust-toolchain@stable
+        with: { targets: wasm32-unknown-unknown }
+      - run: cargo install wasm-pack --locked --version 0.13.1
+      - run: bash scripts/build_patinae_viewer.sh
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: python scripts/check_web_budget.py
+      - run: pnpm --dir packages/vscode package
+      - run: uv build --all-packages
+      - run: cargo build --workspace --release --locked
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages
+          path: |
+            dist/*
+            packages/vscode/*.vsix
+            packages/web/dist/**
+            target/release/*
+
+  integration:
+    runs-on: ubuntu-latest
+    needs: [policy, static, unit]
+    env:
+      PYTHONPATH: ${{ github.workspace }}/.deps/rfd4/src
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: baker-laboratory/RFD4-Proteina-dev
+          ref: db94ca937fba69c390731f7688b3a4bf0c0a6495
+          path: .deps/rfd4
+      - uses: astral-sh/setup-uv@v6
+        with: { enable-cache: true }
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .node-version, cache: pnpm }
+      - uses: dtolnay/rust-toolchain@stable
+        with: { targets: wasm32-unknown-unknown }
+      - run: cargo install wasm-pack --locked --version 0.13.1
+      - run: uv sync --all-packages --all-extras --all-groups
+      - run: bash scripts/accept_local.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: local-acceptance
+          path: artifacts/local/
+
+  native-launcher:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test -p patinae-annotation-studio --locked
+
+  image:
+    runs-on: ubuntu-latest
+    needs: [policy, static, unit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .node-version }
+      - uses: dtolnay/rust-toolchain@stable
+        with: { targets: wasm32-unknown-unknown }
+      - run: cargo install wasm-pack --locked --version 0.13.1
+      - run: bash scripts/build_patinae_viewer.sh
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/Dockerfile
+          push: false
+          tags: atomworks-studio:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          secrets: |
+            github_token=${{ github.token }}

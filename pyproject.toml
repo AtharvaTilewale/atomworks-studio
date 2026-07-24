@@ -1,0 +1,16 @@
+[tool.uv.workspace]
+members = [
+    "packages/api",
+    "packages/pymol-plugin",
+    "providers/rfd4",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["B", "E", "F", "I", "N", "RUF", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "packages/pymol-plugin/tests"]

@@ -2,8 +2,8 @@
 set -euo pipefail
 
 studio_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-repo_dir="$(cd "${studio_dir}/../.." && pwd)"
-web_dir="${studio_dir}/web"
+web_dir="${studio_dir}/packages/web"
+api_dir="${studio_dir}/packages/api"
 dist_index="${web_dir}/dist/index.html"
 
 if ! command -v pnpm >/dev/null 2>&1; then
@@ -53,16 +53,17 @@ if [[ "${needs_build}" == true ]]; then
     echo "wasm-pack is required when Annotation Studio web assets need rebuilding." >&2
     exit 1
   }
+  bash "${studio_dir}/scripts/build_patinae_viewer.sh"
   (
-    cd "${web_dir}"
+    cd "${studio_dir}"
     pnpm install --frozen-lockfile
-    pnpm build
+    pnpm --dir "${web_dir}" build
   )
 fi
 
-cd "${repo_dir}"
-export PYTHONPATH="${studio_dir}/api${PYTHONPATH:+:${PYTHONPATH}}"
-exec uv run --with fastapi --with python-multipart --with pyyaml --with uvicorn \
+cd "${studio_dir}"
+export PYTHONPATH="${api_dir}:${studio_dir}/providers/rfd4${PYTHONPATH:+:${PYTHONPATH}}"
+exec uv run --project "${studio_dir}" \
   uvicorn annotation_studio.main:app \
   --host "${ANNOTATION_STUDIO_HOST:-127.0.0.1}" \
   --port "${ANNOTATION_STUDIO_PORT:-8000}"

@@ -40,6 +40,8 @@ spec:
               value: "${ANNOTATION_STUDIO_FRAME_ANCESTORS}"
             - name: ANNOTATION_STUDIO_SESSION_DIR
               value: /var/lib/annotation-studio/sessions
+            - name: ANNOTATION_STUDIO_MAX_ACTIVE_JOBS
+              value: "1"
             - name: HOME
               value: /tmp
           startupProbe:

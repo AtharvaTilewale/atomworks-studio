@@ -28,14 +28,15 @@ def main() -> None:
         raise SystemExit(f"invalid Annotation Studio version: {version!r}")
 
     manifests = {
-        "website": STUDIO_ROOT / "web" / "package.json",
-        "VS Code extension": STUDIO_ROOT / "vscode" / "package.json",
+        "workspace": STUDIO_ROOT / "package.json",
+        "website": STUDIO_ROOT / "packages" / "web" / "package.json",
+        "VS Code extension": STUDIO_ROOT / "packages" / "vscode" / "package.json",
     }
     for label, path in manifests.items():
         manifest = json.loads(path.read_text(encoding="utf-8"))
         if manifest.get("version") != version:
             raise SystemExit(f"{label} version {manifest.get('version')!r} does not match VERSION {version!r}")
-    api_manifest = (STUDIO_ROOT / "api" / "pyproject.toml").read_text(encoding="utf-8")
+    api_manifest = (STUDIO_ROOT / "packages" / "api" / "pyproject.toml").read_text(encoding="utf-8")
     project_section = api_manifest.split("[project]", 1)[-1].split("\n[", 1)[0]
     api_version_match = re.search(r'^version\s*=\s*"([^"]+)"\s*$', project_section, re.MULTILINE)
     api_version = api_version_match.group(1) if api_version_match else None
@@ -43,8 +44,8 @@ def main() -> None:
         raise SystemExit(f"Python API version {api_version!r} does not match VERSION {version!r}")
 
     tag = arguments.tag or os.environ.get("GITHUB_REF_NAME", "")
-    if tag and tag.startswith("annotation-studio-v") and tag != f"annotation-studio-v{version}":
-        raise SystemExit(f"release tag {tag!r} must equal annotation-studio-v{version}")
+    if tag and tag.startswith("v") and tag != f"v{version}":
+        raise SystemExit(f"release tag {tag!r} must equal v{version}")
 
     if arguments.github_output:
         output = os.environ.get("GITHUB_OUTPUT")
