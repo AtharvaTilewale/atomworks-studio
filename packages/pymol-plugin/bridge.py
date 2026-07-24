@@ -14,9 +14,6 @@ from pathlib import Path
 
 import biotite.structure as struc
 import numpy as np
-from biotite.structure import AtomArrayStack
-from pymol import cmd
-
 from atomworks.io.config import ParseConfig
 from atomworks.io.parser import parse
 from atomworks.io.utils.atom_array_plus import (
@@ -27,19 +24,19 @@ from atomworks.io.utils.atom_array_plus import (
 from atomworks.io.utils.chain import create_chain_id_generator
 from atomworks.io.utils.io_utils import CIFWriteConfig, to_cif_string
 from atomworks.io.utils.structure_mutations import (
-    delete_atoms as delete_atoms,
-)
-from atomworks.io.utils.structure_mutations import (
-    deletion_would_create_res_id_gap as deletion_would_create_res_id_gap,
-)
-from atomworks.io.utils.structure_mutations import (
+    delete_atoms,
+    deletion_would_create_res_id_gap,
     refresh_chain_derived_annotations,
 )
 from atomworks.ml.utils.visualize import prepare_for_display
 from atomworks.pymol_plugin.state import STATE
 from atomworks.pymol_plugin.views import apply_current_view
+from biotite.structure import AtomArrayStack
+from pymol import cmd
 
 logger = logging.getLogger("atomworks.pymol_plugin")
+
+__all__ = ["delete_atoms", "deletion_would_create_res_id_gap"]
 
 
 # ---------------------------------------------------------------------------
@@ -88,7 +85,7 @@ def _pymol_resi_to_res_id_ins_code(resi: str) -> tuple[int, str]:
     return int(resi), ""
 
 
-def _pymol_atom_key(atom) -> tuple:  # noqa: ANN001
+def _pymol_atom_key(atom) -> tuple:
     """Build the (chain_id, res_id, ins_code, atom_name) identity key for a chempy atom."""
     res_id, ins_code = _pymol_resi_to_res_id_ins_code(atom.resi)
     return (atom.chain, res_id, ins_code, atom.name)

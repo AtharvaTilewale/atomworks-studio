@@ -10,6 +10,9 @@ It uses the same web UI and design-job API as Brev, but invokes RFD4 on the
 workstation. No SLURM, GitHub Actions, remote queue, or Brev environment is
 involved.
 
+This guide configures the GPU runtime. Once the service is ready, use the
+[website guide](../../docs/WEB.md) for the browser workflow.
+
 ## Prerequisites
 
 - The standalone Studio repository setup and web dependencies are installed.

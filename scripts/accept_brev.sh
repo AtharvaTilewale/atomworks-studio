@@ -14,7 +14,8 @@ nvidia-smi --query-compute-apps=pid,process_name,used_memory \
 
 export ANNOTATION_STUDIO_URL="${base}"
 export ATOMWORKS_STUDIO_ACCEPTANCE_ARTIFACT="${artifact_dir}/result.json"
-python "${root}/scripts/accept_brev.py" 2>&1 | tee "${artifact_dir}/acceptance.log"
+uv run --project "${root}" python "${root}/scripts/accept_brev.py" \
+  2>&1 | tee "${artifact_dir}/acceptance.log"
 
 if command -v docker >/dev/null 2>&1; then
   docker ps --format '{{.ID}}\t{{.Image}}\t{{.Status}}' >"${artifact_dir}/containers.txt"

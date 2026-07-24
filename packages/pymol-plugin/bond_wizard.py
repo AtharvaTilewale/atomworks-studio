@@ -7,10 +7,6 @@ removing, and inferring bonds on the active :py:class:`AtomArrayPlus`.
 import logging
 import os
 
-from biotite.structure.bonds import BondType
-from pymol import cmd
-from pymol.Qt import QtCore, QtWidgets
-
 from atomworks.io.template import infer_bonds_from_residue_names
 from atomworks.io.utils.structure_mutations import edit_bond
 from atomworks.pymol_plugin.bridge import (
@@ -19,6 +15,9 @@ from atomworks.pymol_plugin.bridge import (
     selection_to_indices,
 )
 from atomworks.pymol_plugin.state import PluginState
+from biotite.structure.bonds import BondType
+from pymol import cmd
+from pymol.Qt import QtCore, QtWidgets
 
 logger = logging.getLogger("atomworks.pymol_plugin")
 
@@ -212,7 +211,7 @@ class BondWizard:
         if self._picked[slot] is None:
             self._lbl_atom[slot].setText(f"Atom {slot + 1}: —")
 
-    def _finish_picking(self, slot: int, atom) -> None:  # noqa: ANN001
+    def _finish_picking(self, slot: int, atom) -> None:
         self._cancel_picking(slot)
 
         obj_name = self._state.active

@@ -22,9 +22,12 @@ AF3-backed tags produce confidence/interface metrics, refolded CIFs, RMSDs, and
 task pass criteria. Opening a refolded result automatically colors available
 pLDDT/confidence values on the structure.
 
-Upload any file in Annotation Studio, then submit one design. A one-step job is
-useful only as an end-to-end smoke test; use a normal diffusion step count for
-structure quality.
+Open the **RFD4-Proteina** panel in the
+[browser editor](../docs/WEB.md#load-a-structure) and choose **Load PPI
+example**, **Load MCSA example**, or **Load DISCO example**. You can also upload
+these files with **Open CIF**. Submit one design after the GPU provider reports
+ready. A one-step job is useful only as an end-to-end smoke test; use a normal
+diffusion step count for structure quality.
 
 The examples use compact expandable-segment sentinels rather than materializing
 hundreds of generated atoms at placeholder coordinates. This preserves RFD4

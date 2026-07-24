@@ -16,9 +16,8 @@ string-valued ``resi`` matches the array's ``(res_id, ins_code)`` split.
 from dataclasses import dataclass
 
 import numpy as np
-from pymol import cmd
-
 from atomworks.io.utils.atom_array_plus import AtomArrayPlus
+from pymol import cmd
 
 
 def visible_atom_mask(array: AtomArrayPlus) -> np.ndarray:

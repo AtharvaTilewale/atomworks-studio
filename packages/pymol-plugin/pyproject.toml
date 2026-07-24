@@ -39,7 +39,3 @@ include-package-data = true
 
 [tool.pytest.ini_options]
 testpaths = ["smoke", "tests"]
-
-[tool.ruff]
-line-length = 120
-target-version = "py312"

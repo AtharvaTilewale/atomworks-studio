@@ -1,10 +1,14 @@
-# AtomWorks Design Studio
+# AtomWorks Studio for PyMOL
 
 ## Overview: A New Way to Design Proteins
 
-![Example design](assets/antibody_design.png)
-
-The AtomWorks Design Studio is a PyMOL plugin that replaces the traditional JSON/YAML contig-based protein design workflow with a fully visual one. Instead of writing config files to describe what you want a model to do, you build your design task directly in PyMOL: load a real structure, manipulate it, annotate exactly what you want the model to do, and save. The result is an **annotated CIF file** that new models like the latent diffusion model read natively — no intermediate JSON or YAML is ever written or converted.
+AtomWorks Studio for PyMOL replaces the traditional JSON/YAML contig-based
+protein design workflow with a visual one. Instead of writing config files to
+describe what you want a model to do, you build the design task directly in
+PyMOL: load a real structure, manipulate it, annotate exactly what the model
+should do, and save. The result is an **annotated CIF file** that models such as
+RFD4-Proteina read natively—no intermediate JSON or YAML is written or
+converted.
 
 **Annotated CIF files** are standard mmCIF files extended with AtomWorks condition blocks. All design intent is stored per-atom and per-residue directly in the file: sequence conditioning, coordinate conditioning, distance restraints, hydrogen bond conditioning, unindexing, and more. This is the single input format that goes directly into the model.
 
@@ -46,11 +50,8 @@ conda activate atomworks
 python -m pip install .
 ```
 
-For development, install the test extra in editable mode:
-
-```bash
-python -m pip install -e ".[test]"
-```
+Contributors should use the editable install and test workflow in the
+[development guide](../../docs/DEVELOPMENT.md#pymol).
 
 The wheel pins and installs `atomworks[ml]`, which remains the authority for
 all mutation, annotation, and CIF IO behavior. The plugin does not carry local
@@ -75,8 +76,6 @@ run /path/to/site-packages/atomworks/pymol_plugin/__init__.py
 ```
 
 ### Open the Panel
-
-![Activate plugin](assets/activate_plugin.png)
 
 Start PyMOL with the conda environment active, then open the panel via:
 
@@ -143,7 +142,7 @@ This is useful for assembling a complex from separately loaded chains before ann
 
 ### Undo
 
-The **Undo** button reverts the last edit to the active object. Up to 10 undo levels are maintained per object. Note these undo actions are only for AtomWorks operations (anything done in the AtomWorks Design Studio panels).
+The **Undo** button reverts the last edit to the active object. Up to 10 undo levels are maintained per object. Note these undo actions are only for AtomWorks operations (anything done in the AtomWorks Studio panels).
 
 ---
 
@@ -184,8 +183,6 @@ Once you have conditions applied to your atom array, you will see PyMOL selectio
 
 For example, the index condition has a selection called: `mask_index_1_residue_6lyz` for the object `6lyz`.
 
-![Example condition selections](assets/selections.png)
-
 ---
 
 ## Bonds
@@ -217,7 +214,7 @@ All panel operations are also available as `aw_*` console commands for scripting
 
 ---
 
-## Updating AtomWorks Design Studio
+## Updating AtomWorks Studio
 
 From this package directory:
 
@@ -236,4 +233,5 @@ Then restart PyMOL.
 
 ## Feature Requests and Bug Reports
 
-AtomWorks Design Studio is in Beta, so we greatly appreciate your patience as early software users. That said, if you run into any bugs, unexpected/unintuitive behavior, or you come up with some brilliant new feature ideas, please reach out to Max or the latent model team!
+AtomWorks Studio is in beta. Report bugs and request features in the
+[AtomWorks Studio issue tracker](https://github.com/baker-laboratory/atomworks-studio/issues).

@@ -15,15 +15,14 @@ pytest.importorskip("pymol", reason="PyMOL is not installed in this env")
 # ran the plugin's register step re-runs ``pymol_plugin/__init__.py`` as a
 # script and calls ``addmenuitemqt`` — unavailable in library mode and raises
 # ``QtNotAvailableError``.
-import pymol  # noqa: E402
+import pymol
 
 pymol.finish_launching(["pymol", "-qck"])
 
-from pymol import cmd  # noqa: E402
-
-from atomworks.io.config import ParseConfig  # noqa: E402
-from atomworks.pymol_plugin.bridge import load_structure  # noqa: E402
-from atomworks.pymol_plugin.state import STATE  # noqa: E402
+from atomworks.io.config import ParseConfig
+from atomworks.pymol_plugin.bridge import load_structure
+from atomworks.pymol_plugin.state import STATE
+from pymol import cmd
 
 # Anchor: <repo>/packages/pymol-plugin/tests/conftest.py → <repo>
 REPO_ROOT = Path(__file__).resolve().parents[3]

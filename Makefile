@@ -26,7 +26,14 @@ typecheck:
 
 test:
 	cargo test --workspace --locked
-	uv run pytest -q
+	@rfd4_root="$${ANNOTATION_STUDIO_RFD4_ROOT:-$${RFPROTEINA_ROOT:-$(CURDIR)/../RFD4-Proteina-dev}}"; \
+	if [[ ! -d "$${rfd4_root}/src/rfproteina" ]]; then \
+		echo "RFD4 checkout not found: $${rfd4_root}" >&2; \
+		echo "Set ANNOTATION_STUDIO_RFD4_ROOT or place RFD4-Proteina-dev beside this repository." >&2; \
+		exit 1; \
+	fi; \
+	PYTHONPATH="$${rfd4_root}/src$${PYTHONPATH:+:$${PYTHONPATH}}" \
+		uv run python scripts/run_pytest.py -q
 	pnpm test
 
 build:

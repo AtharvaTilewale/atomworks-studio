@@ -12,10 +12,6 @@ All Qt imports are deferred to avoid pulling PyQt into the core library.
 import logging
 
 import numpy as np
-from pymol import cmd
-from pymol.Qt import QtCore
-from pymol.Qt import QtWidgets as _QtWidgets
-
 from atomworks.io.utils.atom_array_plus import AnnotationList2D
 from atomworks.io.utils.standard_annotations.base import StandardAnnotationBase
 from atomworks.pymol_plugin.bridge import (
@@ -25,6 +21,9 @@ from atomworks.pymol_plugin.bridge import (
 )
 from atomworks.pymol_plugin.state import PluginState
 from atomworks.pymol_plugin.views import apply_current_view
+from pymol import cmd
+from pymol.Qt import QtCore
+from pymol.Qt import QtWidgets as _QtWidgets
 
 logger = logging.getLogger("atomworks.pymol_plugin")
 
@@ -527,7 +526,7 @@ class PairValueEditor(_QtWidgets.QWidget, BaseAnnotationEditor):
         if self._picked[slot] is None:
             lbl.setText(f"Atom {slot + 1}: —")
 
-    def _finish_picking(self, slot: int, atom) -> None:  # noqa ANN001
+    def _finish_picking(self, slot: int, atom) -> None:
         """Capture *atom* for *slot*, stop the timer, restore button state."""
         self._cancel_picking(slot)
 
@@ -647,7 +646,7 @@ class PairValueEditor(_QtWidgets.QWidget, BaseAnnotationEditor):
                 self._pairs.append((idx_to_key[i1], idx_to_key[i2], float(annot.values[i]), obj_name, version))
             self._refresh_table()
         except Exception:
-            pass
+            logger.debug("Could not restore existing pair annotations", exc_info=True)
 
     def _clear_all(self) -> None:
         self._pairs.clear()

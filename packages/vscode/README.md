@@ -1,54 +1,49 @@
 # AtomWorks Annotation Studio for VS Code
 
-Install from the Visual Studio Marketplace/Open VSX when those registries are
-enabled, or download the versioned `.vsix` from the matching
-`annotation-studio-v*` GitHub release:
+The extension opens the same AtomWorks Studio service used by the website. It
+does not copy CIF, session, credential, or model state into the extension host.
+
+![AtomWorks Studio embedded in an editor webview](../../docs/images/web-embedded.png)
+
+## Install
+
+Download the `.vsix` from the matching `v*` GitHub release, then install it in
+VS Code or Cursor:
 
 ```bash
-code --install-extension atomworks-annotation-studio-0.1.0.vsix
+code --install-extension atomworks-annotation-studio-<version>.vsix
+# or
+cursor --install-extension atomworks-annotation-studio-<version>.vsix
 ```
 
-Run the Annotation Studio service, then invoke **AtomWorks: Open Annotation
-Studio** from the Command Palette. Use **AtomWorks: Configure Annotation Studio
-Server** to select a permanent HTTPS deployment or local
-`http://127.0.0.1:8000` service. Remote/Codespaces sessions use VS Code's
-external-URI forwarding. The first launch asks for Patinae or Mol*; change the
-explicit choice later with **AtomWorks: Select Annotation Studio Renderer**.
-Neither renderer silently falls back to the other.
+Registry installation can be added when Visual Studio Marketplace or Open VSX
+publishing is enabled for this package.
 
-This extension embeds the same Patinae/AtomWorks application as the browser
-version, so CIF behavior and validation remain identical rather than being
-reimplemented in the extension host.
+## Use
 
-## Build and repeatable smoke test
+1. Start a local Studio service with `make run`, or obtain the URL of an HTTPS
+   deployment.
+2. Run **AtomWorks: Configure Annotation Studio Server** from the Command
+   Palette and enter the service URL.
+3. Run **AtomWorks: Open Annotation Studio**.
+4. Choose Patinae/WebGPU or Mol*/WebGL when prompted.
 
-From `packages/vscode`:
+Change the explicit renderer later with **AtomWorks: Select Annotation Studio
+Renderer**. Neither renderer silently falls back to the other.
 
-```bash
-pnpm install --frozen-lockfile
-pnpm compile
-pnpm package
-cursor --install-extension atomworks-annotation-studio-0.1.0.vsix --force
-```
+Remote and Codespaces sessions use VS Code's external-URI forwarding. The
+configured service must allow `vscode-webview:` in
+`ANNOTATION_STUDIO_FRAME_ANCESTORS`.
 
-Reload the Cursor/VS Code window after each reinstall. In the Command Palette,
-run **AtomWorks: Configure Annotation Studio Server**, **AtomWorks: Select
-Annotation Studio Renderer**, and **AtomWorks: Open Annotation Studio**. Test
-`http://127.0.0.1:8000` first, then the forwarded or HTTPS Brev endpoint. The
-embedded view should show the AtomWorks logo and `RFD4-Proteina`, preserve the
-renderer choice, and show the GPU phase, elapsed time, and live log after a job
-is submitted.
+For browser workflows, see the [website guide](../../docs/WEB.md). For
+compiling, packaging, reinstalling, and smoke testing the extension, see the
+[development guide](../../docs/DEVELOPMENT.md#vs-code-and-cursor).
 
-To ensure an older build is not still loaded:
+## Troubleshooting
 
-```bash
-cursor --uninstall-extension nvidia.atomworks-annotation-studio
-cursor --install-extension atomworks-annotation-studio-0.1.0.vsix --force
-```
-
-Use `code` instead of `cursor` when testing in VS Code.
-
-The configured server must allow `vscode-webview:` in
-`ANNOTATION_STUDIO_FRAME_ANCESTORS`. Session and model data stay in the
-configured service; the extension contains no NGC credentials or inference
-runtime.
+- **Service not reachable** — verify `/api/health` on the configured URL and
+  use the configuration command to correct it.
+- **Webview refused to load** — approve `vscode-webview:` in the service frame
+  ancestors policy.
+- **Old extension still loaded** — uninstall `nvidia.atomworks-annotation-studio`,
+  reinstall the matching `.vsix` with `--force`, and reload the editor window.

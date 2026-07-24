@@ -27,7 +27,3 @@ include = [
     "atomworks_studio_rfd4",
     "pyproject.toml",
 ]
-
-[tool.ruff]
-line-length = 120
-target-version = "py312"

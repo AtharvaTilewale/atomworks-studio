@@ -9,8 +9,6 @@ re-derived by the shared AtomWorks mutation.
 import logging
 
 import numpy as np
-from pymol.Qt import QtWidgets
-
 from atomworks.io.utils.chain import create_chain_id_generator
 from atomworks.io.utils.structure_mutations import assign_chain_id
 from atomworks.pymol_plugin.bridge import (
@@ -18,6 +16,7 @@ from atomworks.pymol_plugin.bridge import (
     selection_to_indices,
 )
 from atomworks.pymol_plugin.state import PluginState
+from pymol.Qt import QtWidgets
 
 logger = logging.getLogger("atomworks.pymol_plugin")
 

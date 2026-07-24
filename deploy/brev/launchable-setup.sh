@@ -114,18 +114,22 @@ else
 fi
 
 for ((attempt = 0; attempt < 180; attempt++)); do
-  if curl --fail --silent http://127.0.0.1:8000/api/health >/dev/null; then
-    echo "Annotation Studio is ready on port 8000."
-    exit 0
-  fi
+  service_active=true
   if command -v systemctl >/dev/null 2>&1 && [[ "$(ps -p 1 -o comm=)" == "systemd" ]]; then
-    sudo systemctl is-active --quiet "${service_name}" || {
+    if sudo systemctl is-failed --quiet "${service_name}"; then
       sudo journalctl --unit "${service_name}" --no-pager --lines 100 >&2
       exit 1
-    }
+    fi
+    sudo systemctl is-active --quiet "${service_name}" || service_active=false
   elif ! kill -0 "$(cat "${state_root}/server.pid")" 2>/dev/null; then
     cat "${state_root}/server.log" >&2
     exit 1
+  fi
+  if [[ "${service_active}" == true ]] \
+    && curl --fail --silent http://127.0.0.1:8000/api/health >/dev/null \
+    && curl --fail --silent http://127.0.0.1:8000/api/ready >/dev/null; then
+    echo "Annotation Studio is ready on port 8000."
+    exit 0
   fi
   sleep 2
 done

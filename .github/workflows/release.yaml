@@ -20,7 +20,7 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with: { node-version-file: .node-version, cache: pnpm }
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
-        with: { targets: wasm32-unknown-unknown }
+        with: { toolchain: 1.97.1, targets: wasm32-unknown-unknown }
       - run: python scripts/verify_distribution.py --tag "${GITHUB_REF_NAME}"
       - run: bash scripts/build_patinae_viewer.sh
       - run: pnpm install --frozen-lockfile
@@ -52,7 +52,7 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with: { node-version-file: .node-version }
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
-        with: { targets: wasm32-unknown-unknown }
+        with: { toolchain: 1.97.1, targets: wasm32-unknown-unknown }
       - run: cargo install wasm-pack --locked --version 0.13.1
       - run: bash scripts/build_patinae_viewer.sh
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3

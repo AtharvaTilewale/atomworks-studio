@@ -147,7 +147,7 @@ def _uploaded_options(config_yaml: str | None) -> dict[str, Any]:
     if loaded is None:
         return {}
     if not isinstance(loaded, dict):
-        raise ValueError("uploaded model options must be a YAML mapping")
+        raise TypeError("uploaded model options must be a YAML mapping")
     unknown = set(loaded) - ALLOWED_CONFIG_KEYS
     if unknown:
         raise ValueError(f"unsupported model option(s): {', '.join(sorted(unknown))}")
@@ -172,7 +172,7 @@ def _validate_resolved_config(config: dict[str, Any]) -> None:
         raise ValueError("seed must be null or a non-negative 32-bit integer")
     generation = config.get("generation")
     if not isinstance(generation, dict) or not isinstance(generation.get("args"), dict):
-        raise ValueError("generation.args must be a mapping")
+        raise TypeError("generation.args must be a mapping")
     steps = generation["args"].get("nsteps")
     if not isinstance(steps, int) or isinstance(steps, bool) or not 1 <= steps <= 1000:
         raise ValueError("generation.args.nsteps must be an integer between 1 and 1000")
@@ -248,7 +248,7 @@ def build_rfd4_config(
     }
     config = _deep_merge(config, _uploaded_options(request.config_yaml))
     if not isinstance(config.get("generation"), dict) or not isinstance(config["generation"].get("args"), dict):
-        raise ValueError("generation.args must be a mapping")
+        raise TypeError("generation.args must be a mapping")
 
     search_options = request.search
     if request.mode == "search" or "search" in config:
@@ -445,9 +445,9 @@ class ProcessDesignProvider:
             root=Path(root_value) if root_value else None,
             project_root=project_root,
             command=shlex.split(command_value) if command_value else None,
-            timeout_seconds=int(os.environ.get("ANNOTATION_STUDIO_JOB_TIMEOUT_SECONDS", 4 * 60 * 60)),
-            max_active_jobs=int(os.environ.get("ANNOTATION_STUDIO_MAX_ACTIVE_JOBS", 1)),
-            retention_seconds=int(os.environ.get("ANNOTATION_STUDIO_JOB_RETENTION_SECONDS", 7 * 24 * 60 * 60)),
+            timeout_seconds=int(os.environ.get("ANNOTATION_STUDIO_JOB_TIMEOUT_SECONDS", str(4 * 60 * 60))),
+            max_active_jobs=int(os.environ.get("ANNOTATION_STUDIO_MAX_ACTIVE_JOBS", "1")),
+            retention_seconds=int(os.environ.get("ANNOTATION_STUDIO_JOB_RETENTION_SECONDS", str(7 * 24 * 60 * 60))),
         )
 
     @property
@@ -629,7 +629,11 @@ class ProcessDesignProvider:
                 raise KeyError(job_id)
             record = copy.deepcopy(self._jobs[job_id])
         log_path = self.root / job_id / "job.log" if self.root is not None else None
-        raw_log = log_path.read_text(encoding="utf-8", errors="replace")[-4000:] if log_path and log_path.is_file() else ""
+        raw_log = (
+            log_path.read_text(encoding="utf-8", errors="replace")[-4000:]
+            if log_path and log_path.is_file()
+            else ""
+        )
         record["log_tail"] = ANSI_ESCAPE.sub("", raw_log)
         record["progress"] = _job_progress(record, log_path, record["log_tail"])
         return record

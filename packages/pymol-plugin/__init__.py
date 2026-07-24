@@ -11,7 +11,7 @@ from importlib.util import find_spec
 logger = logging.getLogger("atomworks.pymol_plugin")
 
 
-def __init_plugin__(app: object | None = None) -> None:  # noqa: N807
+def __init_plugin__(app: object | None = None) -> None:
     """PyMOL plugin entry point.
 
     Checks that atomworks is importable, then registers the menu item,

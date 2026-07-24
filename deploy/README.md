@@ -1,4 +1,8 @@
-# Annotation Studio production runbook
+# AtomWorks Studio production runbook
+
+> This is an operations guide for maintainers deploying Studio. End users
+> should start with the [main README](../README.md) or
+> [website guide](../docs/WEB.md).
 
 This runbook covers the complete path from a local browser build to the
 permanent Kubernetes editor, an authenticated Brev GPU deployment, the warm
@@ -46,11 +50,12 @@ RFPROTEINA_LIGHTWEIGHT_IMPORT=1 bash run.sh
 To test the exact production container:
 
 ```bash
-docker build \
+export GH_TOKEN="$(gh auth token)"
+docker build --secret id=github_token,env=GH_TOKEN \
   --file deploy/Dockerfile \
-  --tag annotation-studio:local \
+  --tag atomworks-studio:local \
   .
-docker run --rm --publish 8000:8000 annotation-studio:local
+docker run --rm --publish 8000:8000 atomworks-studio:local
 ```
 
 The CPU image installs the published `atomworks[ml]` distribution and does not
@@ -67,7 +72,7 @@ Before enabling deployment:
 
 1. Fetch `origin/main` and ensure the feature branch contains the latest main.
 2. Commit the Studio application and deployment workflow.
-3. Open a pull request and require the `annotation-studio` workflow.
+3. Open a pull request and require the `CI` workflow.
 4. Merge only after Python tests, both renderer E2E tests, the VSIX package,
    desktop plugin builds, and the production-container boot test pass.
 
@@ -85,8 +90,8 @@ The Studio release version is the release authority. The web and
 VS Code `package.json` versions must match it. A tagged release uses:
 
 ```bash
-git tag -a annotation-studio-v0.1.0 -m "Annotation Studio 0.1.0"
-git push origin annotation-studio-v0.1.0
+git tag -a v0.1.0 -m "AtomWorks Studio 0.1.0"
+git push origin v0.1.0
 ```
 
 ## 3. Permanent Kubernetes editor
@@ -176,18 +181,21 @@ Required environment variables are:
   origins such as `https://build.nvidia.com` and `vscode-webview:`
 - `GHCR_PULL_USERNAME=<machine-user login>`
 
-After DNS, cluster access, and GHCR pulling are verified, enable the repository
-deployment gate:
+This repository currently publishes images from the `v*` release workflow but
+does not include a merge-to-`main` Kubernetes deployment workflow. Apply an
+immutable release or commit image through operator-controlled automation:
 
 ```bash
-gh variable set ANNOTATION_STUDIO_DEPLOY_ENABLED \
-  --repo baker-laboratory/atomworks-studio \
-  --body true
+export ANNOTATION_STUDIO_IMAGE=ghcr.io/baker-laboratory/atomworks-studio:<immutable-tag>
+envsubst < deploy/kubernetes.yaml |
+  kubectl --namespace annotation-studio apply -f -
+kubectl --namespace annotation-studio rollout status deployment/annotation-studio
 ```
 
-Every subsequent merge to `main` publishes the immutable image, applies
-`deploy/kubernetes.yaml`, waits for rollout, verifies the public health
-revision, and automatically rolls back a failed rollout.
+An external deployment workflow should perform the same apply, rollout,
+revision check, and rollback sequence using a namespace-scoped identity. Do not
+document automatic deployment as enabled until that workflow exists and has
+been exercised.
 
 The two stable links are:
 
@@ -219,7 +227,7 @@ Create a Brev Launchable in VM Mode:
 9. Set `BREV_RFD4_STATE_DIR` to
    `/home/ubuntu/workspace/rfd4-annotation-studio`.
 
-The setup installs the web toolchain, reuses the repository `setup.sh`, creates
+The setup installs the web toolchain, runs the RFD4 checkout's `setup.sh`, creates
 a restartable systemd service when systemd is available, starts the Studio, and
 checks `/api/health`. On non-systemd hosts it falls back to `nohup`.
 
@@ -417,7 +425,7 @@ scaling belongs in the external queue/worker phase.
 - DNS resolves to the ingress and TLS is Ready.
 - The Kubernetes deploy identity is namespace-scoped.
 - GHCR image pulling works without a personal broad-scope token.
-- Deployment on `main` and rollback are exercised once.
+- Operator-controlled deployment and rollback are exercised once.
 - Brev state and all model artifacts live under persistent storage.
 - The systemd Studio service restarts after a Brev VM reboot.
 - AF3 daemon smoke reaches `ready`.

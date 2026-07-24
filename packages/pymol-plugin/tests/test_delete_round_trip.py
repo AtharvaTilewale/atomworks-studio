@@ -18,8 +18,6 @@ The test does three things after the delete:
 import copy
 
 import numpy as np
-from pymol import cmd
-
 from atomworks.io.utils.atom_array_plus import AtomArrayPlus
 from atomworks.pymol_plugin.bridge import (
     build_index_map,
@@ -29,6 +27,7 @@ from atomworks.pymol_plugin.bridge import (
     selection_to_indices,
 )
 from atomworks.pymol_plugin.state import STATE
+from pymol import cmd
 
 from .helpers import (
     assert_index_map_unique,

@@ -14,7 +14,7 @@ from importlib.metadata import entry_points
 from importlib.resources import files
 from pathlib import Path
 from threading import RLock
-from typing import Any, Literal, TypeVar
+from typing import Any, Literal
 from urllib.parse import urlencode
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
@@ -33,7 +33,6 @@ from .core import BOND_TYPES, INTERACTION_TYPES, StudioDocument
 from .design_jobs import DesignJobRequest, ProcessDesignProvider
 from .version import __version__
 
-T = TypeVar("T")
 LOGGER = logging.getLogger("atomworks_studio")
 
 MAX_UPLOAD_BYTES = 32 * 1024 * 1024
@@ -159,7 +158,7 @@ class DocumentStore:
                 path.touch()
             return entry[1]
 
-    def call(
+    def call[T](
         self,
         session_id: str,
         operation: Callable[[StudioDocument], T],
@@ -469,7 +468,7 @@ class CombineMutation(BaseModel):
     session_ids: list[str] = Field(min_length=1, max_length=16)
 
 
-def _call(
+def _call[T](
     session_id: str,
     operation: Callable[[StudioDocument], T],
     *,
@@ -603,7 +602,7 @@ def align_design_output(job_id: str, output_id: str) -> dict:
 
 
 @app.post("/api/sessions")
-async def create_session(  # noqa: B008
+async def create_session(
     file: UploadFile = File(...),
     parse_preset: Literal["minimal", "rcsb"] = Form("minimal"),
     assembly: str = Form("1"),

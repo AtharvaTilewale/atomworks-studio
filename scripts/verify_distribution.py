@@ -48,6 +48,20 @@ def main() -> None:
         if package_version != version:
             raise SystemExit(f"{label} version {package_version!r} does not match VERSION {version!r}")
 
+    rust_manifests = {
+        "WASM core": STUDIO_ROOT / "packages" / "core" / "Cargo.toml",
+        "Patinae launcher": STUDIO_ROOT / "packages" / "patinae-plugin" / "Cargo.toml",
+    }
+    for label, path in rust_manifests.items():
+        version_match = re.search(
+            r'^\[package\][\s\S]*?^version\s*=\s*"([^"]+)"\s*$',
+            path.read_text(encoding="utf-8"),
+            re.MULTILINE,
+        )
+        crate_version = version_match.group(1) if version_match else None
+        if crate_version != version:
+            raise SystemExit(f"{label} version {crate_version!r} does not match VERSION {version!r}")
+
     for workflow in (STUDIO_ROOT / ".github" / "workflows").glob("*.yaml"):
         for action, revision in re.findall(r"uses:\s*([^@\s]+)@([^\s#]+)", workflow.read_text(encoding="utf-8")):
             if re.fullmatch(r"[0-9a-f]{40}", revision) is None:

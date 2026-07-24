@@ -7,12 +7,11 @@ Provides :py:class:`ChargeWizard`, a dockable tab that edits the integer
 import logging
 
 import numpy as np
-from pymol.Qt import QtWidgets
-
 from atomworks.io.utils.atom_array_plus import AtomArrayPlus
 from atomworks.io.utils.structure_mutations import set_formal_charge
 from atomworks.pymol_plugin.bridge import reload_structure_in_pymol, selection_to_indices
 from atomworks.pymol_plugin.state import PluginState
+from pymol.Qt import QtWidgets
 
 logger = logging.getLogger("atomworks.pymol_plugin")
 

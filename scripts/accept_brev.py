@@ -80,7 +80,7 @@ session = created["session_id"]
 selection = json_request(
     f"/api/sessions/{session}/selections/query",
     method="POST",
-    payload={"expression": "chain_id == 'A'", "syntax": "atomworks", "scope": "atom"},
+    payload={"expression": "chain_id == 'A'", "syntax": "expression", "scope": "atom"},
 )
 assert selection["atom_indices"]
 json_request(f"/api/sessions/{session}/charges", method="POST", payload={"atom_indices": [0], "delta": 1})

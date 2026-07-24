@@ -9,6 +9,7 @@
 *.vsix
 *.whl
 *.tgz
+!packages/web/vendor/patinae-viewer-0.4.5-studio.1.tgz
 artifacts/
 .cache/
 .coverage

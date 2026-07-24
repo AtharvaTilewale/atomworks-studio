@@ -16,8 +16,6 @@ Examples::
 import logging
 
 import numpy as np
-from pymol import cmd
-
 from atomworks.io.config import ParseConfig
 from atomworks.io.utils.io_utils import to_cif_file
 from atomworks.ml.utils.expandable_segment import insert_expandable_segment
@@ -29,6 +27,7 @@ from atomworks.pymol_plugin.bridge import (
     selection_to_indices,
 )
 from atomworks.pymol_plugin.state import STATE
+from pymol import cmd
 
 logger = logging.getLogger("atomworks.pymol_plugin")
 
@@ -144,7 +143,7 @@ def _selection_to_indices_for_active(selection: str, index_map: dict) -> list[in
             if cmd.get_model(qualified).atom:
                 return selection_to_indices(qualified, index_map)
     except Exception:
-        pass
+        logger.debug("Could not restrict selection to active object", exc_info=True)
     return selection_to_indices(selection, index_map)
 
 

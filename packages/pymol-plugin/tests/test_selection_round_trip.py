@@ -9,11 +9,10 @@ landing on "mostly right but some wrong" atoms.
 
 import numpy as np
 import pytest
-from pymol import cmd
-
 from atomworks.io.utils.atom_array_plus import AtomArrayPlus
 from atomworks.pymol_plugin.bridge import selection_to_indices
 from atomworks.pymol_plugin.state import STATE
+from pymol import cmd
 
 from .helpers import ground_truth_indices, visible_atom_mask
 

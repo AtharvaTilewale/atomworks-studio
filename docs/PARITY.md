@@ -1,5 +1,12 @@
 # Desktop parity
 
+This matrix records behavioral parity and automated evidence; it is not an
+installation guide. Use the [main README](../README.md#three-interfaces-one-document)
+to choose an interface, or open the dedicated
+[PyMOL](../packages/pymol-plugin/README.md),
+[VS Code/Cursor](../packages/vscode/README.md), and
+[Patinae](../packages/patinae-plugin/README.md) guides.
+
 The AtomWorks PyMOL plugin is the behavioral specification. “Implemented”
 means the web/API path uses the same AtomWorks semantics; release acceptance
 still requires the cited automated check to pass.

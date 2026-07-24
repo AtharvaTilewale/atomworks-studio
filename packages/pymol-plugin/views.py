@@ -12,8 +12,6 @@ import logging
 from collections.abc import Callable
 
 import numpy as np
-from pymol import cmd
-
 from atomworks.io.utils.atom_array_plus import AtomArrayPlus
 from atomworks.io.utils.standard_annotations import S_ATM
 from atomworks.ml.utils.visualize import (
@@ -23,6 +21,7 @@ from atomworks.ml.utils.visualize import (
     prepare_for_display,
 )
 from atomworks.pymol_plugin.state import STATE
+from pymol import cmd
 
 logger = logging.getLogger("atomworks.pymol_plugin")
 

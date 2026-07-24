@@ -10,10 +10,6 @@ from atomworks.io.utils.atom_array_plus import AtomArrayPlus
 
 # AtomWorks must initialize before RFD4 reads site-specific environment files.
 os.environ.setdefault("RFPROTEINA_LIGHTWEIGHT_IMPORT", "1")
-from rfproteina.conditions import C_IDXGRP
-from rfproteina.condition_specs import INTERACTIVE_CONDITION_SPECS
-from rfproteina.interactive_validation import validate_rfd4
-
 from annotation_studio.contracts import (
     ConditionDefinition,
     ConditionProvider,
@@ -21,6 +17,9 @@ from annotation_studio.contracts import (
     ValidationProvider,
 )
 from annotation_studio.design_jobs import ProcessDesignProvider
+from rfproteina.condition_specs import INTERACTIVE_CONDITION_SPECS
+from rfproteina.conditions import C_IDXGRP
+from rfproteina.interactive_validation import validate_rfd4
 
 
 class RFD4ConditionProvider(ConditionProvider):

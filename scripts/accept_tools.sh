@@ -24,7 +24,7 @@ bash "${root}/scripts/build_patinae_viewer.sh"
 cargo test --manifest-path "${root}/packages/patinae-plugin/Cargo.toml" --locked
 cargo build --manifest-path "${root}/packages/patinae-plugin/Cargo.toml" --release --locked
 
-uv run --project "${root}" --all-extras pytest -q \
+uv run --project "${root}" --all-extras python "${root}/scripts/run_pytest.py" -q \
   "${root}/packages/pymol-plugin/tests" \
   "${root}/tests/test_pymol_conformance.py" \
   | tee "${artifact_dir}/pymol.log"

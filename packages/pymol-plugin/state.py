@@ -6,9 +6,8 @@ import copy
 import logging
 from dataclasses import dataclass, field
 
-from pymol import cmd
-
 from atomworks.io.utils.atom_array_plus import AtomArrayPlus
+from pymol import cmd
 
 logger = logging.getLogger("atomworks.pymol_plugin")
 

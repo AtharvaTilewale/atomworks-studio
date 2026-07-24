@@ -1,5 +1,9 @@
 # AtomWorks Annotation Studio API
 
+For workspace bootstrap, verification, build outputs, and extension workflows,
+see the [Studio development guide](../../docs/DEVELOPMENT.md). This file is the
+API package and provider-boundary reference.
+
 This directory is an independently versioned Python distribution. Its version
 must match `../../VERSION`; CI enforces the API, web, and VS Code manifests as one
 Studio release.

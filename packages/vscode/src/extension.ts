@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 
 const DEFAULT_SERVER_URL = "http://127.0.0.1:8000";
 const SETUP_URL =
-  "https://github.com/baker-laboratory/atomworks-studio#bootstrap-and-cpu-editor";
+  "https://github.com/baker-laboratory/atomworks-studio#quick-start";
 type ViewerBackend = "patinae" | "molstar";
 
 function escapeAttribute(value: string): string {

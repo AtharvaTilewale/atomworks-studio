@@ -13,9 +13,6 @@ import logging
 from collections.abc import Callable
 
 import numpy as np
-from pymol import cmd
-from pymol.Qt import QtCore, QtWidgets
-
 from atomworks.enums import ChainType
 from atomworks.io.config import ParseConfig, PrepareConfig
 from atomworks.io.parser import prepare_atom_array
@@ -51,6 +48,8 @@ from atomworks.pymol_plugin.views import (
     get_default_view_name,
     set_default_view,
 )
+from pymol import cmd
+from pymol.Qt import QtCore, QtWidgets
 
 logger = logging.getLogger("atomworks.pymol_plugin")
 
@@ -116,8 +115,10 @@ def _check_missing_atoms(arr: AtomArrayPlus) -> list[str]:
         n_added = len(prepared) - len(arr)
         if n_added > 0:
             return [
-                f"[missing_atoms] Structure is missing {n_added} heavy atoms that would be "
-                "added by prepare_atom_array. Check for incomplete residues."
+                (
+                    f"[missing_atoms] Structure is missing {n_added} heavy atoms that would be "
+                    "added by prepare_atom_array. Check for incomplete residues."
+                )
             ]
         return []
     except Exception as e:
@@ -202,7 +203,7 @@ def open_main_panel() -> None:
         None,
     )
 
-    dock = QtWidgets.QDockWidget("AtomWorks Design Studio [BETA]", main_win)
+    dock = QtWidgets.QDockWidget("AtomWorks Studio [BETA]", main_win)
     dock.setWidget(_panel_instance._widget)
     dock.setAllowedAreas(QtCore.Qt.LeftDockWidgetArea | QtCore.Qt.RightDockWidgetArea)
     main_win.addDockWidget(QtCore.Qt.RightDockWidgetArea, dock)

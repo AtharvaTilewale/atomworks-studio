@@ -6,6 +6,6 @@
   "scripts": {
     "build": "pnpm --dir packages/web build && pnpm --dir packages/vscode compile",
     "test": "pnpm --dir packages/web test:unit",
-    "typecheck": "pnpm --dir packages/web exec tsc --noEmit && pnpm --dir packages/vscode compile"
+    "typecheck": "pnpm --dir packages/web build:core && pnpm --dir packages/web exec tsc --noEmit && pnpm --dir packages/vscode compile"
   }
 }

@@ -123,7 +123,7 @@ packages:
     engines: {node: '>=6.9.0'}
 
   '@baker-laboratory/patinae-viewer@file:packages/web/vendor/patinae-viewer-0.4.5-studio.1.tgz':
-    resolution: {integrity: sha512-PCPqHI++Zh55po3hBopyrGZ9BaHxP+2RsxTGjMzY6TaMxt0yEZyWHSfQlbG3n5RT8NNbKV42LvfMdRw4sbTXQQ==, tarball: file:packages/web/vendor/patinae-viewer-0.4.5-studio.1.tgz}
+    resolution: {integrity: sha512-2XAb0Zn5BTu+5aHk0VCvTmR6oNtzC9nsu5uo827I9bCAN+UnKvoFtSctWIsjJytCsQgrN4NvsuppmjUhQ/mClA==, tarball: file:packages/web/vendor/patinae-viewer-0.4.5-studio.1.tgz}
     version: 0.4.5-studio.1
 
   '@emnapi/core@1.11.2':

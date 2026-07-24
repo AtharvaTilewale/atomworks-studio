@@ -15,6 +15,7 @@ repository="$(read_metadata repository)"
 revision="$(read_metadata revision)"
 package_name="$(read_metadata package)"
 version="$(read_metadata version)"
+artifact_sha256="$(read_metadata artifact_sha256)"
 artifact="${artifact_dir}/patinae-viewer-${version}.tgz"
 if command -v pnpm >/dev/null 2>&1; then
   package_manager=(pnpm)
@@ -28,6 +29,7 @@ wasm_pack="${WASM_PACK:-$(command -v wasm-pack || true)}"
 }
 
 if [[ -f "${artifact}" && "${ATOMWORKS_STUDIO_REBUILD_PATINAE:-0}" != "1" ]]; then
+  printf '%s  %s\n' "${artifact_sha256}" "${artifact}" | sha256sum --check --status
   exit 0
 fi
 
@@ -42,7 +44,10 @@ git -C "${source_dir}" fetch --quiet origin "${revision}"
 git -C "${source_dir}" checkout --quiet -B atomworks-studio-build "${revision}"
 git -C "${source_dir}" clean -ffdqx
 git -C "${source_dir}" am --abort >/dev/null 2>&1 || true
-git -C "${source_dir}" am "${root}"/vendor/patinae/patches/*.patch
+git -C "${source_dir}" \
+  -c user.name="AtomWorks Studio Build" \
+  -c user.email="atomworks-studio-build@users.noreply.github.com" \
+  am "${root}"/vendor/patinae/patches/*.patch
 
 node - "${source_dir}/web/package.json" "${package_name}" "${version}" <<'JS'
 const fs = require("node:fs");
@@ -57,17 +62,28 @@ allowBuilds:
   esbuild: true
   wasm-pack: false
 YAML
+cat >>"${source_dir}/web/Cargo.toml" <<'TOML'
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ["-O", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]
+TOML
 
 (
   cd "${source_dir}/web"
   "${package_manager[@]}" install --no-frozen-lockfile
-  "${wasm_pack}" build --target web --out-dir pkg --no-opt
+  SOURCE_DATE_EPOCH=0 CARGO_BUILD_JOBS=1 \
+  RUSTFLAGS="-C codegen-units=1 --remap-path-prefix=${source_dir}=/src/patinae --remap-path-prefix=${CARGO_HOME:-${HOME}/.cargo}=/cargo" \
+    "${wasm_pack}" build --target web --out-dir pkg
   "${package_manager[@]}" exec vite build
   "${package_manager[@]}" exec tsc --emitDeclarationOnly
-  packed="$("${package_manager[@]}" pack --pack-destination "${artifact_dir}")"
-  packed="${packed##*$'\n'}"
-  mv "${packed}" "${artifact}"
+  pack_dir="$(mktemp -d)"
+  npm pack --ignore-scripts --pack-destination "${pack_dir}" >/dev/null
+  packed=("${pack_dir}"/*.tgz)
+  [[ "${#packed[@]}" == 1 ]]
+  mv "${packed[0]}" "${artifact}"
+  rmdir "${pack_dir}"
 )
+printf '%s  %s\n' "${artifact_sha256}" "${artifact}" | sha256sum --check --status
 patches=("${root}"/vendor/patinae/patches/*.patch)
 printf 'Built %s from %s plus %s patches\n' \
   "${artifact}" "${revision}" "${#patches[@]}"

@@ -7,6 +7,8 @@ the instance and there is no SLURM dependency.
 
 The complete DNS, Kubernetes, GHCR, Brev, AF3, operations, and acceptance
 checklist is in the [production runbook](../README.md).
+After the service is ready, follow the [website guide](../../docs/WEB.md) to
+load, annotate, submit, and compare designs.
 
 ## One-click Launchable
 
@@ -26,7 +28,7 @@ In the [Brev Launchable builder](https://docs.nvidia.com/brev/concepts/launchabl
 6. Select a GPU profile with enough VRAM for the intended input size and create
    the Launchable.
 
-The setup script reuses the repository `setup.sh`, pins the web toolchain,
+The setup script runs the RFD4 checkout's `setup.sh`, pins the web toolchain,
 builds the CUDA 12 RFD4 image once (default `latent-dev:cuda12`), installs a
 restartable systemd service when available, prestarts the configured AF3 daemon,
 and checks `/api/health`. The same source can be started with the Brev CLI:

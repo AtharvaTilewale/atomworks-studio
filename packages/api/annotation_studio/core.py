@@ -321,7 +321,7 @@ class StudioDocument:
                     seen.add((atom1, atom2))
                     values.append(
                         {
-                            "label": f"Atoms {atom1}–{atom2}",
+                            "label": f"Atoms {atom1}-{atom2}",
                             "value": float(value),
                             "count": 1,
                             "atom_indices": [atom1, atom2],
@@ -569,7 +569,7 @@ class StudioDocument:
         indices: list[int],
         *,
         enabled: bool = True,
-        value: int | float | list[float] | None = None,
+        value: float | list[float] | None = None,
         scope: ConditionScope = "atom",
     ) -> None:
         if name not in self.condition_provider.definitions_by_key:
