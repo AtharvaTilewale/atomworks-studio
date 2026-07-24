@@ -19,12 +19,20 @@ if ! command -v cargo >/dev/null 2>&1; then
 fi
 rustup target add wasm32-unknown-unknown
 command -v wasm-pack >/dev/null 2>&1 || cargo install --locked --version 0.13.1 wasm-pack
-corepack enable
+mkdir -p "${HOME}/.local/bin"
+corepack enable --install-directory "${HOME}/.local/bin"
 corepack prepare pnpm@11.16.0 --activate
+export PATH="${HOME}/.local/bin:${HOME}/.cargo/bin:${PATH}"
+command -v uv >/dev/null 2>&1 || curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Reuse the repository's only Python/model setup path; "other" avoids SLURM rc configuration.
 printf '5\n' | bash "${project_root}/setup.sh"
-export PATH="${HOME}/.local/bin:${HOME}/.cargo/bin:${PATH}"
+
+BREV_RFD4_IMAGE="${BREV_RFD4_IMAGE:-latent-dev:cuda12}"
+if ! docker image inspect "${BREV_RFD4_IMAGE}" >/dev/null 2>&1; then
+  RFPROTEINA_CUDA_STACK=cuda12 \
+    bash "${project_root}/scripts/build_latent_dev_docker.sh" "${BREV_RFD4_IMAGE}"
+fi
 
 default_state_root="${HOME}/.local/share/rfd4-annotation-studio"
 [[ -d "${HOME}/workspace" ]] && default_state_root="${HOME}/workspace/rfd4-annotation-studio"
@@ -36,7 +44,7 @@ service_launcher="${state_root}/start-service.sh"
   echo "#!/usr/bin/env bash"
   echo "set -euo pipefail"
   for variable in \
-    DATA_PATH AF3_APPTAINER_PATH AF3_SCRIPTS_DIR AF3_JAX_CACHE_DIR \
+    DATA_PATH BREV_RFD4_IMAGE AF3_APPTAINER_PATH AF3_SCRIPTS_DIR AF3_JAX_CACHE_DIR \
     AF3_MODEL_DIR AF3_GPU_DEVICES APPTAINER_BIND_PATHS CUDA_VISIBLE_DEVICES; do
     [[ -z "${!variable:-}" ]] || printf 'export %s=%q\n' "${variable}" "${!variable}"
   done
@@ -69,7 +77,8 @@ TimeoutStartSec=1200
 WantedBy=multi-user.target
 EOF
   sudo systemctl daemon-reload
-  sudo systemctl enable --now "${service_name}"
+  sudo systemctl enable "${service_name}"
+  sudo systemctl restart "${service_name}"
 else
   pid_file="${state_root}/server.pid"
   if [[ -f "${pid_file}" ]] && kill -0 "$(cat "${pid_file}")" 2>/dev/null; then

@@ -44,16 +44,37 @@ RFPROTEINA_CUDA_STACK=cuda12 \
 
 LOCAL_RFD4_IMAGE=latent-dev:cuda12 \
 RFD4_GPU_DEVICE=0 \
+ANNOTATION_STUDIO_RFD4_ONLY=1 \
   bash apps/annotation-studio/local/start.sh
 ```
 
 The container receives only the repository, read-only `DATA_PATH`, and the
 local Studio job directory. The browser/API still runs directly on the host.
+`ANNOTATION_STUDIO_RFD4_ONLY=1` explicitly ignores AF3 paths inherited from
+`.ipd/.env.local`; omit it when all four supported Apptainer paths are ready.
+Studio cannot call `scripts/launch_infer.sh` directly because that launcher
+requires SLURM. It uses `scripts/inference_runtime.sh`, which shares the same
+underlying `af3_daemon.py launch` lifecycle without `sbatch`/`srun`.
 
 Open:
 
 - <http://127.0.0.1:8000/?viewer=molstar>
 - <http://127.0.0.1:8000/?viewer=patinae>
+
+When this workstation is registered as `305e0a2-lcedt`, another
+Brev-authenticated machine can open a private tunnel:
+
+```bash
+brev port-forward 305e0a2-lcedt --port 8000:8000
+```
+
+The Studio remains bound to loopback; the Brev SSH tunnel is the only remote
+entry point. Stop the foreground launcher with `Ctrl-C`. Check readiness with:
+
+```bash
+curl --fail http://127.0.0.1:8000/api/health
+curl --fail http://127.0.0.1:8000/api/design/schema
+```
 
 Upload or create an annotated CIF, open **Generate with RFD4**, choose a small
 prototype job such as one design and a low step count, and submit. The server
@@ -72,7 +93,11 @@ State is retained under:
 ~/.local/share/rfd4-annotation-studio-local/
 ```
 
-Override it with `LOCAL_RFD4_STUDIO_STATE_DIR`.
+Override it with `LOCAL_RFD4_STUDIO_STATE_DIR`. The launcher also keeps
+TorchInductor, Triton, and CUDA compilation artifacts under
+`compile-cache/` there and mounts them into `LOCAL_RFD4_IMAGE`. Compilation is
+therefore reused across jobs, containers, and Studio restarts. The cache may
+rebuild after model-shape, PyTorch/CUDA, image, or GPU-architecture changes.
 
 ## AF3
 

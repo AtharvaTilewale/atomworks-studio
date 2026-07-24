@@ -20,7 +20,8 @@ if [[ ! -f "${dist_index}" ]]; then
   needs_build=true
 else
   shopt -s globstar nullglob
-  for source in "${web_dir}/src"/**/* "${web_dir}/index.html" "${web_dir}/package.json" "${web_dir}/vite.config.ts"; do
+  for source in "${web_dir}/src"/**/* "${web_dir}/public"/**/* \
+    "${web_dir}/index.html" "${web_dir}/package.json" "${web_dir}/vite.config.ts"; do
     if [[ -f "${source}" && "${source}" -nt "${dist_index}" ]]; then
       needs_build=true
       break
