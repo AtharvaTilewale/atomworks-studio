@@ -43,6 +43,22 @@ def test_session_deep_link_and_optional_embedding_policy(monkeypatch: MonkeyPatc
     assert health.json()["revision"] == "test-revision"
 
 
+def test_upload_accepts_desktop_parse_options() -> None:
+    response = client.post(
+        "/api/sessions",
+        files={"file": ("SAM_hbonds.cif", FIXTURE.read_bytes(), "chemical/x-mmcif")},
+        data={
+            "parse_preset": "minimal",
+            "assembly": "asym",
+            "hydrogen_policy": "remove",
+            "remove_waters": "false",
+            "model": "1",
+        },
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["structure"]["atom_count"] > 0
+
+
 def test_persistent_store_restores_mutations_after_restart(tmp_path: Path) -> None:
     first_process = DocumentStore(tmp_path)
     session_id = first_process.add(StudioDocument.from_cif(FIXTURE.read_text(), "persistent"))
@@ -77,6 +93,7 @@ def test_full_condition_api_and_download_roundtrip() -> None:
             "scope": "chain",
             "value": [1.0, 2.0, 3.0],
         },
+        {"condition": "distance", "atom_indices": [0, 1], "value": 3.25},
     ]
     for mutation in mutations:
         response = client.post(f"/api/sessions/{session_id}/conditions", json=mutation)
@@ -114,6 +131,7 @@ def test_full_condition_api_and_download_roundtrip() -> None:
     assert counts["hotspot"] == 1
     assert counts["rasa"] == 1
     assert counts["chain_centroid"] > 0
+    assert counts["distance"] == 1
 
 
 def test_upload_defenses_and_unknown_session() -> None:
@@ -170,6 +188,13 @@ def test_charge_bond_delete_and_undo_routes() -> None:
         json={"atom_indices": [0], "value": 1},
     )
     assert charge.status_code == 200, charge.text
+    chain = client.post(
+        f"/api/sessions/{session_id}/chains",
+        json={"atom_indices": [0], "chain_id": "WEB"},
+    )
+    assert chain.status_code == 200, chain.text
+    atom = client.get(f"/api/sessions/{session_id}/atoms/0/annotations")
+    assert atom.json()["chain_id"] == "WEB"
     bond = client.post(
         f"/api/sessions/{session_id}/bonds",
         json={"atom1": 0, "atom2": 1, "action": "add", "bond_type": "single"},

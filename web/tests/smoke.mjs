@@ -167,6 +167,10 @@ try {
   assert.ok(await page.locator("#annotation-list").isVisible(), "AtomWorks annotations are in the Studio menu");
   assert.ok(await page.locator("#design-card").isVisible(), "model submission is in the Studio menu");
   assert.equal(await page.locator("#design-card #submit-design").count(), 1);
+  assert.deepEqual(await page.locator("#charge-action option").allTextContents(), ["Set", "Add delta"]);
+  assert.equal(await page.locator("#close-residue-gaps").count(), 1);
+  assert.equal(await page.locator("#assign-chain").count(), 1);
+  assert.equal(await page.locator("#segment-new-chain").count(), 1);
   await page.locator("#apply-condition").click();
   await page.waitForFunction(
     () => document.querySelector("#status")?.textContent?.includes("state updated"),
@@ -195,7 +199,7 @@ try {
   await page.locator("#viewer-command").fill("(atom_id == 1) | (atom_id == 2)");
   await page.locator("#run-viewer-command").click();
   await page.waitForFunction(() => document.querySelector("#selection-count")?.textContent?.startsWith("2 atoms"));
-  await page.locator(".viewer-menu > summary").nth(2).click();
+  await page.locator('[data-menu="analyze"] > summary').click();
   assert.equal(await page.locator("#add-measurement").isEnabled(), true);
   await page.locator("#add-measurement").click();
   await page.waitForFunction(
@@ -214,7 +218,7 @@ try {
       (expected) => document.querySelector("#selection-count")?.textContent?.startsWith(`${expected} atoms`),
       count,
     );
-    await page.locator(".viewer-menu > summary").nth(2).click();
+    await page.locator('[data-menu="analyze"] > summary').click();
     await page.locator("#measurement-kind").selectOption(kind);
     assert.equal(await page.locator("#add-measurement").isEnabled(), true);
     await page.locator("#add-measurement").click();
@@ -224,7 +228,7 @@ try {
     );
     await page.locator("#atomworks-studio-menu > summary").click();
   }
-  await page.locator(".viewer-menu > summary").nth(2).click();
+  await page.locator('[data-menu="analyze"] > summary').click();
   await page.locator('input[name="interaction-type"]').evaluateAll((inputs) => {
     for (const input of inputs) input.checked = input.value === "hbond";
   });
@@ -239,15 +243,30 @@ try {
   await page.locator(".interaction-result").click();
   assert.match(await page.locator("#selection-count").innerText(), /^2 atoms/);
   await page.locator("#atomworks-studio-menu > summary").click();
-  await page.locator(".viewer-menu > summary").nth(4).click();
+  await page.locator('[data-menu="view"] > summary').click();
   await page.locator('[data-camera="reset"]').click();
-  await page.locator(".viewer-menu > summary").nth(4).click();
+  assert.equal(
+    await page.locator('[data-menu="view"]').evaluate((menu) => menu.hasAttribute("open")),
+    true,
+    "view controls remain open after camera actions",
+  );
+  await page.locator("#viewer canvas").first().click({ position: { x: 400, y: 300 } });
+  assert.equal(await page.locator("#viewer-toolbar").isVisible(), true);
+  assert.equal(
+    await page.locator('[data-menu="view"]').evaluate((menu) => menu.hasAttribute("open")),
+    true,
+    "canvas interaction does not hide controls",
+  );
   await page.locator('[data-background="black"]').click();
   if (viewerMode === "patinae") {
-    await page.locator(".viewer-menu > summary").nth(0).click();
+    await page.locator('[data-menu="style"] > summary').click();
     assert.equal(await page.locator('[data-representation="ribbon"]').isEnabled(), true);
     await page.locator('[data-representation="ribbon"]').click();
-    await page.locator(".viewer-menu > summary").nth(0).click();
+    assert.equal(
+      await page.locator('[data-menu="style"]').evaluate((menu) => menu.hasAttribute("open")),
+      true,
+      "style controls remain open after representation changes",
+    );
     await page.locator('[data-color="chain"]').click();
     assert.equal(await page.locator("#viewer-command").isEnabled(), true);
     await page.locator("#selection-syntax").selectOption("expression");
@@ -267,6 +286,16 @@ try {
     assert.equal(await page.locator("#selection-syntax option").first().isDisabled(), true);
     assert.equal(await page.locator("#viewer-command").isEnabled(), true);
   }
+  await page.setViewportSize({ width: 760, height: 620 });
+  await page.locator("body").evaluate((body) => {
+    body.style.zoom = "125%";
+  });
+  assert.equal(await page.locator("#viewer-toolbar").isVisible(), true);
+  assert.equal(await page.locator('[data-menu="studio"] > summary').isVisible(), true);
+  await page.locator("body").evaluate((body) => {
+    body.style.zoom = "";
+  });
+  await page.setViewportSize({ width: 1400, height: 900 });
   await page.locator("#atomworks-studio-menu > summary").click();
   assert.ok(await page.locator(".annotation-row").count(), "stored annotations are summarized");
   assert.ok(await page.locator(".annotation-field-row").count() >= 11);

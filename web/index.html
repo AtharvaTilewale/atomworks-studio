@@ -23,6 +23,23 @@
             Open CIF
             <input id="file-input" type="file" accept=".cif,.mmcif,chemical/x-mmcif" />
           </label>
+          <details class="load-options">
+            <summary>Load options</summary>
+            <div class="load-options-popover">
+              <label>Preset
+                <select id="parse-preset">
+                  <option value="minimal">Annotated CIF</option>
+                  <option value="rcsb">RCSB preparation</option>
+                </select>
+              </label>
+              <label>Assembly<input id="parse-assembly" value="1" placeholder="1, first, all, or asym" /></label>
+              <label>Model<input id="parse-model" type="number" min="1" placeholder="All models" /></label>
+              <label>Hydrogens
+                <select id="parse-hydrogens"><option value="keep">Keep</option><option value="remove">Remove</option></select>
+              </label>
+              <label class="checkbox"><input id="parse-remove-waters" type="checkbox" /> Remove waters</label>
+            </div>
+          </details>
           <label class="file-button secondary">
             Combine CIF
             <input id="combine-input" type="file" accept=".cif,.mmcif,chemical/x-mmcif" disabled />
@@ -41,7 +58,7 @@
                 <option value="molstar">Mol* · WebGL</option>
               </select>
             </label>
-            <details id="style-menu" class="viewer-menu">
+            <details id="style-menu" class="viewer-menu" data-menu="style">
               <summary>Style</summary>
               <div class="viewer-menu-popover viewer-menu-popover-wide">
                 <label>Target
@@ -71,7 +88,7 @@
                 </div>
               </div>
             </details>
-            <details class="viewer-menu">
+            <details class="viewer-menu" data-menu="select">
               <summary>Select</summary>
               <div class="viewer-menu-popover">
                 <label data-capability="picking">Pick
@@ -90,7 +107,7 @@
                 <p id="picking-fallback" class="menu-note" hidden>Canvas picking is unavailable on this adapter. Use sequence or expression selection.</p>
               </div>
             </details>
-            <details class="viewer-menu">
+            <details class="viewer-menu" data-menu="analyze">
               <summary>Analyze</summary>
               <div class="viewer-menu-popover viewer-menu-popover-wide">
                 <fieldset class="interaction-types">
@@ -143,11 +160,10 @@
                 </div>
               </div>
             </details>
-            <details id="atomworks-studio-menu" class="viewer-menu studio-menu">
+            <details id="atomworks-studio-menu" class="viewer-menu studio-menu" data-menu="studio">
               <summary>AtomWorks Studio</summary>
-              <div id="atomworks-studio-popover" class="viewer-menu-popover viewer-menu-popover-right studio-menu-popover"></div>
             </details>
-            <details class="viewer-menu">
+            <details class="viewer-menu" data-menu="view">
               <summary>View</summary>
               <div class="viewer-menu-popover">
                 <div class="viewer-menu-grid" id="view-actions">
@@ -160,7 +176,7 @@
                 </div>
               </div>
             </details>
-            <details class="viewer-menu overflow-menu">
+            <details class="viewer-menu overflow-menu" data-menu="overflow">
               <summary>•••</summary>
               <div class="viewer-menu-popover viewer-menu-popover-right viewer-menu-popover-wide">
                 <button id="open-objects" type="button" class="secondary compact">Objects drawer</button>
@@ -216,7 +232,7 @@
           </form>
         </div>
 
-        <aside>
+        <aside id="atomworks-studio-popover" class="studio-menu-popover" aria-label="AtomWorks Studio">
           <section class="drawer-stack" aria-label="Viewer data drawers">
             <details id="objects-drawer" class="card drawer">
               <summary>Objects</summary>
@@ -376,8 +392,13 @@
 
           <details class="card">
             <summary>Charges and bonds</summary>
-            <label>Formal charge<input id="charge" type="number" min="-10" max="10" value="0" /></label>
-            <button id="apply-charge" disabled>Set charge</button>
+            <div class="inline-fields">
+              <label>Charge action
+                <select id="charge-action"><option value="value">Set</option><option value="delta">Add delta</option></select>
+              </label>
+              <label>Charge<input id="charge" type="number" min="-10" max="10" value="0" /></label>
+            </div>
+            <button id="apply-charge" disabled>Apply charge</button>
             <hr />
             <label>Bond type<select id="bond-type"></select></label>
             <div class="button-row">
@@ -393,12 +414,29 @@
               <button id="delete-atoms" class="danger" disabled>Delete selected</button>
               <button id="reset-residues" class="secondary" disabled>Reset residue IDs</button>
             </div>
+            <label class="checkbox"><input id="close-residue-gaps" type="checkbox" /> Close residue-ID gaps after delete</label>
+            <div class="inline-fields">
+              <label>Assign chain<input id="chain-id" maxlength="8" placeholder="A" /></label>
+              <button id="assign-chain" class="secondary" disabled>Assign selected</button>
+            </div>
             <hr />
             <div class="inline-fields">
               <label>Min<input id="segment-min" type="number" min="1" value="5" /></label>
               <label>Max<input id="segment-max" type="number" min="1" value="10" /></label>
             </div>
             <label class="checkbox"><input id="segment-before" type="checkbox" checked /> Insert before picked atom</label>
+            <label class="checkbox"><input id="segment-new-chain" type="checkbox" /> Create as a new chain</label>
+            <div id="segment-chain-options" class="inline-fields" hidden>
+              <label>Chain ID<input id="segment-chain-id" maxlength="8" placeholder="Next available" /></label>
+              <label>Chain type
+                <select id="segment-chain-type">
+                  <option value="polypeptide(L)">Polypeptide (L)</option>
+                  <option value="polypeptide(D)">Polypeptide (D)</option>
+                  <option value="polydeoxyribonucleotide">DNA</option>
+                  <option value="polyribonucleotide">RNA</option>
+                </select>
+              </label>
+            </div>
             <button id="insert-segment" disabled>Insert expandable segment</button>
             <div class="button-row">
               <button id="realize-segments" class="secondary" disabled>Realize</button>

@@ -69,11 +69,25 @@ export type ViewerMeasurement = {
   atomIndices?: number[];
 };
 
-export type ViewerMeasurementRequest = {
-  kind: "distance" | "angle" | "dihedral";
+export type ViewerMeasurementKind = "distance" | "angle" | "dihedral";
+
+export type ViewerMeasurementAtomIndices = {
+  distance: [number, number];
+  angle: [number, number, number];
+  dihedral: [number, number, number, number];
+};
+
+export type ViewerMeasurementRequest<K extends ViewerMeasurementKind = ViewerMeasurementKind> = {
+  kind: K;
   atomIndices: number[];
   label?: string;
   color?: number;
+};
+
+export type NormalizedViewerMeasurementRequest<
+  K extends ViewerMeasurementKind = ViewerMeasurementKind,
+> = Omit<ViewerMeasurementRequest<K>, "atomIndices"> & {
+  atomIndices: ViewerMeasurementAtomIndices[K];
 };
 
 export type ViewerInteraction = {
@@ -83,6 +97,10 @@ export type ViewerInteraction = {
   atom2: number;
   label: string;
   color: number;
+};
+
+export type ViewerInteractionOverlay = NormalizedViewerMeasurementRequest<"distance"> & {
+  id: string;
 };
 
 export type AnnotationGroup = {
@@ -135,6 +153,78 @@ export interface ViewerAdapter {
   showInteractions?(interactions: ViewerInteraction[]): Promise<void>;
   clearMeasurements?(): Promise<void>;
   destroy(): void;
+}
+
+export const VIEWER_MEASUREMENT_CARDINALITY = {
+  distance: 2,
+  angle: 3,
+  dihedral: 4,
+} as const satisfies Record<ViewerMeasurementKind, number>;
+
+export function viewerMeasurementCardinality<K extends ViewerMeasurementKind>(
+  kind: K,
+): (typeof VIEWER_MEASUREMENT_CARDINALITY)[K] {
+  return VIEWER_MEASUREMENT_CARDINALITY[kind];
+}
+
+export function validateViewerMeasurementRequest<K extends ViewerMeasurementKind>(
+  request: ViewerMeasurementRequest<K>,
+): void {
+  if (request.atomIndices.some((atomIndex) => !Number.isSafeInteger(atomIndex) || atomIndex < 0)) {
+    throw new Error(`${request.kind} measurement atom indices must be non-negative integers.`);
+  }
+
+  const required = viewerMeasurementCardinality(request.kind);
+  if (request.atomIndices.length !== required) {
+    throw new Error(`Select exactly ${required} atoms for a ${request.kind} measurement.`);
+  }
+}
+
+export function normalizeViewerMeasurementRequest<K extends ViewerMeasurementKind>(
+  request: ViewerMeasurementRequest<K>,
+): NormalizedViewerMeasurementRequest<K> {
+  const normalized = {
+    ...request,
+    atomIndices: [...new Set(request.atomIndices)],
+  };
+  validateViewerMeasurementRequest(normalized);
+  return normalized as NormalizedViewerMeasurementRequest<K>;
+}
+
+export function interactionToViewerOverlay(
+  interaction: ViewerInteraction,
+): ViewerInteractionOverlay {
+  const request = normalizeViewerMeasurementRequest({
+    kind: "distance",
+    atomIndices: [interaction.atom1, interaction.atom2],
+    label: interaction.label,
+    color: interaction.color,
+  });
+  return { id: interaction.id, ...request };
+}
+
+export function interactionsToViewerOverlays(
+  interactions: readonly ViewerInteraction[],
+): ViewerInteractionOverlay[] {
+  return interactions.map(interactionToViewerOverlay);
+}
+
+export type ViewerTransientVisualState = {
+  interactionOverlays: readonly ViewerInteraction[];
+  measurementRequests: readonly ViewerMeasurementRequest[];
+};
+
+export async function replayViewerTransientVisuals(
+  adapter: Pick<ViewerAdapter, "clearMeasurements" | "showInteractions" | "addMeasurement">,
+  state: ViewerTransientVisualState,
+): Promise<void> {
+  await adapter.clearMeasurements?.();
+  if (state.interactionOverlays.length) {
+    await adapter.showInteractions?.([...state.interactionOverlays]);
+  }
+  for (const request of state.measurementRequests) {
+    await adapter.addMeasurement?.(request);
+  }
 }
 
 export const ANNOTATION_PALETTE: readonly AnnotationColor[] = [

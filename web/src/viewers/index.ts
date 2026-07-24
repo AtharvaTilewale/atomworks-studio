@@ -16,6 +16,10 @@ import type {
   ViewerSelection,
   ViewerTarget,
 } from "./contract";
+import {
+  normalizeViewerMeasurementRequest,
+  replayViewerTransientVisuals,
+} from "./contract";
 
 export type {
   AnnotationGroup,
@@ -71,6 +75,10 @@ export class MolecularViewer {
     return this.adapter.backend;
   }
 
+  get initialized(): boolean {
+    return this.adapter !== null;
+  }
+
   get capabilities() {
     if (!this.adapter) throw new Error("Molecular viewer is not initialized");
     return this.adapter.capabilities;
@@ -112,6 +120,14 @@ export class MolecularViewer {
       BACKEND_LABELS[backend] + (softwarePicking ? " · software WebGPU (canvas picking off)" : "");
   }
 
+  private async replayTransientVisuals(): Promise<void> {
+    if (!this.adapter) return;
+    await replayViewerTransientVisuals(this.adapter, {
+      interactionOverlays: this.interactionOverlays,
+      measurementRequests: this.measurementRequests,
+    });
+  }
+
   async initialize(): Promise<void> {
     await this.activate(this.mode);
   }
@@ -125,12 +141,7 @@ export class MolecularViewer {
       if (this.annotationGroups.length) {
         this.updateAnnotationDiagnostics(await this.adapter?.showAnnotation(this.annotationGroups));
       }
-      if (this.interactionOverlays.length) {
-        await this.adapter?.showInteractions?.(this.interactionOverlays);
-      }
-      for (const request of this.measurementRequests) {
-        await this.adapter?.addMeasurement?.(request);
-      }
+      await this.replayTransientVisuals();
       this.adapter?.setSelection(this.selectedAtomIndices);
     }
   }
@@ -140,6 +151,7 @@ export class MolecularViewer {
     this.name = name;
     this.updateAnnotationDiagnostics();
     await this.adapter?.loadCif(cif, name);
+    await this.replayTransientVisuals();
   }
 
   clearSelection(): void {
@@ -211,19 +223,29 @@ export class MolecularViewer {
 
   async addMeasurement(request: ViewerMeasurementRequest): Promise<ViewerMeasurement[]> {
     if (!this.adapter?.addMeasurement) throw new Error("Renderer measurements are unavailable.");
-    const measurements = await this.adapter.addMeasurement(request);
-    this.measurementRequests.push(request);
+    const normalized = normalizeViewerMeasurementRequest(request);
+    const measurements = await this.adapter.addMeasurement(normalized);
+    this.measurementRequests.push(normalized);
     return measurements;
   }
 
   async showInteractions(interactions: ViewerInteraction[]): Promise<void> {
     if (!this.adapter?.showInteractions) throw new Error("Renderer interaction overlays are unavailable.");
     this.interactionOverlays = interactions;
-    await this.adapter.showInteractions(interactions);
-    for (const request of this.measurementRequests) await this.adapter.addMeasurement?.(request);
+    await this.replayTransientVisuals();
   }
 
   async clearMeasurements(): Promise<void> {
+    this.measurementRequests = [];
+    await this.replayTransientVisuals();
+  }
+
+  async clearInteractions(): Promise<void> {
+    this.interactionOverlays = [];
+    await this.replayTransientVisuals();
+  }
+
+  async clearAllVisuals(): Promise<void> {
     this.interactionOverlays = [];
     this.measurementRequests = [];
     await this.adapter?.clearMeasurements?.();
@@ -233,11 +255,13 @@ export class MolecularViewer {
     if (!this.adapter) throw new Error("Molecular viewer is not initialized");
     this.annotationGroups = groups;
     this.updateAnnotationDiagnostics(await this.adapter.showAnnotation(groups));
+    await this.replayTransientVisuals();
   }
 
   async clearAnnotation(): Promise<void> {
     this.annotationGroups = [];
     await this.adapter?.clearAnnotation();
+    await this.replayTransientVisuals();
     this.updateAnnotationDiagnostics();
   }
 

@@ -1,5 +1,12 @@
-import { PatinaeViewer } from "@patinae/viewer";
+import {
+  PatinaeViewer,
+  parseAtomSiteBooleanColumn,
+  type AtomIdentity,
+  type MeasurementInfo,
+  type MeasurementRequest,
+} from "@patinae/viewer";
 
+import { documentAtomIndices, nativeAtomIndices } from "./atom-identity";
 import {
   ANNOTATION_PALETTE,
   annotationRenderResult,
@@ -20,58 +27,7 @@ import {
   type ViewerTarget,
 } from "./contract";
 
-type FuturePatinaeViewer = PatinaeViewer & {
-  evaluateSelection?: (expression: string) => {
-    atom_count: number;
-    objects: Array<{ object_name: string; atom_indices: number[] }>;
-  };
-  getObjectList?: () => Array<{
-    name: string;
-    object_type: string;
-    atom_count: number;
-    enabled: boolean;
-  }>;
-  getSelectionList?: () => ViewerSelection[];
-  getCommandCatalog?: () => Array<{
-    name: string;
-    aliases: string[];
-    description: string;
-    usage: string;
-    help: string;
-    web_safe: boolean;
-    unavailable_reason: string | null;
-  }>;
-  getMeasurementList?: () => Array<{
-    name: string;
-    measurements: Array<{ kind: string; value: number; label: string }>;
-  }>;
-  addDistanceMeasurements?: (requests: Array<{
-    name: string;
-    selection1: string;
-    selection2: string;
-  }>) => Array<{
-    name: string;
-    measurements: Array<{ kind: string; value: number; label: string }>;
-  }>;
-  addMeasurements?: (requests: Array<{
-    kind: "distance" | "angle" | "dihedral";
-    name: string;
-    selections: string[];
-    color?: [number, number, number, number];
-    label?: string;
-  }>) => Array<{
-    name: string;
-    measurements: Array<{ kind: string; value: number; label: string }>;
-  }>;
-  removeMeasurements?: (names: string[]) => number;
-};
-
-function flattenMeasurements(
-  groups: Array<{
-    name: string;
-    measurements: Array<{ kind: string; value: number; label: string }>;
-  }>,
-): ViewerMeasurement[] {
+function flattenMeasurements(groups: MeasurementInfo[]): ViewerMeasurement[] {
   return groups.flatMap((group) => group.measurements.map((measurement) => ({
     id: group.name,
     label: measurement.label || group.name,
@@ -116,7 +72,8 @@ export class PatinaeAdapter implements ViewerAdapter {
     measurements: false,
     interactionOverlays: false,
   };
-  private viewer: FuturePatinaeViewer | null = null;
+  private viewer: PatinaeViewer | null = null;
+  private atomIdentities: AtomIdentity[] = [];
   private cif: string | null = null;
   private name = "structure";
   private displayCommands = [
@@ -166,64 +123,24 @@ export class PatinaeAdapter implements ViewerAdapter {
     if (picking) {
       this.viewer.on("atom-picked", (hit) => {
         if (hit.atom_index === null) return;
+        const identity = this.atomIdentities.find(
+          (atom) => atom.object_name === hit.object_name && atom.atom_index === hit.atom_index,
+        );
+        const documentIndex = identity?.document_index ?? hit.atom_index;
         this.context.onPick({
-          atomIndex: hit.atom_index,
-          label: `${hit.chain ?? "?"}/${hit.residue ?? "?"}: atom ${hit.atom_index}`,
+          atomIndex: documentIndex,
+          label: `${hit.chain ?? "?"}/${hit.residue ?? "?"}: atom ${documentIndex}`,
         });
       });
     }
   }
 
-  private parseCoordinateConditionedAtomIds(): number[] {
-    if (this.cif === null) return [];
-    const lines = this.cif.split("\n");
-    const result: number[] = [];
-    let colIdx = 0;
-    let idCol = -1;
-    let maskCoordCol = -1;
-    let inAtomSiteLoop = false;
-    let inData = false;
+  private nativeIndices(documentIndices: number[]): number[] {
+    return nativeAtomIndices(this.atomIdentities, documentIndices);
+  }
 
-    for (const rawLine of lines) {
-      const line = rawLine.trimEnd();
-      if (line === "loop_") {
-        colIdx = 0;
-        idCol = -1;
-        maskCoordCol = -1;
-        inAtomSiteLoop = false;
-        inData = false;
-        continue;
-      }
-      if (line.trim().startsWith("_atom_site.")) {
-        inAtomSiteLoop = true;
-        inData = false;
-        const col = line.trim();
-        if (col === "_atom_site.id") idCol = colIdx;
-        if (col === "_atom_site.mask_coordinate_1_atom") maskCoordCol = colIdx;
-        colIdx++;
-        continue;
-      }
-      if (!inAtomSiteLoop) continue;
-      const trimmed = line.trim();
-      if (!inData) {
-        if (trimmed === "" || trimmed.startsWith("#")) continue;
-        if (trimmed.startsWith("_")) { inAtomSiteLoop = false; continue; }
-        inData = true;
-      }
-      // In data rows
-      if (trimmed === "" || trimmed.startsWith("#") || trimmed.startsWith("_")) {
-        inAtomSiteLoop = false;
-        inData = false;
-        continue;
-      }
-      if (idCol < 0 || maskCoordCol < 0) continue;
-      const parts = trimmed.split(/\s+/);
-      if (maskCoordCol < parts.length && parts[maskCoordCol] === "True") {
-        const id = parseInt(parts[idCol], 10);
-        if (!isNaN(id)) result.push(id);
-      }
-    }
-    return result;
+  private nativeSelection(documentIndices: number[]): string {
+    return `index ${compressIndices(this.nativeIndices(documentIndices))}`;
   }
 
   private async renderCif(): Promise<void> {
@@ -233,9 +150,13 @@ export class PatinaeAdapter implements ViewerAdapter {
     for (const command of this.displayCommands) this.viewer.execute(command);
     for (const command of this.colorCommands) this.viewer.execute(command);
     this.viewer.execute(this.backgroundCommand);
-    const coordConditionedIds = this.parseCoordinateConditionedAtomIds();
-    if (coordConditionedIds.length) {
-      this.viewer.execute(`show sticks, index ${compressIndices(coordConditionedIds)}`);
+    this.atomIdentities = this.viewer.getAtomIdentityMap?.() ?? [];
+    const coordinateRows = parseAtomSiteBooleanColumn(
+      this.cif,
+      "_atom_site.mask_coordinate_1_atom",
+    );
+    if (coordinateRows.length) {
+      this.viewer.execute(`show sticks, ${this.nativeSelection(coordinateRows)}`);
     }
     this.viewer.execute("zoom all");
     await new Promise((resolve) => setTimeout(resolve, 250));
@@ -253,7 +174,7 @@ export class PatinaeAdapter implements ViewerAdapter {
     const normalized = normalizedAnnotationGroups(groups);
     await this.renderCif();
     normalized.forEach((group, index) => {
-      const selection = `index ${compressIndices(group.atomIndices)}`;
+      const selection = this.nativeSelection(group.atomIndices);
       const selectedCount = this.viewer!.countAtoms(selection);
       if (selectedCount !== group.atomIndices.length) {
         throw new Error(
@@ -277,7 +198,7 @@ export class PatinaeAdapter implements ViewerAdapter {
     if (!this.viewer) return;
     const indices = [...new Set(atomIndices)].sort((left, right) => left - right);
     this.viewer.execute(indices.length
-      ? `select sele, index ${compressIndices(indices)}`
+      ? `select sele, ${this.nativeSelection(indices)}`
       : "select sele, none");
   }
 
@@ -327,7 +248,7 @@ export class PatinaeAdapter implements ViewerAdapter {
   evaluateSelection(expression: string): number[] {
     if (!this.viewer?.evaluateSelection) throw new Error("This Patinae build cannot evaluate selections.");
     const result = this.viewer.evaluateSelection(expression);
-    return result.objects.flatMap((object) => object.atom_indices);
+    return documentAtomIndices(this.atomIdentities, result);
   }
 
   getObjectList(): ViewerObject[] {
@@ -374,19 +295,28 @@ export class PatinaeAdapter implements ViewerAdapter {
     }
     const name = request.label?.replace(/[^A-Za-z0-9_-]/g, "_") || `${request.kind}_${Date.now()}`;
     if (this.viewer.addMeasurements) {
-      return flattenMeasurements(this.viewer.addMeasurements([{
-        kind: request.kind,
+      const selections = request.atomIndices.map((index) => this.nativeSelection([index]));
+      const base = {
         name,
-        selections: request.atomIndices.map((index) => `index ${index}`),
         color: rgba(request.color ?? 0xffd54f),
         label: request.label,
-      }]));
+      };
+      const measurement: MeasurementRequest = request.kind === "distance"
+        ? { ...base, kind: "distance", selections: [selections[0], selections[1]] }
+        : request.kind === "angle"
+          ? { ...base, kind: "angle", selections: [selections[0], selections[1], selections[2]] }
+          : {
+              ...base,
+              kind: "dihedral",
+              selections: [selections[0], selections[1], selections[2], selections[3]],
+            };
+      return flattenMeasurements(this.viewer.addMeasurements([measurement]));
     }
     if (request.kind !== "distance") throw new Error(`This Patinae build cannot create ${request.kind} measurements.`);
     return flattenMeasurements(this.viewer.addDistanceMeasurements!([{
         name,
-        selection1: `index ${request.atomIndices[0]}`,
-        selection2: `index ${request.atomIndices[1]}`,
+        selection1: this.nativeSelection([request.atomIndices[0]]),
+        selection2: this.nativeSelection([request.atomIndices[1]]),
       }]));
   }
 
@@ -404,15 +334,18 @@ export class PatinaeAdapter implements ViewerAdapter {
       this.viewer.addMeasurements(interactions.map((interaction) => ({
         kind: "distance",
         name: interaction.id,
-        selections: [`index ${interaction.atom1}`, `index ${interaction.atom2}`],
+        selections: [
+          this.nativeSelection([interaction.atom1]),
+          this.nativeSelection([interaction.atom2]),
+        ],
         color: rgba(interaction.color),
         label: interaction.label,
       })));
     } else {
       this.viewer.addDistanceMeasurements!(interactions.map((interaction) => ({
         name: interaction.id,
-        selection1: `index ${interaction.atom1}`,
-        selection2: `index ${interaction.atom2}`,
+        selection1: this.nativeSelection([interaction.atom1]),
+        selection2: this.nativeSelection([interaction.atom2]),
       })));
     }
   }
@@ -420,6 +353,7 @@ export class PatinaeAdapter implements ViewerAdapter {
   destroy(): void {
     this.viewer?.destroy();
     this.viewer = null;
+    this.atomIdentities = [];
     this.cif = null;
   }
 }

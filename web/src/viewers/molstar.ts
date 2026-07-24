@@ -14,7 +14,9 @@ import "molstar/lib/mol-plugin-ui/skin/dark.scss";
 import {
   ANNOTATION_PALETTE,
   annotationRenderResult,
+  interactionsToViewerOverlays,
   normalizedAnnotationGroups,
+  normalizeViewerMeasurementRequest,
   type AnnotationGroup,
   type AnnotationRenderResult,
   type ViewerAdapter,
@@ -187,25 +189,22 @@ export class MolstarAdapter implements ViewerAdapter {
 
   async addMeasurement(request: ViewerMeasurementRequest): Promise<ViewerMeasurement[]> {
     if (!this.viewer) throw new Error("Mol* is not initialized");
-    const expected = request.kind === "distance" ? 2 : request.kind === "angle" ? 3 : 4;
-    if (request.atomIndices.length !== expected) {
-      throw new Error(`Select exactly ${expected} atoms for a ${request.kind} measurement.`);
-    }
-    const loci = request.atomIndices.map((atomIndex) => this.lociFor([atomIndex]));
-    const color = Color(request.color ?? 0xffd54f);
+    const normalized = normalizeViewerMeasurementRequest(request);
+    const loci = normalized.atomIndices.map((atomIndex) => this.lociFor([atomIndex]));
+    const color = Color(normalized.color ?? 0xffd54f);
     const options = {
-      customText: request.label,
+      customText: normalized.label,
       visualParams: { linesColor: color, textColor: color },
     };
     const manager = this.viewer.plugin.managers.structure.measurement;
-    if (request.kind === "distance") await manager.addDistance(loci[0], loci[1], options);
-    else if (request.kind === "angle") await manager.addAngle(loci[0], loci[1], loci[2], options);
+    if (normalized.kind === "distance") await manager.addDistance(loci[0], loci[1], options);
+    else if (normalized.kind === "angle") await manager.addAngle(loci[0], loci[1], loci[2], options);
     else await manager.addDihedral(loci[0], loci[1], loci[2], loci[3], options);
     const measurement: ViewerMeasurement = {
-      id: `${request.kind}_${Date.now()}`,
-      label: request.label ?? request.kind,
-      kind: request.kind,
-      atomIndices: request.atomIndices,
+      id: `${normalized.kind}_${Date.now()}`,
+      label: normalized.label ?? normalized.kind,
+      kind: normalized.kind,
+      atomIndices: normalized.atomIndices,
     };
     this.measurements.push(measurement);
     return [measurement];
@@ -232,13 +231,8 @@ export class MolstarAdapter implements ViewerAdapter {
 
   async showInteractions(interactions: ViewerInteraction[]): Promise<void> {
     await this.clearMeasurements();
-    for (const interaction of interactions) {
-      await this.addMeasurement({
-        kind: "distance",
-        atomIndices: [interaction.atom1, interaction.atom2],
-        label: interaction.label,
-        color: interaction.color,
-      });
+    for (const overlay of interactionsToViewerOverlays(interactions)) {
+      await this.addMeasurement(overlay);
     }
   }
 

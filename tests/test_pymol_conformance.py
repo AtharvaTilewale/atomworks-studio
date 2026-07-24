@@ -13,9 +13,13 @@ from pymol import cmd  # noqa: E402
 
 from atomworks.io.config import ParseConfig  # noqa: E402
 from atomworks.pymol_plugin.bridge import load_structure, selection_to_indices  # noqa: E402
+from atomworks.pymol_plugin.editors import editor_for  # noqa: E402
+from atomworks.pymol_plugin.editors.widgets import PairValueEditor  # noqa: E402
 from atomworks.pymol_plugin.state import STATE  # noqa: E402
+from atomworks.ml.conditions import C_DIS  # noqa: E402
 from rfproteina.conditions import C_HOT, C_RAS  # noqa: E402
 from rfproteina.condition_specs import INTERACTIVE_CONDITION_SPECS  # noqa: E402
+from rfproteina.pymol.editors import _run_pipeline_validation  # noqa: E402
 
 from annotation_studio.core import StudioDocument  # noqa: E402
 
@@ -89,6 +93,7 @@ def test_every_shared_condition_roundtrips_into_pymol(tmp_path: Path) -> None:
     ]
     for condition, enabled, value, scope in mutations:
         document.set_condition(condition, [0], enabled=enabled, value=value, scope=scope)
+    document.edit_distance_restraint(0, 1, "set", 3.25)
 
     exported = tmp_path / "all_conditions.cif"
     exported.write_text(document.to_cif())
@@ -104,6 +109,12 @@ def test_every_shared_condition_roundtrips_into_pymol(tmp_path: Path) -> None:
 
     for spec in INTERACTIVE_CONDITION_SPECS:
         condition = spec.condition
+        if spec.kind == "pair":
+            plugin_annotation = condition.annotation(plugin_array, default="raise")
+            document_annotation = condition.annotation(document.array, default="raise")
+            assert plugin_annotation.pairs.tolist() == document_annotation.pairs.tolist()
+            np.testing.assert_allclose(plugin_annotation.values, document_annotation.values)
+            continue
         assert np.array_equal(
             condition.mask(plugin_array, default="generate"),
             condition.mask(document.array, default="generate"),
@@ -115,3 +126,21 @@ def test_every_shared_condition_roundtrips_into_pymol(tmp_path: Path) -> None:
                 equal_nan=True,
                 err_msg=spec.key,
             )
+
+
+def test_distance_condition_uses_existing_pair_editor() -> None:
+    from rfproteina.pymol import condition_registry
+
+    condition_registry.apply()
+
+    distance_spec = next(spec for spec in condition_registry.SUPPORTED_CONDITIONS if spec.condition is C_DIS)
+    assert distance_spec.editor is PairValueEditor
+    assert editor_for(C_DIS) is PairValueEditor
+
+
+def test_pymol_and_studio_share_structural_validation() -> None:
+    document = StudioDocument.from_cif(FIXTURE.read_text(), "validation")
+    document.array.coord[0, 0] = np.inf
+
+    expected = next(issue for issue in document.validate() if issue["check"] == "coordinates")
+    assert f"[coordinates] {expected['message']}" in _run_pipeline_validation(document.array)

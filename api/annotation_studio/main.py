@@ -15,7 +15,7 @@ from threading import RLock
 from typing import Any, Literal, TypeVar
 from urllib.parse import urlencode
 
-from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
@@ -297,7 +297,7 @@ class ConditionMutation(BaseModel):
     condition: str
     atom_indices: list[int] = Field(min_length=1, max_length=100_000)
     enabled: bool = True
-    value: int | list[float] | None = None
+    value: int | float | list[float] | None = None
     scope: Literal["atom", "residue", "chain"] = "atom"
 
     @field_validator("condition")
@@ -337,6 +337,11 @@ class ChargeMutation(BaseModel):
     atom_indices: list[int] = Field(min_length=1, max_length=100_000)
     value: int | None = Field(default=None, ge=-10, le=10)
     delta: int | None = Field(default=None, ge=-10, le=10)
+
+
+class ChainMutation(BaseModel):
+    atom_indices: list[int] = Field(min_length=1, max_length=100_000)
+    chain_id: str = Field(min_length=1, max_length=8)
 
 
 class BondMutation(BaseModel):
@@ -550,7 +555,14 @@ def align_design_output(job_id: str, output_id: str) -> dict:
 
 
 @app.post("/api/sessions")
-async def create_session(file: UploadFile = File(...)) -> dict:  # noqa: B008
+async def create_session(  # noqa: B008
+    file: UploadFile = File(...),
+    parse_preset: Literal["minimal", "rcsb"] = Form("minimal"),
+    assembly: str = Form("1"),
+    model: int | None = Form(None),
+    remove_waters: bool | None = Form(None),
+    hydrogen_policy: Literal["keep", "remove"] | None = Form(None),
+) -> dict:
     filename = Path(file.filename or "structure.cif").name
     if not filename.lower().endswith((".cif", ".mmcif")):
         raise HTTPException(status_code=415, detail="only CIF/mmCIF uploads are accepted")
@@ -563,6 +575,13 @@ async def create_session(file: UploadFile = File(...)) -> dict:  # noqa: B008
         document = StudioDocument.from_cif(
             text,
             Path(filename).stem,
+            parse_options={
+                "preset": parse_preset,
+                "assembly": assembly,
+                "model": model,
+                "remove_waters": remove_waters,
+                "hydrogen_policy": hydrogen_policy,
+            },
             condition_provider=condition_provider,
             validation_provider=validation_provider,
         )
@@ -695,6 +714,14 @@ def set_charge(session_id: str, mutation: ChargeMutation) -> dict:
     return _apply(
         session_id,
         lambda document: document.set_charge(mutation.atom_indices, value=mutation.value, delta=mutation.delta),
+    )
+
+
+@app.post("/api/sessions/{session_id}/chains")
+def assign_chain(session_id: str, mutation: ChainMutation) -> dict:
+    return _apply(
+        session_id,
+        lambda document: document.assign_chain(mutation.atom_indices, mutation.chain_id),
     )
 
 

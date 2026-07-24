@@ -10,8 +10,9 @@ from atomworks.io.utils.atom_array_plus import AtomArrayPlus
 
 # AtomWorks must initialize before RFD4 reads site-specific environment files.
 os.environ.setdefault("RFPROTEINA_LIGHTWEIGHT_IMPORT", "1")
-from rfproteina.conditions import C_HB, C_IDXGRP, HBondEnum
+from rfproteina.conditions import C_IDXGRP
 from rfproteina.condition_specs import INTERACTIVE_CONDITION_SPECS
+from rfproteina.interactive_validation import validate_rfd4
 
 from .contracts import (
     ConditionDefinition,
@@ -66,24 +67,7 @@ class RFD4ValidationProvider(ValidationProvider):
     """RFD4 semantic and optional full-pipeline validation."""
 
     def validate(self, array: AtomArrayPlus, *, full_pipeline: bool = False) -> list[dict[str, str]]:
-        issues: list[dict[str, str]] = []
-        hbond = C_HB.annotation(array, default="generate")
-        if np.any(hbond == HBondEnum.BOTH):
-            issues.append(
-                {
-                    "severity": "error",
-                    "check": "hbond_both_not_supported",
-                    "message": "HBond BOTH is not currently supported by the model",
-                }
-            )
-        if full_pipeline:
-            from rfproteina.datapipes.pipeline import build_design_validation_pipeline
-
-            try:
-                build_design_validation_pipeline()({"atom_array": array.copy()})
-            except Exception as error:  # pipeline aggregates domain-specific violations
-                issues.append({"severity": "error", "check": "design_pipeline", "message": str(error)})
-        return issues
+        return validate_rfd4(array, full_pipeline=full_pipeline)
 
 
 CONDITION_PROVIDER = RFD4ConditionProvider()

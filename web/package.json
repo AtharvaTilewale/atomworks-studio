@@ -8,6 +8,7 @@
     "dev": "pnpm build:core && vite",
     "build": "pnpm build:core && tsc --noEmit && vite build",
     "preview": "vite preview",
+    "test:unit": "node --experimental-strip-types --test tests/*.test.ts",
     "test:e2e": "node tests/smoke.mjs"
   },
   "dependencies": {

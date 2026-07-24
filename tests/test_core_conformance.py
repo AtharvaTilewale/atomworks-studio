@@ -6,6 +6,9 @@ import numpy as np
 import pytest
 from annotation_studio.core import StudioDocument
 from annotation_studio.rfd4_provider import CONDITION_PROVIDER
+from atomworks.io.utils.validation import validate_atom_array
+from atomworks.ml.conditions import C_DIS
+from atomworks.ml.conditions.mutations import edit_distance_restraint
 
 from rfproteina.condition_specs import INTERACTIVE_CONDITION_SPECS
 
@@ -121,6 +124,43 @@ def test_shared_registry_drives_studio_and_all_stored_fields_are_visible(documen
     assert {"mask_pistack_1_atom", "condition_saltbridge_1_atom"} <= fields
     atom = document.atom_annotation_details(0)
     assert atom["stored_fields"]
+
+
+def test_distance_restraints_use_shared_canonical_mutation(document: StudioDocument) -> None:
+    direct = document.clone()
+
+    document.edit_distance_restraint(1, 0, "set", 3.25)
+    edit_distance_restraint(direct.array, 0, 1, "set", 3.25)
+
+    actual = C_DIS.annotation(document.array, default="raise")
+    expected = C_DIS.annotation(direct.array, default="raise")
+    assert actual.pairs.tolist() == expected.pairs.tolist() == [[0, 1]]
+    assert actual.values.tolist() == expected.values.tolist() == [3.25]
+    assert document.annotation_details("distance")[0]["count"] == 1
+    assert document.annotation_details("distance")[0]["values"][0]["atom_indices"] == [0, 1]
+    reparsed = StudioDocument.from_cif(document.to_cif())
+    assert reparsed.distance_restraints()[0]["distance"] == 3.25
+
+    revision = document.revision
+    with pytest.raises(ValueError, match="positive finite"):
+        document.edit_distance_restraint(0, 1, "set", 0.0)
+    assert document.revision == revision
+    assert document.distance_restraints()[0]["distance"] == 3.25
+
+    document.edit_distance_restraint(0, 1, "remove")
+    assert document.annotation_details("distance") == []
+    document.set_condition("distance", [1, 0], enabled=True, value=4.5)
+    assert document.distance_restraints()[0]["distance"] == 4.5
+
+
+def test_document_uses_shared_atomworks_validation(document: StudioDocument) -> None:
+    document.array.coord[0, 0] = np.inf
+    shared = validate_atom_array(document.array)
+
+    assert shared == [
+        {"severity": "error", "check": "coordinates", "message": "coordinates contain infinity"}
+    ]
+    assert document.validate()[: len(shared)] == shared
 
 
 def test_plddt_confidence_is_exposed_in_colored_buckets(document: StudioDocument) -> None:

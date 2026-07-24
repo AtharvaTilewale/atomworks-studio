@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import copy
 from io import StringIO
-from itertools import pairwise
 from typing import Any, Literal
 
 import biotite.structure as struc
@@ -14,19 +13,26 @@ from atomworks.constants import MASKED
 from atomworks.io import parse
 from atomworks.io.config import ParseConfig
 from atomworks.io.template import infer_bonds_from_residue_names
-from atomworks.io.transforms.atom_array import add_id_and_entity_annotations, add_iid_annotations
 from atomworks.io.utils.atom_array_plus import (
-    AnnotationList2D,
     AtomArrayPlus,
     as_atom_array_plus,
     concatenate_atom_array_plus,
 )
+from atomworks.io.utils.validation import validate_atom_array
 from atomworks.io.utils.chain import create_chain_id_generator
 from atomworks.io.utils.io_utils import CIFWriteConfig, to_cif_string
 from atomworks.io.utils.query import QueryExpression
 from atomworks.io.utils.selection import AtomSelectionStack
 from atomworks.io.utils.standard_annotations import S_SEGMAX, S_SEGMIN
+from atomworks.io.utils.structure_mutations import (
+    assign_chain_id,
+    delete_atoms as mutate_delete_atoms,
+    edit_bond as mutate_bond,
+    refresh_chain_derived_annotations,
+    set_formal_charge,
+)
 from atomworks.ml.conditions import C_DIS
+from atomworks.ml.conditions.mutations import edit_distance_restraint as mutate_distance_restraint
 from atomworks.ml.transforms.interactions import AnnotateInteractions, InteractionType
 from atomworks.ml.utils.expandable_segment import (
     collapse_expandable_segments,
@@ -105,30 +111,49 @@ INTERACTION_ANNOTATIONS = {
 }
 
 
-def _refresh_chain_derived_annotations(array: AtomArrayPlus) -> None:
-    add_id_and_entity_annotations(array, overwrite=True)
-    add_iid_annotations(array, overwrite=True)
-    if "label_entity_id" in array.get_annotation_categories():
-        array.set_annotation("label_entity_id", (array.chain_entity + 1).astype(np.int32))
-
-
 def _first_array(result: dict[str, Any]) -> AtomArrayPlus:
     assemblies = result.get("assemblies", {})
     array = next(iter(assemblies.values())) if assemblies else result["asym_unit"]
     if isinstance(array, struc.AtomArrayStack):
         array = array[0]
     array = as_atom_array_plus(array)
-    _refresh_chain_derived_annotations(array)
+    refresh_chain_derived_annotations(array)
     return array
 
 
-def parse_annotated_cif(cif_text: str) -> AtomArrayPlus:
-    """Parse with the same default preset as the PyMOL plugin's Annotated CIF option."""
+def parse_annotated_cif(
+    cif_text: str,
+    *,
+    preset: Literal["minimal", "rcsb"] = "minimal",
+    assembly: str = "1",
+    model: int | None = None,
+    remove_waters: bool | None = None,
+    hydrogen_policy: Literal["keep", "remove"] | None = None,
+) -> AtomArrayPlus:
+    """Parse with the same presets and core options as the desktop load dialog."""
+    assembly_value: Literal["first", "all"] | list[str] | None
+    normalized_assembly = assembly.strip()
+    if not normalized_assembly or normalized_assembly == "asym":
+        assembly_value = None
+    elif normalized_assembly in ("first", "all"):
+        assembly_value = normalized_assembly
+    else:
+        assembly_value = [item.strip() for item in normalized_assembly.split(",") if item.strip()]
+        if not assembly_value:
+            assembly_value = None
+    overrides: dict[str, Any] = {
+        "file_type": "cif",
+        "build_assembly": assembly_value,
+        "load_standard_annotations": True,
+        "model": model,
+    }
+    if remove_waters is not None:
+        overrides["remove_waters"] = remove_waters
+    if hydrogen_policy is not None:
+        overrides["hydrogen_policy"] = hydrogen_policy
     config = ParseConfig.from_preset(
-        "minimal",
-        file_type="cif",
-        build_assembly=["1"],
-        load_standard_annotations=True,
+        preset,
+        **overrides,
     )
     return _first_array(parse(StringIO(cif_text), config=config))
 
@@ -163,11 +188,12 @@ class StudioDocument:
         cif_text: str,
         name: str = "structure",
         *,
+        parse_options: dict[str, Any] | None = None,
         condition_provider: ConditionProvider | None = None,
         validation_provider: ValidationProvider | None = None,
     ) -> StudioDocument:
         return cls(
-            parse_annotated_cif(cif_text),
+            parse_annotated_cif(cif_text, **(parse_options or {})),
             name,
             condition_provider=condition_provider,
             validation_provider=validation_provider,
@@ -284,6 +310,21 @@ class StudioDocument:
                             "value": [float(value) for value in xyz],
                             "count": len(indices),
                             "atom_indices": indices,
+                        }
+                    )
+            elif spec.kind == "pair":
+                seen: set[tuple[int, int]] = set()
+                for pair, value in zip(annotation.pairs, annotation.values, strict=True):
+                    atom1, atom2 = sorted((int(pair[0]), int(pair[1])))
+                    if atom1 == atom2 or (atom1, atom2) in seen:
+                        continue
+                    seen.add((atom1, atom2))
+                    values.append(
+                        {
+                            "label": f"Atoms {atom1}–{atom2}",
+                            "value": float(value),
+                            "count": 1,
+                            "atom_indices": [atom1, atom2],
                         }
                     )
 
@@ -459,6 +500,7 @@ class StudioDocument:
         result: dict[str, Any] = {
             "atom_index": index,
             "chain": str(self.array.get_annotation(chain_key)[index]),
+            "chain_id": str(self.array.chain_id[index]),
             "residue_id": int(self.array.res_id[index]),
             "residue_name": str(self.array.res_name[index]),
             "atom_name": str(self.array.atom_name[index]),
@@ -527,7 +569,7 @@ class StudioDocument:
         indices: list[int],
         *,
         enabled: bool = True,
-        value: int | list[float] | None = None,
+        value: int | float | list[float] | None = None,
         scope: ConditionScope = "atom",
     ) -> None:
         if name not in self.condition_provider.definitions_by_key:
@@ -535,6 +577,17 @@ class StudioDocument:
         selected = self.resolve_indices(indices, scope)
         spec = self.condition_provider.definitions_by_key[name]
         condition = spec.condition
+        if spec.kind == "pair":
+            if len(selected) != 2:
+                raise ValueError(f"{name} requires exactly two different atoms")
+            pair_value = None if value is None else float(value)
+            self.edit_distance_restraint(
+                int(selected[0]),
+                int(selected[1]),
+                "set" if enabled else "remove",
+                pair_value,
+            )
+            return
         self.snapshot()
         try:
             if spec.kind == "mask":
@@ -586,16 +639,22 @@ class StudioDocument:
     def set_charge(self, indices: list[int], value: int | None = None, delta: int | None = None) -> None:
         selected = self.resolve_indices(indices)
         self.snapshot()
-        if "charge" not in self.array.get_annotation_categories():
-            self.array.set_annotation("charge", np.zeros(len(self.array), dtype=int))
-        if value is not None:
-            self.array.charge[selected] = int(value)
-        elif delta is not None:
-            self.array.charge[selected] += int(delta)
-        else:
+        try:
+            set_formal_charge(self.array, selected, value=value, delta=delta)
+            self._mark_changed()
+        except Exception:
             self.array = self._undo.pop()
-            raise ValueError("value or delta is required")
-        self._mark_changed()
+            raise
+
+    def assign_chain(self, indices: list[int], chain_id: str) -> None:
+        selected = self.resolve_indices(indices)
+        self.snapshot()
+        try:
+            assign_chain_id(self.array, selected, chain_id)
+            self._mark_changed()
+        except Exception:
+            self.array = self._undo.pop()
+            raise
 
     def edit_bond(self, atom1: int, atom2: int, action: Literal["add", "remove"], bond_type: str = "SINGLE") -> None:
         selected = self.resolve_indices([atom1, atom2])
@@ -603,14 +662,13 @@ class StudioDocument:
             raise ValueError("a bond requires two different atoms")
         self.snapshot()
         try:
-            if self.array.bonds is None:
-                self.array.bonds = struc.BondList(len(self.array))
-            if action == "add":
-                self.array.bonds.add_bond(int(selected[0]), int(selected[1]), BOND_TYPES[bond_type])
-            elif action == "remove":
-                self.array.bonds.remove_bond(int(selected[0]), int(selected[1]))
-            else:
-                raise ValueError(f"unsupported bond action: {action}")
+            mutate_bond(
+                self.array,
+                int(selected[0]),
+                int(selected[1]),
+                action,
+                BOND_TYPES[bond_type],
+            )
             self._mark_changed()
         except Exception:
             self.array = self._undo.pop()
@@ -623,28 +681,11 @@ class StudioDocument:
         if not keep.any():
             raise ValueError("cannot delete every atom")
         self.snapshot()
-        if not close_residue_gaps:
-            self.array = self.array[keep]
-            self._mark_changed()
-            return
-        residue_bounds = struc.get_residue_starts(self.array, add_exclusive_stop=True)
-        last_kept_start: dict[str, int] = {}
-        for start, stop in pairwise(residue_bounds):
-            if keep[start:stop].any():
-                last_kept_start[str(self.array.chain_iid[start])] = int(start)
-
-        adjusted = self.array.res_id.copy()
-        shift_by_chain: dict[str, int] = {}
-        for start, stop in pairwise(residue_bounds):
-            chain = str(self.array.chain_iid[start])
-            shift = shift_by_chain.get(chain, 0)
-            if not keep[start:stop].any():
-                if start < last_kept_start.get(chain, -1):
-                    shift_by_chain[chain] = shift + 1
-                continue
-            adjusted[start:stop] = self.array.res_id[start:stop] - shift
-        self.array = self.array[keep]
-        self.array.res_id = adjusted[keep]
+        self.array = mutate_delete_atoms(
+            self.array,
+            keep,
+            close_res_id_gaps=close_residue_gaps,
+        )
         self._mark_changed()
 
     def reset_residue_ids(self) -> None:
@@ -780,7 +821,7 @@ class StudioDocument:
             used.update(renames.values())
         self.snapshot()
         self.array = concatenate_atom_array_plus(arrays)
-        _refresh_chain_derived_annotations(self.array)
+        refresh_chain_derived_annotations(self.array)
         self._mark_changed()
 
     def inspect_bonds(self, atom_index: int | None = None) -> list[dict[str, Any]]:
@@ -846,32 +887,9 @@ class StudioDocument:
         if len(selected) != 2:
             raise ValueError("a distance restraint requires two different atoms")
         pair = tuple(sorted((int(selected[0]), int(selected[1]))))
-        annotation = C_DIS.annotation(self.array, default="generate")
-        retained_pairs: list[tuple[int, int]] = []
-        retained_values: list[float] = []
-        for existing, value in zip(annotation.pairs, annotation.values, strict=True):
-            existing_pair = tuple(sorted((int(existing[0]), int(existing[1]))))
-            if existing_pair != pair:
-                retained_pairs.append((int(existing[0]), int(existing[1])))
-                retained_values.append(float(value))
-        if action == "set":
-            if distance is None or not np.isfinite(distance) or distance <= 0:
-                raise ValueError("distance must be a positive finite number")
-            retained_pairs.append(pair)
-            retained_values.append(float(distance))
-        elif action != "remove":
-            raise ValueError(f"unsupported distance restraint action: {action}")
-
         self.snapshot()
         try:
-            C_DIS.set_annotation(
-                self.array,
-                AnnotationList2D(
-                    len(self.array),
-                    np.asarray(retained_pairs, dtype=np.int32),
-                    np.asarray(retained_values, dtype=float),
-                ),
-            )
+            mutate_distance_restraint(self.array, pair[0], pair[1], action, distance)
             self._mark_changed()
         except Exception:
             self.array = self._undo.pop()
@@ -961,27 +979,7 @@ class StudioDocument:
         return response
 
     def validate(self, full_pipeline: bool = False) -> list[dict[str, str]]:
-        issues: list[dict[str, str]] = []
-        ins_code = (
-            self.array.ins_code
-            if "ins_code" in self.array.get_annotation_categories()
-            else np.full(len(self.array), "")
-        )
-        keys = [
-            (
-                str(self.array.chain_iid[index]),
-                int(self.array.res_id[index]),
-                str(ins_code[index]),
-                str(self.array.atom_name[index]),
-            )
-            for index in range(len(self.array))
-        ]
-        if len(set(keys)) != len(keys):
-            issues.append(
-                {"severity": "error", "check": "atom_identity", "message": "atom identity keys are not unique"}
-            )
-        if np.isinf(self.array.coord).any():
-            issues.append({"severity": "error", "check": "coordinates", "message": "coordinates contain infinity"})
+        issues = validate_atom_array(self.array)
         issues.extend(self.validation_provider.validate(self.array, full_pipeline=full_pipeline))
         return issues
 
