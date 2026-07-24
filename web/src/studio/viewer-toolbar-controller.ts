@@ -50,7 +50,15 @@ export class ViewerToolbarController {
   bind(): void {
     for (const menu of document.querySelectorAll<HTMLDetailsElement>(".viewer-menu")) {
       menu.addEventListener("toggle", () => {
-        if (menu.open) closeToolbarMenus(menu);
+        if (menu.open) {
+          closeToolbarMenus(menu);
+          if (menu.id === "atomworks-studio-menu" || menu.id === "rfd4-proteina-menu") {
+            element("atomworks-studio-popover").setAttribute(
+              "aria-label",
+              menu.id === "rfd4-proteina-menu" ? "RFD4-Proteina" : "AtomWorks Studio",
+            );
+          }
+        }
       });
     }
     for (const button of document.querySelectorAll<HTMLButtonElement>("[data-representation]")) {

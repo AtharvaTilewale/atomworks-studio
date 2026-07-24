@@ -39,7 +39,7 @@ try {
     viewerMode,
   );
   assert.deepEqual(await page.locator(".viewer-menu > summary").allTextContents(), [
-    "Style", "Select", "Analyze", "AtomWorks Studio", "View", "•••",
+    "Style", "Select", "Analyze", "AtomWorks Studio", "RFD4-Proteina", "View", "•••",
   ]);
   assert.deepEqual(await page.locator("#selection-syntax option").allTextContents(), [
     "Patinae", "AtomWorks", "Path",
@@ -177,8 +177,25 @@ try {
   await page.locator("#atomworks-studio-menu > summary").click();
   assert.equal(await page.locator("#atomworks-studio-menu").getAttribute("open"), "");
   assert.ok(await page.locator("#annotation-list").isVisible(), "AtomWorks annotations are in the Studio menu");
-  assert.ok(await page.locator("#design-card").isVisible(), "model submission is in the Studio menu");
+  assert.equal(await page.locator("#design-card").isHidden(), true, "RFD4 controls are separate from AtomWorks");
+  const studioCards = page.locator("#atomworks-studio-popover > :not(.rfd4-card)");
+  assert.equal(
+    await studioCards.evaluateAll((cards) =>
+      cards.every((card) => Math.abs(card.getBoundingClientRect().width - cards[0].getBoundingClientRect().width) < 1)
+    ),
+    true,
+    "AtomWorks cards use one full-width column",
+  );
+  await page.locator("#rfd4-proteina-menu > summary").click();
+  await page.waitForFunction(
+    () =>
+      document.querySelector("#rfd4-proteina-menu")?.hasAttribute("open")
+      && !document.querySelector("#atomworks-studio-menu")?.hasAttribute("open"),
+  );
+  assert.equal(await page.locator("#design-card").isVisible(), true);
+  assert.equal(await page.locator("#annotation-list").isHidden(), true);
   assert.equal(await page.locator("#design-card #submit-design").count(), 1);
+  await page.locator("#atomworks-studio-menu > summary").click();
   assert.deepEqual(await page.locator("#charge-action option").allTextContents(), ["Set", "Add delta"]);
   assert.equal(await page.locator("#close-residue-gaps").count(), 1);
   assert.equal(await page.locator("#assign-chain").count(), 1);
@@ -354,10 +371,9 @@ try {
   assert.equal(await page.locator("#viewer").getAttribute("data-annotation-groups"), "0");
 
   if (runDesignJob) {
-    if (!(await page.locator("#atomworks-studio-menu").evaluate((menu) => menu.hasAttribute("open")))) {
-      await page.locator("#atomworks-studio-menu > summary").click();
+    if (!(await page.locator("#rfd4-proteina-menu").evaluate((menu) => menu.hasAttribute("open")))) {
+      await page.locator("#rfd4-proteina-menu > summary").click();
     }
-    await page.locator("#design-card > summary").click();
     await page.locator("#design-count").fill("1");
     await page.locator("#submit-design").click();
     await page.waitForFunction(
