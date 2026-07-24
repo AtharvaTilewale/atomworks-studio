@@ -15,7 +15,7 @@ rfd4_root="${RFPROTEINA_ROOT:-${ANNOTATION_STUDIO_RFD4_ROOT:-${studio_root}/../R
   exit 1
 }
 rfd4_root="$(cd "${rfd4_root}" && pwd)"
-rfd4_revision="db94ca937fba69c390731f7688b3a4bf0c0a6495"
+rfd4_revision="0e9050ca426a74069b99b63ca4a6520b05c2f8c7"
 git -C "${rfd4_root}" merge-base --is-ancestor "${rfd4_revision}" HEAD || {
   echo "RFD4 checkout must contain pinned revision ${rfd4_revision}." >&2
   exit 1

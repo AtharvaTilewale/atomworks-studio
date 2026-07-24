@@ -4,12 +4,21 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 artifact_dir="${root}/artifacts/tools"
 mkdir -p "${artifact_dir}"
+rfd4_root="${ANNOTATION_STUDIO_RFD4_ROOT:-${RFPROTEINA_ROOT:-${root}/../RFD4-Proteina-dev}}"
+if [[ -d "${rfd4_root}/src/rfproteina" ]]; then
+  export PYTHONPATH="${rfd4_root}/src${PYTHONPATH:+:${PYTHONPATH}}"
+fi
+if command -v pnpm >/dev/null 2>&1; then
+  pnpm_cmd=(pnpm)
+else
+  pnpm_cmd=(corepack pnpm)
+fi
 
 bash "${root}/scripts/build_patinae_viewer.sh"
-corepack pnpm --dir "${root}/packages/vscode" install --frozen-lockfile
+"${pnpm_cmd[@]}" --dir "${root}/packages/vscode" install --frozen-lockfile
 (
   cd "${root}/packages/vscode"
-  corepack pnpm package
+  "${pnpm_cmd[@]}" package
   cp ./*.vsix "${artifact_dir}/"
 )
 cargo test --manifest-path "${root}/packages/patinae-plugin/Cargo.toml" --locked

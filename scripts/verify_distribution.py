@@ -36,12 +36,22 @@ def main() -> None:
         manifest = json.loads(path.read_text(encoding="utf-8"))
         if manifest.get("version") != version:
             raise SystemExit(f"{label} version {manifest.get('version')!r} does not match VERSION {version!r}")
-    api_manifest = (STUDIO_ROOT / "packages" / "api" / "pyproject.toml").read_text(encoding="utf-8")
-    project_section = api_manifest.split("[project]", 1)[-1].split("\n[", 1)[0]
-    api_version_match = re.search(r'^version\s*=\s*"([^"]+)"\s*$', project_section, re.MULTILINE)
-    api_version = api_version_match.group(1) if api_version_match else None
-    if api_version != version:
-        raise SystemExit(f"Python API version {api_version!r} does not match VERSION {version!r}")
+    python_manifests = {
+        "Python API": STUDIO_ROOT / "packages" / "api" / "pyproject.toml",
+        "RFD4 provider": STUDIO_ROOT / "providers" / "rfd4" / "pyproject.toml",
+        "PyMOL plugin": STUDIO_ROOT / "packages" / "pymol-plugin" / "pyproject.toml",
+    }
+    for label, path in python_manifests.items():
+        project_section = path.read_text(encoding="utf-8").split("[project]", 1)[-1].split("\n[", 1)[0]
+        version_match = re.search(r'^version\s*=\s*"([^"]+)"\s*$', project_section, re.MULTILINE)
+        package_version = version_match.group(1) if version_match else None
+        if package_version != version:
+            raise SystemExit(f"{label} version {package_version!r} does not match VERSION {version!r}")
+
+    for workflow in (STUDIO_ROOT / ".github" / "workflows").glob("*.yaml"):
+        for action, revision in re.findall(r"uses:\s*([^@\s]+)@([^\s#]+)", workflow.read_text(encoding="utf-8")):
+            if re.fullmatch(r"[0-9a-f]{40}", revision) is None:
+                raise SystemExit(f"{workflow.name}: {action} is not pinned to a commit SHA: {revision}")
 
     tag = arguments.tag or os.environ.get("GITHUB_REF_NAME", "")
     if tag and tag.startswith("v") and tag != f"v{version}":

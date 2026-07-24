@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-FROM rust:1-bookworm AS wasm-builder
+FROM rust:1-bookworm@sha256:77fac8b98f9f46062bb680b6d25d5bcaabfc400143952ebc572e924bcbedc3fa AS wasm-builder
 
 RUN rustup target add wasm32-unknown-unknown \
     && cargo install wasm-pack --locked --version 0.13.1
@@ -8,7 +8,7 @@ COPY packages/core ./packages/core
 RUN wasm-pack build ./packages/core --target web --out-dir /wasm
 
 
-FROM node:22-bookworm-slim AS web-builder
+FROM node:22-bookworm-slim@sha256:6c74791e557ce11fc957704f6d4fe134a7bc8d6f5ca4403205b2966bd488f6b3 AS web-builder
 
 ARG ANNOTATION_STUDIO_VERSION=development
 ARG ANNOTATION_STUDIO_REVISION=unknown
@@ -28,7 +28,7 @@ RUN pnpm --dir packages/web exec tsc --noEmit \
     && pnpm --dir packages/web exec vite build
 
 
-FROM python:3.12.10-slim-bookworm
+FROM python:3.12.10-slim-bookworm@sha256:fd95fa221297a88e1cf49c55ec1828edd7c5a428187e67b5d1805692d11588db
 
 ARG ANNOTATION_STUDIO_VERSION=development
 ARG ANNOTATION_STUDIO_REVISION=unknown

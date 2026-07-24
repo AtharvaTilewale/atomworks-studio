@@ -16,24 +16,28 @@ jobs:
   policy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
         with: { enable-cache: true }
       - run: python scripts/verify_distribution.py
-      - run: uv run --python 3.12 python scripts/pin_deps.py
+      - run: uv run --no-project --python 3.12 python scripts/pin_deps.py
       - run: test -f LICENSE.md && test -f docs/PROVENANCE.md && test -f vendor/patinae/UPSTREAM.toml
       - run: docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.24.2 detect --source=/repo --no-git
 
   static:
     runs-on: ubuntu-latest
+    env:
+      GIT_CONFIG_COUNT: "1"
+      GIT_CONFIG_KEY_0: url.https://x-access-token:${{ secrets.BAKER_LAB_READ_TOKEN }}@github.com/.insteadOf
+      GIT_CONFIG_VALUE_0: https://github.com/
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
         with: { enable-cache: true }
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with: { node-version-file: .node-version, cache: pnpm }
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
         with: { components: rustfmt,clippy }
       - run: uv sync --all-packages --all-extras --all-groups
       - run: bash scripts/build_patinae_viewer.sh
@@ -50,19 +54,23 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PYTHONPATH: ${{ github.workspace }}/.deps/rfd4/src
+      GIT_CONFIG_COUNT: "1"
+      GIT_CONFIG_KEY_0: url.https://x-access-token:${{ secrets.BAKER_LAB_READ_TOKEN }}@github.com/.insteadOf
+      GIT_CONFIG_VALUE_0: https://github.com/
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: baker-laboratory/RFD4-Proteina-dev
-          ref: db94ca937fba69c390731f7688b3a4bf0c0a6495
+          ref: 0e9050ca426a74069b99b63ca4a6520b05c2f8c7
           path: .deps/rfd4
-      - uses: astral-sh/setup-uv@v6
+          token: ${{ secrets.BAKER_LAB_READ_TOKEN }}
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
         with: { enable-cache: true }
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with: { node-version-file: .node-version, cache: pnpm }
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
       - run: uv sync --all-packages --all-extras --all-groups
       - run: bash scripts/build_patinae_viewer.sh
       - run: pnpm install --frozen-lockfile
@@ -74,12 +82,12 @@ jobs:
     runs-on: ubuntu-latest
     needs: [policy, static, unit]
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with: { node-version-file: .node-version, cache: pnpm }
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
         with: { targets: wasm32-unknown-unknown }
       - run: cargo install wasm-pack --locked --version 0.13.1
       - run: bash scripts/build_patinae_viewer.sh
@@ -89,7 +97,7 @@ jobs:
       - run: pnpm --dir packages/vscode package
       - run: uv build --all-packages
       - run: cargo build --workspace --release --locked
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: packages
           path: |
@@ -103,24 +111,28 @@ jobs:
     needs: [policy, static, unit]
     env:
       PYTHONPATH: ${{ github.workspace }}/.deps/rfd4/src
+      GIT_CONFIG_COUNT: "1"
+      GIT_CONFIG_KEY_0: url.https://x-access-token:${{ secrets.BAKER_LAB_READ_TOKEN }}@github.com/.insteadOf
+      GIT_CONFIG_VALUE_0: https://github.com/
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: baker-laboratory/RFD4-Proteina-dev
-          ref: db94ca937fba69c390731f7688b3a4bf0c0a6495
+          ref: 0e9050ca426a74069b99b63ca4a6520b05c2f8c7
           path: .deps/rfd4
-      - uses: astral-sh/setup-uv@v6
+          token: ${{ secrets.BAKER_LAB_READ_TOKEN }}
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
         with: { enable-cache: true }
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with: { node-version-file: .node-version, cache: pnpm }
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
         with: { targets: wasm32-unknown-unknown }
       - run: cargo install wasm-pack --locked --version 0.13.1
       - run: uv sync --all-packages --all-extras --all-groups
       - run: bash scripts/accept_local.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: local-acceptance
@@ -132,24 +144,24 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
       - run: cargo test -p patinae-annotation-studio --locked
 
   image:
     runs-on: ubuntu-latest
     needs: [policy, static, unit]
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with: { node-version-file: .node-version }
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
         with: { targets: wasm32-unknown-unknown }
       - run: cargo install wasm-pack --locked --version 0.13.1
       - run: bash scripts/build_patinae_viewer.sh
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/build-push-action@v6
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           file: deploy/Dockerfile
@@ -158,4 +170,4 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           secrets: |
-            github_token=${{ github.token }}
+            github_token=${{ secrets.BAKER_LAB_READ_TOKEN }}

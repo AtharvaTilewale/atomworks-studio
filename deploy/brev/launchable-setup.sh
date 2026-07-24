@@ -7,7 +7,7 @@ if [[ -n "${RFPROTEINA_ROOT:-}" && -n "${ANNOTATION_STUDIO_RFD4_ROOT:-}" ]] \
   echo "RFPROTEINA_ROOT and ANNOTATION_STUDIO_RFD4_ROOT must identify the same checkout." >&2
   exit 2
 fi
-rfd4_revision="db94ca937fba69c390731f7688b3a4bf0c0a6495"
+rfd4_revision="0e9050ca426a74069b99b63ca4a6520b05c2f8c7"
 rfd4_root="${RFPROTEINA_ROOT:-${ANNOTATION_STUDIO_RFD4_ROOT:-${studio_root}/../RFD4-Proteina-dev}}"
 if [[ ! -d "${rfd4_root}/.git" ]]; then
   git clone https://github.com/baker-laboratory/RFD4-Proteina-dev.git "${rfd4_root}"
