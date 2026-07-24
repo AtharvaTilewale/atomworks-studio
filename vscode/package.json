@@ -1,7 +1,7 @@
 {
   "name": "atomworks-annotation-studio",
   "displayName": "AtomWorks Annotation Studio",
-  "description": "Create, inspect, and submit RFD4 Proteina annotated CIFs with Mol*, Patinae, and native AtomWorks.",
+  "description": "Create, inspect, and submit RFD4-Proteina annotated CIFs with Mol*, Patinae, and native AtomWorks.",
   "version": "0.1.0",
   "publisher": "nvidia",
   "license": "SEE LICENSE IN LICENSE.md",

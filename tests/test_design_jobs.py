@@ -109,11 +109,23 @@ def test_local_gpu_provider_collects_cifs_and_metrics(tmp_path: Path) -> None:
     submitted = manager.submit(FIXTURE.read_text(encoding="utf-8"), "fixture", DesignJobRequest(num_designs=1))
     deadline = time.monotonic() + 10
     while (record := manager.get(submitted["id"]))["status"] not in {"completed", "failed"}:
+        assert record["progress"]["phase"] in {
+            "Waiting for GPU",
+            "Starting RFD4",
+            "Loading models",
+            "Compiling kernels",
+            "Sampling designs",
+            "Computing metrics",
+            "Collecting outputs",
+        }
+        assert record["progress"]["elapsed_seconds"] >= 0
         assert time.monotonic() < deadline
         time.sleep(0.05)
     manager.close()
 
     assert record["status"] == "completed", record["log_tail"]
+    assert record["progress"]["phase"] == "Completed"
+    assert record["progress"]["indeterminate"] is False
     assert len(record["outputs"]) == 1
     assert record["outputs"][0]["rank"] == 1
     assert record["outputs"][0]["metrics"]["oracle.plddt_coi"] == 91.2

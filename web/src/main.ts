@@ -1,86 +1,30 @@
 import initCifCore, { inspect_cif } from "./wasm/annotation_studio_core.js";
+import { api, postJson } from "./api";
+import { AnnotationOverlayState } from "./annotation-overlay";
 import { initializeDesignController } from "./design";
+import { applyCapabilities, closeToolbarMenus, element, escapeHtml } from "./dom";
 import { STUDIO_EXAMPLES, type StudioExample } from "./examples";
-import { MolecularViewer, type ViewerMode } from "./viewers";
+import { SelectionController } from "./selection-controller";
+import type {
+  AnnotationSummary,
+  AnnotationValue,
+  InteractionAnalysisResponse,
+  SelectionScope,
+  SelectionSyntax,
+  SequenceChain,
+  SessionResponse,
+  StructureSummary,
+  StudioSchema,
+} from "./types";
+import {
+  MolecularViewer,
+  type ViewerColor,
+  type ViewerInteraction,
+  type ViewerMode,
+  type ViewerRepresentation,
+  type ViewerTarget,
+} from "./viewers";
 import "./style.css";
-
-type ConditionDefinition = {
-  label: string;
-  kind: "mask" | "enum" | "integer" | "vector3";
-  level: string;
-  default: number | boolean | null;
-  values?: Record<string, number>;
-};
-
-type StudioSchema = {
-  conditions: Record<string, ConditionDefinition>;
-  bond_types: string[];
-};
-
-type AnnotationValue = {
-  label: string;
-  value?: number | number[] | string | boolean | null;
-  count: number;
-  atom_indices?: number[];
-  color?: { name: string; value: number };
-};
-
-type AnnotationSummary = {
-  name: string;
-  label: string;
-  count: number;
-  unit: string;
-  values: AnnotationValue[];
-  truncated?: boolean;
-};
-
-type SequenceResidue = {
-  kind: "residue";
-  atom_indices: number[];
-  residue_id: number;
-  residue_name: string;
-  code: string;
-  conditions: string[];
-};
-
-type SequenceSegment = {
-  kind: "segment";
-  atom_indices: number[];
-  minimum: number;
-  maximum: number;
-  realized: boolean;
-  realized_length: number | null;
-};
-
-type SequenceChain = {
-  chain_id: string;
-  items: Array<SequenceResidue | SequenceSegment>;
-};
-
-type StructureSummary = {
-  name: string;
-  atom_count: number;
-  chain_ids: string[];
-  sequence: SequenceChain[];
-  condition_counts: Record<string, number>;
-  annotations: AnnotationSummary[];
-  stored_fields: AnnotationSummary[];
-  scalar_fields: AnnotationSummary[];
-  undo_depth: number;
-  validation: Array<{ severity: string; check: string; message: string }>;
-};
-
-type SessionResponse = {
-  session_id: string;
-  editor_path?: string;
-  structure: StructureSummary;
-};
-
-const element = <T extends HTMLElement>(id: string): T => {
-  const value = document.getElementById(id);
-  if (!value) throw new Error(`Missing element #${id}`);
-  return value as T;
-};
 
 const fileInput = element<HTMLInputElement>("file-input");
 const combineInput = element<HTMLInputElement>("combine-input");
@@ -93,6 +37,18 @@ const applyCondition = element<HTMLButtonElement>("apply-condition");
 const selectionCount = element<HTMLSpanElement>("selection-count");
 const viewerBackend = element<HTMLSpanElement>("viewer-backend");
 const viewerModeSelect = element<HTMLSelectElement>("viewer-mode");
+const pickScope = element<HTMLSelectElement>("pick-scope");
+const viewerCommandForm = element<HTMLFormElement>("viewer-command-form");
+const viewerCommand = element<HTMLInputElement>("viewer-command");
+const runViewerCommand = element<HTMLButtonElement>("run-viewer-command");
+const selectionSyntax = element<HTMLSelectElement>("selection-syntax");
+const viewerActionTarget = element<HTMLSelectElement>("viewer-action-target");
+const representationExclusive = element<HTMLInputElement>("representation-exclusive");
+const studioMenu = element<HTMLDetailsElement>("atomworks-studio-menu");
+const studioPopover = element<HTMLDivElement>("atomworks-studio-popover");
+const studioPanel = document.querySelector<HTMLElement>(".workspace > aside");
+if (!studioPanel) throw new Error("AtomWorks Studio panel is missing");
+studioPopover.append(studioPanel);
 const summaryElement = element<HTMLDivElement>("structure-summary");
 const sequenceView = element<HTMLDivElement>("sequence-view");
 const annotationList = element<HTMLDivElement>("annotation-list");
@@ -108,13 +64,6 @@ function viewerMode(value: string | null): ViewerMode | null {
 
 function requestedViewerMode(): ViewerMode | null {
   return viewerMode(query.get("viewer")) ?? viewerMode(localStorage.getItem(VIEWER_STORAGE_KEY));
-}
-
-function navigateToViewer(selected: ViewerMode): void {
-  localStorage.setItem(VIEWER_STORAGE_KEY, selected);
-  const url = new URL(window.location.href);
-  url.searchParams.set("viewer", selected);
-  window.location.assign(url);
 }
 
 function notifyHost(type: "ready" | "changed"): void {
@@ -135,11 +84,21 @@ let molecularViewer: MolecularViewer;
 let schema: StudioSchema;
 let sessionId: string | null = null;
 let currentName = "structure";
-let selectedAtoms = new Set<number>();
+let lastSummary: StructureSummary | null = null;
+let sequenceAnchor: number[] | null = null;
+let sequenceAnchorOrder: number | null = null;
+let sequenceDragging = false;
+type MeasurementKind = "distance" | "angle" | "dihedral";
+let measurementDraft: { kind: MeasurementKind; atomIndices: number[] } | null = null;
 let designController: {
   updateSession: () => void;
   applyPreset: (metricsTags: string[], search?: StudioExample["search"]) => string[];
 } | null = null;
+const annotationOverlay = new AnnotationOverlayState();
+const selectionController = new SelectionController(
+  () => molecularViewer,
+  () => updateSelectionUi(),
+);
 
 function persistSession(response: SessionResponse, message?: string): void {
   sessionStorage.setItem("annotation-studio-session", response.session_id);
@@ -153,31 +112,11 @@ function log(message: string): void {
   statusElement.textContent = `[${stamp}] ${message}\n${statusElement.textContent ?? ""}`.slice(0, 5000);
 }
 
-function escapeHtml(value: string): string {
-  return value.replace(
-    /[&<>"']/g,
-    (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[character]!,
-  );
-}
-
-async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, init);
-  if (!response.ok) {
-    let detail = `${response.status} ${response.statusText}`;
-    try {
-      const body = (await response.json()) as { detail?: string };
-      detail = body.detail ?? detail;
-    } catch {
-      // Keep HTTP status when a proxy or static host returns non-JSON.
-    }
-    throw new Error(detail);
-  }
-  return (await response.json()) as T;
-}
-
 function updateSelectionUi(): void {
-  const count = selectedAtoms.size;
-  selectionCount.textContent = `${count} atom${count === 1 ? "" : "s"} selected`;
+  const count = selectionController.size;
+  const scope = pickScope.value as SelectionScope;
+  selectionCount.textContent =
+    `${count} atom${count === 1 ? "" : "s"} selected · ${scope} picking`;
   const hasSession = sessionId !== null;
   applyCondition.disabled = !hasSession || count === 0;
   element<HTMLButtonElement>("apply-charge").disabled = !hasSession || count === 0;
@@ -185,12 +124,34 @@ function updateSelectionUi(): void {
   element<HTMLButtonElement>("insert-segment").disabled = !hasSession || count !== 1;
   element<HTMLButtonElement>("add-bond").disabled = !hasSession || count !== 2;
   element<HTMLButtonElement>("remove-bond").disabled = !hasSession || count !== 2;
+  element<HTMLButtonElement>("run-analysis").disabled = !hasSession;
+  const measurementKind = element<HTMLSelectElement>("measurement-kind").value;
+  const measurementAtoms = measurementKind === "distance" ? 2 : measurementKind === "angle" ? 3 : 4;
+  const measurementButton = element<HTMLButtonElement>("add-measurement");
+  measurementButton.disabled = !hasSession || !molecularViewer?.capabilities.measurements;
+  measurementButton.textContent = count === measurementAtoms
+    ? "Add measurement"
+    : `Pick ${measurementAtoms} atoms`;
+  element<HTMLButtonElement>("inspect-bonds").disabled = !hasSession;
+  element<HTMLButtonElement>("infer-bonds").disabled = !hasSession;
+  element<HTMLButtonElement>("add-restraint").disabled = !hasSession || count !== 2;
+  element<HTMLButtonElement>("remove-restraint").disabled = !hasSession || count !== 2;
+  syncSequenceSelection();
+}
+
+function syncSequenceSelection(scroll = false): void {
+  let firstActive: HTMLElement | null = null;
+  for (const token of sequenceView.querySelectorAll<HTMLButtonElement>(".sequence-token[data-atoms]")) {
+    const atoms = (token.dataset.atoms ?? "").split(",").filter(Boolean).map(Number);
+    const active = atoms.length > 0 && atoms.every((index) => selectionController.values.has(index));
+    token.classList.toggle("selected", active);
+    if (active && firstActive === null) firstActive = token;
+  }
+  if (scroll) firstActive?.scrollIntoView({ block: "nearest", inline: "nearest" });
 }
 
 function clearSelection(): void {
-  selectedAtoms.clear();
-  updateSelectionUi();
-  molecularViewer?.clearSelection();
+  selectionController.clear();
 }
 
 function formatAnnotationValue(value: AnnotationValue): string {
@@ -204,7 +165,7 @@ async function displayAnnotation(annotation: AnnotationSummary): Promise<void> {
   const groups = annotation.values
     .filter((value) => value.atom_indices?.length)
     .map((value) => ({ label: value.label, atomIndices: value.atom_indices!, color: value.color }));
-  await molecularViewer.showAnnotation(groups);
+  await annotationOverlay.show(molecularViewer, groups, selectionController.values);
   element<HTMLButtonElement>("clear-annotation-view").disabled = groups.length === 0;
 }
 
@@ -320,6 +281,14 @@ function renderSequenceView(chains: SequenceChain[]): void {
   sequenceView.replaceChildren();
   let hasCollapsed = false;
   let hasRealized = false;
+  let sequenceOrder = 0;
+  const selectResidue = (token: HTMLButtonElement, atoms: number[], additive: boolean): void => {
+    if (additive) selectionController.add(atoms);
+    else selectionController.replace(atoms);
+    sequenceAnchor = atoms;
+    sequenceAnchorOrder = Number(token.dataset.order);
+    void inspectAtom(atoms[0]);
+  };
   for (const chain of chains) {
     const row = document.createElement("div");
     row.className = "sequence-chain";
@@ -347,20 +316,36 @@ function renderSequenceView(chains: SequenceChain[]): void {
         });
       } else {
         token.textContent = item.code;
+        token.dataset.atoms = item.atom_indices.join(",");
+        token.dataset.order = String(sequenceOrder++);
         token.title = `${chain.chain_id}/${item.residue_name} ${item.residue_id}`
           + (item.conditions.length ? ` · ${item.conditions.join(", ")}` : "");
         for (const condition of item.conditions) token.classList.add(`condition-${condition}`);
-        token.addEventListener("click", () => {
-          selectedAtoms = new Set(item.atom_indices);
-          updateSelectionUi();
-          void molecularViewer.showAnnotation([
-            {
-              label: `${chain.chain_id}/${item.residue_name} ${item.residue_id}`,
-              atomIndices: item.atom_indices,
-            },
-          ]);
-          element<HTMLButtonElement>("clear-annotation-view").disabled = false;
-          void inspectAtom(item.atom_indices[0]);
+        token.addEventListener("pointerdown", (event) => {
+          if (event.shiftKey) return;
+          sequenceDragging = true;
+          token.setPointerCapture(event.pointerId);
+          selectResidue(token, item.atom_indices, event.ctrlKey || event.metaKey);
+        });
+        token.addEventListener("pointerenter", (event) => {
+          if (!sequenceDragging || event.buttons !== 1) return;
+          selectResidue(token, item.atom_indices, true);
+        });
+        token.addEventListener("click", (event) => {
+          if (event.shiftKey && sequenceAnchorOrder !== null) {
+            const current = Number(token.dataset.order);
+            const low = Math.min(sequenceAnchorOrder, current);
+            const high = Math.max(sequenceAnchorOrder, current);
+            const rangeAtoms = [...sequenceView.querySelectorAll<HTMLButtonElement>("[data-order]")]
+              .filter((candidate) => {
+                const order = Number(candidate.dataset.order);
+                return order >= low && order <= high;
+              })
+              .flatMap((candidate) => (candidate.dataset.atoms ?? "").split(",").filter(Boolean).map(Number));
+            selectionController.replace(rangeAtoms);
+          } else if (!sequenceAnchor?.every((index) => item.atom_indices.includes(index))) {
+            selectResidue(token, item.atom_indices, event.ctrlKey || event.metaKey);
+          }
         });
       }
       track.appendChild(token);
@@ -374,11 +359,14 @@ function renderSequenceView(chains: SequenceChain[]): void {
   } else {
     sequenceView.className = "sequence-view";
   }
+  document.addEventListener("pointerup", () => { sequenceDragging = false; }, { once: true });
   element<HTMLButtonElement>("sequence-realize").disabled = !hasCollapsed;
   element<HTMLButtonElement>("sequence-collapse").disabled = !hasRealized;
+  syncSequenceSelection();
 }
 
 function renderSummary(summary: StructureSummary): void {
+  lastSummary = summary;
   const active = Object.entries(summary.condition_counts).filter(([, count]) => count > 0);
   summaryElement.innerHTML = `
     <dl class="summary-grid">
@@ -396,6 +384,7 @@ function renderSummary(summary: StructureSummary): void {
   if (summary.validation.length) {
     log(summary.validation.map((issue) => `${issue.check}: ${issue.message}`).join("\n"));
   }
+  renderViewerDrawers();
 }
 
 function renderConditionValue(): void {
@@ -510,21 +499,342 @@ async function inspectAtom(atomIndex: number): Promise<void> {
   }
 }
 
-function handleAtomPicked(atomIndex: number, label?: string): void {
-  if (selectedAtoms.has(atomIndex)) selectedAtoms.delete(atomIndex);
-  else selectedAtoms.add(atomIndex);
-  updateSelectionUi();
-  log(label ?? `Atom ${atomIndex}`);
-  void inspectAtom(atomIndex);
+async function handleAtomPicked(atomIndex: number, label?: string): Promise<void> {
+  if (!sessionId) return;
+  if (measurementDraft) {
+    if (!measurementDraft.atomIndices.includes(atomIndex)) measurementDraft.atomIndices.push(atomIndex);
+    const required = measurementDraft.kind === "distance" ? 2 : measurementDraft.kind === "angle" ? 3 : 4;
+    selectionController.replace(measurementDraft.atomIndices);
+    if (measurementDraft.atomIndices.length < required) {
+      log(`${label ?? `Atom ${atomIndex}`} added to ${measurementDraft.kind}; pick ${required - measurementDraft.atomIndices.length} more.`);
+      return;
+    }
+    const request = measurementDraft;
+    measurementDraft = null;
+    try {
+      await molecularViewer.addMeasurement(request);
+      renderViewerDrawers();
+      studioMenu.open = true;
+      element<HTMLDetailsElement>("measurements-drawer").open = true;
+      log(`${request.kind} measurement added and visualized.`);
+    } catch (error) {
+      log(`Measurement failed: ${String(error)}`);
+    }
+    updateSelectionUi();
+    return;
+  }
+  const scope = pickScope.value as SelectionScope;
+  try {
+    const resolved = scope === "atom"
+      ? { atom_indices: [atomIndex] }
+      : await api<{ atom_indices: number[]; count: number }>(
+        `/api/sessions/${sessionId}/selections/resolve`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ atom_indices: [atomIndex], scope }),
+        },
+      );
+    const remove = selectionController.toggle(resolved.atom_indices);
+    log(
+      `${label ?? `Atom ${atomIndex}`} · ${remove ? "removed" : "selected"} ` +
+      `${resolved.atom_indices.length} atom${resolved.atom_indices.length === 1 ? "" : "s"} (${scope})`,
+    );
+    void inspectAtom(atomIndex);
+  } catch (error) {
+    log(`Could not resolve ${scope} selection: ${String(error)}`);
+  }
 }
 
-async function refreshFromServer(summary?: StructureSummary): Promise<void> {
+const FALLBACK_SAFE_PATINAE_COMMANDS = new Set([
+  "show",
+  "hide",
+  "color",
+  "zoom",
+  "center",
+  "orient",
+  "enable",
+  "disable",
+  "toggle",
+]);
+const STUDIO_UNSAFE_PATINAE_COMMANDS = new Set([
+  "alter", "bond", "create", "delete", "extract", "fuse", "load", "load_traj",
+  "pseudoatom", "remove", "rotate", "transform_selection", "translate", "unbond",
+]);
+
+async function executeViewerCommand(command: string, syntax = selectionSyntax.value as SelectionSyntax): Promise<void> {
+  const trimmed = command.trim();
+  if (!trimmed) return;
+  if (/[\n\r;]/.test(trimmed)) {
+    throw new Error("Run one command at a time; command separators are not allowed.");
+  }
+
+  const atomworksMatch = /^(awselect|awselect-path)\s+(.+)$/i.exec(trimmed);
+  if (syntax !== "patinae" || atomworksMatch) {
+    if (!sessionId) throw new Error("Open a CIF before selecting atoms.");
+    const querySyntax = atomworksMatch
+      ? atomworksMatch[1].toLowerCase() === "awselect-path" ? "path" : "expression"
+      : syntax;
+    const expression = atomworksMatch?.[2] ?? trimmed;
+    const response = await postJson<{ atom_indices: number[]; count: number }>(
+      `/api/sessions/${sessionId}/selections/query`,
+      { expression, syntax: querySyntax },
+    );
+    selectionController.replace(response.atom_indices, true);
+    log(`AtomWorks ${querySyntax} query selected ${response.count} atoms.`);
+    return;
+  }
+
+  const verb = trimmed.split(/\s+/, 1)[0].toLowerCase();
+  const catalog = molecularViewer.getCommandCatalog();
+  const metadata = catalog.find((command) =>
+    command.name.toLowerCase() === verb
+    || command.aliases?.some((alias) => alias.toLowerCase() === verb)
+  );
+  const allowed = catalog.length
+    ? metadata?.webSafe !== false && metadata !== undefined && !STUDIO_UNSAFE_PATINAE_COMMANDS.has(metadata.name)
+    : FALLBACK_SAFE_PATINAE_COMMANDS.has(verb);
+  if (!allowed) {
+    throw new Error(
+      STUDIO_UNSAFE_PATINAE_COMMANDS.has(metadata?.name ?? verb)
+        ? `Command '${verb}' would desynchronize the annotated CIF. Use AtomWorks Studio editing controls instead.`
+        : metadata?.unavailableReason
+        ? `Command '${verb}' is unavailable in the browser: ${metadata.unavailableReason}`
+        : `Unsupported viewer command '${verb}'. Browse the web-safe command catalog under •••.`,
+    );
+  }
+  const result = molecularViewer.executeCommand(trimmed) as {
+    messages?: Array<{ level: string; text: string }>;
+  };
+  const messages = result?.messages?.map((message) => message.text.trim()).filter(Boolean) ?? [];
+  log(messages.join("\n") || `Patinae: ${trimmed}`);
+}
+
+async function selectByExpression(expression: string, label: string): Promise<void> {
+  if (!sessionId) throw new Error("Open a CIF before selecting atoms.");
+  const response = await api<{ atom_indices: number[]; count: number }>(
+    `/api/sessions/${sessionId}/selections/query`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ expression, syntax: "expression" }),
+    },
+  );
+  selectionController.replace(response.atom_indices, true);
+  log(`${label}: ${response.count} atoms selected.`);
+}
+
+function initializeViewerToolbar(): void {
+  for (const menu of document.querySelectorAll<HTMLDetailsElement>(".viewer-menu")) {
+    menu.addEventListener("toggle", () => {
+      if (!menu.open) return;
+      closeToolbarMenus(menu);
+    });
+  }
+  for (const button of document.querySelectorAll<HTMLButtonElement>("[data-representation]")) {
+    button.addEventListener("click", () => {
+      try {
+        molecularViewer.setRepresentation(
+          button.dataset.representation as ViewerRepresentation,
+          viewerActionTarget.value as ViewerTarget,
+          representationExclusive.checked,
+        );
+        button.closest("details")?.removeAttribute("open");
+      } catch (error) {
+        log(`Display action failed: ${String(error)}`);
+      }
+    });
+  }
+  for (const button of document.querySelectorAll<HTMLButtonElement>("[data-color]")) {
+    button.addEventListener("click", () => {
+      try {
+        molecularViewer.setColor(
+          button.dataset.color as ViewerColor,
+          viewerActionTarget.value as ViewerTarget,
+        );
+        button.closest("details")?.removeAttribute("open");
+      } catch (error) {
+        log(`Color action failed: ${String(error)}`);
+      }
+    });
+  }
+  for (const button of document.querySelectorAll<HTMLButtonElement>("[data-camera]")) {
+    button.addEventListener("click", () => {
+      try {
+        molecularViewer.camera(button.dataset.camera as "reset" | "zoom" | "center" | "orient");
+        button.closest("details")?.removeAttribute("open");
+      } catch (error) {
+        log(`View action failed: ${String(error)}`);
+      }
+    });
+  }
+  for (const button of document.querySelectorAll<HTMLButtonElement>("[data-background]")) {
+    button.addEventListener("click", () => {
+      try {
+        molecularViewer.setBackground(button.dataset.background as "black" | "white");
+        button.closest("details")?.removeAttribute("open");
+      } catch (error) {
+        log(`Background action failed: ${String(error)}`);
+      }
+    });
+  }
+  const selectionExpressions: Record<string, string> = {
+    all: "is_polymer | ~is_polymer",
+    polymer: "is_polymer",
+    ligand: "~is_polymer",
+  };
+  for (const button of document.querySelectorAll<HTMLButtonElement>("[data-selection]")) {
+    button.addEventListener("click", () => {
+      const preset = button.dataset.selection ?? "";
+      if (preset === "none") {
+        clearSelection();
+        return;
+      }
+      void selectByExpression(selectionExpressions[preset], `Select ${preset}`)
+        .catch((error) => log(`Selection failed: ${String(error)}`));
+    });
+  }
+}
+
+function refreshCapabilityUi(): void {
+  const capabilities = molecularViewer.capabilities;
+  applyCapabilities(capabilities);
+  element("style-menu").hidden = !capabilities.representations && !capabilities.colors;
+  element("picking-fallback").hidden = !capabilities.softwarePicking;
+  pickScope.disabled = !capabilities.picking;
+  selectionSyntax.querySelector<HTMLOptionElement>('option[value="patinae"]')!.disabled =
+    !capabilities.commands;
+  if (!capabilities.commands && selectionSyntax.value === "patinae") selectionSyntax.value = "expression";
+  renderCommandCatalog();
+  updateSelectionUi();
+}
+
+function renderCommandCatalog(): void {
+  const container = element("command-catalog");
+  const query = element<HTMLInputElement>("command-search").value.trim().toLowerCase();
+  const commands = molecularViewer.getCommandCatalog().filter((command) =>
+    !query
+    || command.name.toLowerCase().includes(query)
+    || command.description?.toLowerCase().includes(query)
+  );
+  container.replaceChildren();
+  if (!commands.length) {
+    container.textContent = molecularViewer.capabilities.commandCatalog
+      ? "No matching commands."
+      : "Choose Patinae to browse commands.";
+    return;
+  }
+  for (const command of commands) {
+    const button = document.createElement("button");
+    button.type = "button";
+    const studioUnsafe = STUDIO_UNSAFE_PATINAE_COMMANDS.has(command.name);
+    button.disabled = command.webSafe === false || studioUnsafe;
+    const name = document.createElement("strong");
+    name.textContent = command.name;
+    const description = document.createElement("small");
+    description.textContent = studioUnsafe
+      ? "Use AtomWorks Studio so the annotated CIF remains canonical."
+      : command.webSafe === false
+      ? command.unavailableReason ?? "Desktop only"
+      : command.usage ?? command.description ?? "";
+    button.append(name, description);
+    button.addEventListener("click", () => {
+      selectionSyntax.value = "patinae";
+      viewerCommand.value = `${command.name} `;
+      viewerCommand.focus();
+      closeToolbarMenus();
+    });
+    container.append(button);
+  }
+}
+
+element("command-search").addEventListener("input", renderCommandCatalog);
+
+function renderViewerDrawers(): void {
+  const objects = element("object-list");
+  const viewerObjects = molecularViewer.getObjectList();
+  objects.replaceChildren();
+  if (viewerObjects.length) {
+    for (const object of viewerObjects) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "drawer-object";
+      button.textContent = `${object.enabled === false ? "○" : "●"} ${object.name} · ${object.type ?? "object"}`
+        + (object.atomCount === undefined ? "" : ` · ${object.atomCount.toLocaleString()} atoms`);
+      button.title = object.enabled === false ? "Show object" : "Hide object";
+      button.addEventListener("click", () => {
+        molecularViewer.setObjectEnabled(object.name, object.enabled === false);
+        renderViewerDrawers();
+      });
+      objects.append(button);
+    }
+  } else {
+    objects.textContent = lastSummary
+      ? `${lastSummary.name} · ${lastSummary.atom_count.toLocaleString()} atoms · chains ${lastSummary.chain_ids.join(", ") || "—"}`
+      : "Open a structure to list objects.";
+  }
+  const selections = molecularViewer.getSelectionList();
+  const selectionList = element("selection-list");
+  selectionList.replaceChildren();
+  if (selections.length) {
+    for (const selection of selections) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "drawer-object";
+      button.textContent = `${selection.name}${selection.expression ? ` · ${selection.expression}` : ""}`;
+      button.addEventListener("click", () => {
+        try {
+          const atoms = molecularViewer.evaluateSelection(selection.name);
+          selectionController.replace(atoms, true);
+        } catch (error) {
+          log(`Named selection failed: ${String(error)}`);
+        }
+      });
+      selectionList.append(button);
+    }
+  } else {
+    selectionList.textContent = `${selectionController.size} atoms in active selection`;
+  }
+  const measurements = molecularViewer.listMeasurements();
+  element("measurement-list").textContent = measurements.length
+    ? measurements.map((item) =>
+      `${item.label ?? item.kind ?? "Measurement"}${item.value === undefined ? "" : ` · ${item.value}${item.unit ?? ""}`}`
+    ).join("\n")
+    : "No measurements.";
+}
+
+async function switchRenderer(mode: ViewerMode): Promise<void> {
+  viewerModeSelect.disabled = true;
+  try {
+    await molecularViewer.switchBackend(mode);
+    localStorage.setItem(VIEWER_STORAGE_KEY, mode);
+    const url = new URL(window.location.href);
+    url.searchParams.set("viewer", mode);
+    history.replaceState(null, "", url);
+    refreshCapabilityUi();
+    renderViewerDrawers();
+    log(`Switched renderer to ${mode === "patinae" ? "Patinae" : "Mol*"} without reloading.`);
+  } catch (error) {
+    viewerModeSelect.value = molecularViewer.backend;
+    log(`Renderer switch failed: ${String(error)}`);
+  } finally {
+    viewerModeSelect.disabled = false;
+  }
+}
+
+async function refreshFromServer(summary?: StructureSummary, preserveSelection = true): Promise<void> {
   if (!sessionId) return;
   const response = await fetch(`/api/sessions/${sessionId}/cif`);
   if (!response.ok) throw new Error(await response.text());
   await loadViewerCif(await response.text(), currentName);
   if (summary) renderSummary(summary);
-  clearSelection();
+  if (preserveSelection) {
+    if (summary) selectionController.retainValid(summary.atom_count);
+    await annotationOverlay.restore(molecularViewer, selectionController.values);
+  } else {
+    annotationOverlay.reset();
+    clearSelection();
+  }
 }
 
 async function mutate(path: string, body?: unknown): Promise<void> {
@@ -536,7 +846,8 @@ async function mutate(path: string, body?: unknown): Promise<void> {
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     persistSession(response);
-    await refreshFromServer(response.structure);
+    const structural = /^\/(?:delete|segments|reset-residue-ids)/.test(path);
+    await refreshFromServer(response.structure, !structural);
     log("Annotation Studio state updated.");
     notifyHost("changed");
   } catch (error) {
@@ -553,10 +864,9 @@ async function openFile(file: File): Promise<boolean> {
     const response = await api<SessionResponse>("/api/sessions", { method: "POST", body: form });
     sessionId = response.session_id;
     currentName = response.structure.name;
-    selectedAtoms.clear();
-    updateSelectionUi();
+    selectionController.clear();
     persistSession(response);
-    await refreshFromServer(response.structure);
+    await refreshFromServer(response.structure, false);
     enableSessionControls(true);
     log("Native AtomWorks session ready.");
     notifyHost("ready");
@@ -590,24 +900,13 @@ async function loadExample(example: StudioExample, activeButton: HTMLButtonEleme
 
 async function initialize(): Promise<void> {
   document.body.classList.toggle("embedded", query.get("embed") === "1");
-  const mode = requestedViewerMode();
-  viewerModeSelect.value = mode ?? "";
+  const mode = requestedViewerMode() ?? "molstar";
+  viewerModeSelect.value = mode;
   viewerModeSelect.addEventListener("change", () => {
     const selected = viewerMode(viewerModeSelect.value);
     if (!selected) return;
-    navigateToViewer(selected);
+    void switchRenderer(selected);
   });
-  if (!mode) {
-    fileInput.disabled = true;
-    viewerBackend.textContent = "Choose renderer";
-    element("design-availability").textContent = "Choose a renderer to start the studio.";
-    element("renderer-prompt").hidden = false;
-    for (const button of document.querySelectorAll<HTMLButtonElement>(".example-load")) {
-      button.disabled = false;
-    }
-    log("Choose Patinae or Mol*; neither renderer is selected automatically.");
-    return;
-  }
   localStorage.setItem(VIEWER_STORAGE_KEY, mode);
   await initCifCore();
   schema = await api<StudioSchema>("/api/schema");
@@ -626,6 +925,8 @@ async function initialize(): Promise<void> {
     handleAtomPicked,
   );
   await molecularViewer.initialize();
+  initializeViewerToolbar();
+  refreshCapabilityUi();
   let restoredSession = false;
   const savedSession = query.get("session") ?? sessionStorage.getItem("annotation-studio-session");
   if (savedSession) {
@@ -658,7 +959,7 @@ async function initialize(): Promise<void> {
         editor_path: designDocument.editor_path,
         structure: designDocument.structure as StructureSummary,
       });
-      await refreshFromServer(designDocument.structure as StructureSummary);
+      await refreshFromServer(designDocument.structure as StructureSummary, false);
       if (designDocument.kind === "refolded") {
         const confidence = (designDocument.structure as StructureSummary).scalar_fields.find(
           (field) => field.name === "b_factor" || /plddt|confidence/i.test(field.name),
@@ -697,19 +998,17 @@ for (const button of document.querySelectorAll<HTMLButtonElement>(".example-load
   button.addEventListener("click", () => {
     const example = STUDIO_EXAMPLES.find((candidate) => candidate.id === button.dataset.example);
     if (!example) return;
-    if (!requestedViewerMode()) {
-      sessionStorage.setItem(PENDING_EXAMPLE_KEY, example.id);
-      element("renderer-prompt").hidden = false;
-      log(`Choose Patinae or Mol* to load ${example.name}.`);
-      return;
-    }
     void loadExample(example, button);
   });
 }
 for (const button of document.querySelectorAll<HTMLButtonElement>(".renderer-prompt-choice")) {
   button.addEventListener("click", () => {
     const selected = viewerMode(button.dataset.renderer ?? null);
-    if (selected) navigateToViewer(selected);
+    if (selected) {
+      viewerModeSelect.value = selected;
+      element("renderer-prompt").hidden = true;
+      void switchRenderer(selected);
+    }
   });
 }
 combineInput.addEventListener("change", () => {
@@ -730,7 +1029,7 @@ combineInput.addEventListener("change", () => {
       });
       if (sessionId !== targetSession) return;
       persistSession(combined);
-      await refreshFromServer(combined.structure);
+      await refreshFromServer(combined.structure, false);
       log(`Combined ${file.name}; conflicting chain IDs were reassigned.`);
       notifyHost("changed");
     } catch (error) {
@@ -741,18 +1040,199 @@ combineInput.addEventListener("change", () => {
   })();
 });
 conditionSelect.addEventListener("change", conditionChanged);
+pickScope.addEventListener("change", () => selectionController.setScope(pickScope.value as SelectionScope));
+viewerCommandForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const command = viewerCommand.value;
+  void executeViewerCommand(command)
+    .then(() => {
+      viewerCommand.value = "";
+    })
+    .catch((error) => log(`Command failed: ${String(error)}`));
+});
 element("clear-selection").addEventListener("click", clearSelection);
 element("clear-annotation-view").addEventListener("click", () => {
-  void molecularViewer.clearAnnotation().then(() => {
+  void annotationOverlay.clear(molecularViewer, selectionController.values).then(() => {
     element<HTMLButtonElement>("clear-annotation-view").disabled = true;
     annotationDetail.textContent = "Annotation colors cleared. Click an annotation or pick an atom.";
   }).catch((error) => log(`Could not clear annotation colors: ${String(error)}`));
 });
 
+for (const [buttonId, drawerId] of [
+  ["open-objects", "objects-drawer"],
+  ["open-selections", "selections-drawer"],
+  ["open-measurements", "measurements-drawer"],
+] as const) {
+  element(buttonId).addEventListener("click", () => {
+    closeToolbarMenus();
+    studioMenu.open = true;
+    element<HTMLDetailsElement>(drawerId).open = true;
+    renderViewerDrawers();
+  });
+}
+
+element("run-analysis").addEventListener("click", () => {
+  if (!sessionId) return;
+  const interactionTypes = [
+    ...document.querySelectorAll<HTMLInputElement>('input[name="interaction-type"]:checked'),
+  ].map((input) => input.value);
+  if (!interactionTypes.length) {
+    log("Choose at least one interaction type.");
+    return;
+  }
+  const selectedAtoms = [...selectionController.values];
+  const interactionScope = element<HTMLSelectElement>("interaction-scope").value;
+  if (interactionScope !== "all" && !selectedAtoms.length) {
+    log("Select atoms before using Selection contacts scope.");
+    return;
+  }
+  const selectedSet = new Set(selectedAtoms);
+  const targetAtoms = interactionScope === "within-selection"
+    ? selectedAtoms
+    : interactionScope === "selection-to-rest"
+      ? Array.from({ length: lastSummary?.atom_count ?? 0 }, (_, index) => index)
+        .filter((index) => !selectedSet.has(index))
+      : [];
+  void postJson<InteractionAnalysisResponse>(
+    `/api/sessions/${sessionId}/interactions/analyze`,
+    {
+      interaction_types: interactionTypes,
+      hbond_model: element<HTMLSelectElement>("hbond-model").value,
+      inter_chain_only: element<HTMLInputElement>("inter-chain-only").checked,
+      source_atom_indices: interactionScope === "all" ? [] : selectedAtoms,
+      target_atom_indices: targetAtoms,
+    },
+  ).then(async (response) => {
+    const colors: Record<string, number> = {
+      hbond: 0x4dd0e1,
+      hydrophobic: 0xffb74d,
+      pistacking: 0xce93d8,
+      pication: 0xf06292,
+      saltbridge: 0x64b5f6,
+      halogen: 0x81c784,
+      metal: 0xffd54f,
+    };
+    const overlays: ViewerInteraction[] = response.interactions.map((interaction, index) => ({
+      id: `interaction_${interaction.interaction_type}_${index}`,
+      type: interaction.interaction_type,
+      atom1: interaction.atom1,
+      atom2: interaction.atom2,
+      label: `${interaction.interaction_type} ${interaction.distance.toFixed(2)} Å`,
+      color: colors[interaction.interaction_type] ?? 0xffd54f,
+    }));
+    const visualLimit = Number(element<HTMLInputElement>("interaction-visual-limit").value);
+    const visualized = overlays.slice(0, visualLimit);
+    await molecularViewer.showInteractions(
+      element<HTMLInputElement>("visualize-interactions").checked ? visualized : [],
+    );
+    const results = element("analysis-results");
+    results.replaceChildren();
+    if (!response.interactions.length) results.textContent = "No matching interactions found.";
+    for (const interaction of response.interactions) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "interaction-result";
+      button.textContent = `${interaction.interaction_type}: atoms ${interaction.atom1}–${interaction.atom2}`
+        + ` · ${interaction.distance.toFixed(2)} Å · ${interaction.atom1_role}/${interaction.atom2_role}`;
+      button.addEventListener("click", () => {
+        selectionController.replace([interaction.atom1, interaction.atom2], true);
+        molecularViewer.camera("center");
+      });
+      results.append(button);
+    }
+    element<HTMLDetailsElement>("measurements-drawer").open = true;
+    studioMenu.open = true;
+    renderViewerDrawers();
+    log(
+      `Interaction analysis completed: ${response.interaction_count} contacts`
+      + `${visualized.length ? `; ${visualized.length} visualized` : ""}`
+      + `${response.cached ? " (cached)" : ""}.`,
+    );
+  }).catch((error) => log(`Analysis failed: ${String(error)}`));
+});
+
+element("measurement-kind").addEventListener("change", () => {
+  measurementDraft = null;
+  updateSelectionUi();
+});
+element("add-measurement").addEventListener("click", () => {
+  const kind = element<HTMLSelectElement>("measurement-kind").value as MeasurementKind;
+  const atoms = [...selectionController.values];
+  const required = kind === "distance" ? 2 : kind === "angle" ? 3 : 4;
+  if (atoms.length !== required) {
+    measurementDraft = { kind, atomIndices: [] };
+    closeToolbarMenus();
+    log(`${kind} measurement armed: pick ${required} atoms in order.`);
+    return;
+  }
+  void molecularViewer.addMeasurement({ kind, atomIndices: atoms }).then(() => {
+      renderViewerDrawers();
+      element<HTMLDetailsElement>("measurements-drawer").open = true;
+      studioMenu.open = true;
+      log(`${kind} measurement added and visualized.`);
+    }).catch((error) => log(`Measurement failed: ${String(error)}`));
+});
+
+element("clear-analysis-visuals").addEventListener("click", () => {
+  void molecularViewer.clearMeasurements().then(() => {
+    element("analysis-results").replaceChildren();
+    renderViewerDrawers();
+    log("Measurement and interaction visuals cleared.");
+  });
+});
+
+element("inspect-bonds").addEventListener("click", () => {
+  if (!sessionId) return;
+  const selected = [...selectionController.values];
+  const query = selected.length === 1 ? `?atom_index=${selected[0]}` : "";
+  void api<{
+    count: number;
+    bonds: Array<{ atom1: number; atom2: number; bond_type: string }>;
+  }>(`/api/sessions/${sessionId}/bonds${query}`).then((response) => {
+    element("analysis-results").textContent = response.bonds.length
+      ? response.bonds.map((bond) => `Bond ${bond.atom1}–${bond.atom2} · ${bond.bond_type}`).join("\n")
+      : "No bonds found.";
+    element<HTMLDetailsElement>("measurements-drawer").open = true;
+  }).catch((error) => log(`Bond inspection failed: ${String(error)}`));
+});
+
+element("infer-bonds").addEventListener("click", () => {
+  void mutate("/bonds/infer-ccd");
+});
+
+async function editDistanceRestraint(action: "add" | "remove"): Promise<void> {
+  if (!sessionId) return;
+  const [atom1, atom2] = [...selectionController.values];
+  const distance = Number(element<HTMLInputElement>("restraint-distance").value);
+  await mutate("/distance-restraints", {
+    atom1,
+    atom2,
+    action,
+    distance: action === "add" ? distance : null,
+  });
+  const response = await api<{
+    restraints: Array<{ atom1: number; atom2: number; distance: number; current_distance: number }>;
+  }>(`/api/sessions/${sessionId}/distance-restraints`);
+  element("analysis-results").textContent = response.restraints.length
+    ? response.restraints.map((restraint) =>
+      `Restraint ${restraint.atom1}–${restraint.atom2} · target ${restraint.distance.toFixed(2)} Å`
+      + ` · current ${restraint.current_distance.toFixed(2)} Å`
+    ).join("\n")
+    : "No distance restraints.";
+  element<HTMLDetailsElement>("measurements-drawer").open = true;
+}
+
+element("add-restraint").addEventListener("click", () => {
+  void editDistanceRestraint("add").catch((error) => log(`Restraint failed: ${String(error)}`));
+});
+element("remove-restraint").addEventListener("click", () => {
+  void editDistanceRestraint("remove").catch((error) => log(`Restraint failed: ${String(error)}`));
+});
+
 applyCondition.addEventListener("click", () => {
   void mutate("/conditions", {
     condition: conditionSelect.value,
-    atom_indices: [...selectedAtoms],
+    atom_indices: [...selectionController.values],
     enabled: enabledInput.checked,
     value: selectedValue(),
     scope: scopeSelect.value,
@@ -761,14 +1241,14 @@ applyCondition.addEventListener("click", () => {
 
 element("apply-charge").addEventListener("click", () => {
   void mutate("/charges", {
-    atom_indices: [...selectedAtoms],
+    atom_indices: [...selectionController.values],
     value: Number(element<HTMLInputElement>("charge").value),
   });
 });
 
 for (const action of ["add", "remove"] as const) {
   element(`${action}-bond`).addEventListener("click", () => {
-    const [atom1, atom2] = [...selectedAtoms];
+    const [atom1, atom2] = [...selectionController.values];
     void mutate("/bonds", {
       atom1,
       atom2,
@@ -779,7 +1259,7 @@ for (const action of ["add", "remove"] as const) {
 }
 
 element("delete-atoms").addEventListener("click", () => {
-  void mutate("/delete", { atom_indices: [...selectedAtoms], close_residue_gaps: false });
+  void mutate("/delete", { atom_indices: [...selectionController.values], close_residue_gaps: false });
 });
 element("reset-residues").addEventListener("click", () => void mutate("/reset-residue-ids"));
 element("undo").addEventListener("click", () => void mutate("/undo"));
@@ -788,7 +1268,7 @@ element("insert-segment").addEventListener("click", () => {
   void mutate("/segments", {
     minimum: Number(element<HTMLInputElement>("segment-min").value),
     maximum: Number(element<HTMLInputElement>("segment-max").value),
-    atom_index: [...selectedAtoms][0],
+    atom_index: [...selectionController.values][0],
     before: element<HTMLInputElement>("segment-before").checked,
     new_chain: false,
   });

@@ -19,11 +19,30 @@ import {
   type AnnotationRenderResult,
   type ViewerAdapter,
   type ViewerAdapterContext,
+  type ViewerCameraAction,
+  type ViewerInteraction,
+  type ViewerMeasurement,
+  type ViewerMeasurementRequest,
 } from "./contract";
 
 export class MolstarAdapter implements ViewerAdapter {
   readonly backend = "molstar" as const;
+  readonly capabilities = {
+    representations: false,
+    colors: false,
+    background: true,
+    commands: false,
+    picking: true,
+    softwarePicking: false,
+    selectionExpressions: false,
+    selectionList: false,
+    commandCatalog: false,
+    measurements: true,
+    interactionOverlays: true,
+  } as const;
   private viewer: MolstarViewer | null = null;
+  private selectedAtomIndices: number[] = [];
+  private measurements: ViewerMeasurement[] = [];
 
   constructor(private readonly context: ViewerAdapterContext) {}
 
@@ -119,7 +138,6 @@ export class MolstarAdapter implements ViewerAdapter {
     if (StructureElement.Loci.size(loci) !== result.atomCount) {
       throw new Error("Mol* annotation union does not match AtomWorks atom indices");
     }
-    this.clearSelection();
     this.viewer.plugin.managers.interactivity.lociSelects.select({ loci });
     this.viewer.plugin.managers.camera.focusLoci(loci);
     return result;
@@ -129,7 +147,15 @@ export class MolstarAdapter implements ViewerAdapter {
     if (!this.viewer) return;
     const reference = this.viewer.plugin.managers.structure.hierarchy.current.structures[0];
     if (reference) await clearStructureOverpaint(this.viewer.plugin, reference.components);
+  }
+
+  setSelection(atomIndices: number[]): void {
+    if (!this.viewer) return;
     this.clearSelection();
+    if (!atomIndices.length) return;
+    this.selectedAtomIndices = [...new Set(atomIndices)];
+    const loci = this.lociFor(this.selectedAtomIndices);
+    this.viewer.plugin.managers.interactivity.lociSelects.select({ loci });
   }
 
   clearSelection(): void {
@@ -137,11 +163,89 @@ export class MolstarAdapter implements ViewerAdapter {
     this.viewer.plugin.managers.interactivity.lociSelects.deselectAll();
     this.viewer.plugin.managers.interactivity.lociHighlights.clearHighlights();
     this.viewer.plugin.managers.structure.focus.clear();
+    this.selectedAtomIndices = [];
+  }
+
+  setBackground(color: "black" | "white"): void {
+    this.viewer?.plugin.canvas3d?.setProps({
+      renderer: { backgroundColor: Color(color === "black" ? 0x000000 : 0xffffff) },
+    });
+  }
+
+  camera(action: ViewerCameraAction): void {
+    if (!this.viewer) return;
+    if (action === "center" && this.selectedAtomIndices.length) {
+      this.viewer.plugin.managers.camera.focusLoci(this.lociFor(this.selectedAtomIndices));
+      return;
+    }
+    this.viewer.plugin.managers.camera.reset();
+  }
+
+  listMeasurements(): ViewerMeasurement[] {
+    return this.measurements;
+  }
+
+  async addMeasurement(request: ViewerMeasurementRequest): Promise<ViewerMeasurement[]> {
+    if (!this.viewer) throw new Error("Mol* is not initialized");
+    const expected = request.kind === "distance" ? 2 : request.kind === "angle" ? 3 : 4;
+    if (request.atomIndices.length !== expected) {
+      throw new Error(`Select exactly ${expected} atoms for a ${request.kind} measurement.`);
+    }
+    const loci = request.atomIndices.map((atomIndex) => this.lociFor([atomIndex]));
+    const color = Color(request.color ?? 0xffd54f);
+    const options = {
+      customText: request.label,
+      visualParams: { linesColor: color, textColor: color },
+    };
+    const manager = this.viewer.plugin.managers.structure.measurement;
+    if (request.kind === "distance") await manager.addDistance(loci[0], loci[1], options);
+    else if (request.kind === "angle") await manager.addAngle(loci[0], loci[1], loci[2], options);
+    else await manager.addDihedral(loci[0], loci[1], loci[2], loci[3], options);
+    const measurement: ViewerMeasurement = {
+      id: `${request.kind}_${Date.now()}`,
+      label: request.label ?? request.kind,
+      kind: request.kind,
+      atomIndices: request.atomIndices,
+    };
+    this.measurements.push(measurement);
+    return [measurement];
+  }
+
+  async clearMeasurements(): Promise<void> {
+    if (!this.viewer) return;
+    const state = this.viewer.plugin.managers.structure.measurement.state;
+    const cells = [
+      ...state.labels,
+      ...state.distances,
+      ...state.angles,
+      ...state.dihedrals,
+      ...state.orientations,
+      ...state.planes,
+    ];
+    if (cells.length) {
+      const update = this.viewer.plugin.state.data.build();
+      for (const cell of cells) update.delete(cell.transform.ref);
+      await update.commit();
+    }
+    this.measurements = [];
+  }
+
+  async showInteractions(interactions: ViewerInteraction[]): Promise<void> {
+    await this.clearMeasurements();
+    for (const interaction of interactions) {
+      await this.addMeasurement({
+        kind: "distance",
+        atomIndices: [interaction.atom1, interaction.atom2],
+        label: interaction.label,
+        color: interaction.color,
+      });
+    }
   }
 
   destroy(): void {
     this.viewer?.dispose();
     this.viewer = null;
+    this.measurements = [];
   }
 }
 

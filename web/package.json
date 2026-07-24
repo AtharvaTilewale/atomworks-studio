@@ -11,7 +11,7 @@
     "test:e2e": "node tests/smoke.mjs"
   },
   "dependencies": {
-    "@patinae/viewer": "https://github.com/zmactep/patinae/releases/download/v0.4.4/patinae-web.tar.gz",
+    "@patinae/viewer": "file:vendor/patinae-viewer-0.4.4.tgz",
     "molstar": "5.11.0"
   },
   "devDependencies": {

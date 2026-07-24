@@ -21,7 +21,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 
 from .contracts import ConditionProvider, ValidationProvider
-from .core import BOND_TYPES, StudioDocument
+from .core import BOND_TYPES, INTERACTION_TYPES, StudioDocument
 from .design_jobs import DesignJobRequest
 from .rfd4_provider import CONDITION_PROVIDER, VALIDATION_PROVIDER, create_design_provider
 from .version import __version__
@@ -315,6 +315,24 @@ class ConditionMutation(BaseModel):
         return sorted(set(value))
 
 
+class SelectionResolve(BaseModel):
+    atom_indices: list[int] = Field(min_length=1, max_length=100_000)
+    scope: Literal["atom", "residue", "chain"] = "atom"
+
+    @field_validator("atom_indices")
+    @classmethod
+    def unique_indices(cls, value: list[int]) -> list[int]:
+        if any(index < 0 for index in value):
+            raise ValueError("atom indices must be non-negative")
+        return sorted(set(value))
+
+
+class SelectionQuery(BaseModel):
+    expression: str = Field(min_length=1, max_length=4096)
+    syntax: Literal["expression", "path"] = "expression"
+    scope: Literal["atom", "residue", "chain"] = "atom"
+
+
 class ChargeMutation(BaseModel):
     atom_indices: list[int] = Field(min_length=1, max_length=100_000)
     value: int | None = Field(default=None, ge=-10, le=10)
@@ -334,6 +352,58 @@ class BondMutation(BaseModel):
         if value not in BOND_TYPES:
             raise ValueError(f"unsupported bond type: {value}")
         return value
+
+
+class DistanceRestraintMutation(BaseModel):
+    atom1: int = Field(ge=0)
+    atom2: int = Field(ge=0)
+    action: Literal["set", "remove"] = "set"
+    distance: float | None = Field(default=None, gt=0, le=1000)
+
+    @field_validator("distance")
+    @classmethod
+    def distance_required_for_set(cls, value: float | None, info: Any) -> float | None:
+        if info.data.get("action", "set") == "set" and value is None:
+            raise ValueError("distance is required when action is set")
+        return value
+
+
+class InteractionAnalysisRequest(BaseModel):
+    interaction_types: list[
+        Literal[
+            "hbond",
+            "hydrophobic",
+            "pi",
+            "salt",
+            "halogen",
+            "metal",
+            "pistacking",
+            "pication",
+            "saltbridge",
+        ]
+    ] = Field(
+        default_factory=lambda: ["hbond", "hydrophobic", "pi", "salt", "halogen", "metal"],
+        min_length=1,
+        max_length=9,
+    )
+    hbond_model: Literal["rosetta", "plip"] = "rosetta"
+    inter_chain_only: bool = True
+    source_atom_indices: list[int] = Field(default_factory=list, max_length=100_000)
+    target_atom_indices: list[int] = Field(default_factory=list, max_length=100_000)
+
+    @field_validator("interaction_types")
+    @classmethod
+    def unique_interaction_types(cls, value: list[str]) -> list[str]:
+        if len(value) != len(set(value)):
+            raise ValueError("interaction types must be unique")
+        return value
+
+    @field_validator("source_atom_indices", "target_atom_indices")
+    @classmethod
+    def valid_filter_indices(cls, value: list[int]) -> list[int]:
+        if any(index < 0 for index in value):
+            raise ValueError("atom indices must be non-negative")
+        return sorted(set(value))
 
 
 class DeleteMutation(BaseModel):
@@ -540,6 +610,62 @@ def get_atom_annotations(session_id: str, atom_index: int) -> dict:
         raise HTTPException(status_code=404, detail=str(error)) from error
 
 
+@app.post("/api/sessions/{session_id}/interactions/analyze")
+def analyze_interactions(session_id: str, request: InteractionAnalysisRequest) -> dict:
+    expanded_types: list[str] = []
+    for interaction_type in request.interaction_types:
+        expanded_types.extend(
+            {
+                "pi": ["pistacking", "pication"],
+                "salt": ["saltbridge"],
+            }.get(interaction_type, [interaction_type])
+        )
+    interaction_types = tuple(dict.fromkeys(expanded_types))
+    if not set(interaction_types) <= set(INTERACTION_TYPES):
+        raise HTTPException(status_code=422, detail="unsupported interaction type")
+    try:
+        return _call(
+            session_id,
+            lambda document: document.analyze_interactions(
+                interaction_types=interaction_types,
+                hbond_model=request.hbond_model,
+                inter_chain_only=request.inter_chain_only,
+                source_atom_indices=tuple(request.source_atom_indices),
+                target_atom_indices=tuple(request.target_atom_indices),
+            ),
+        )
+    except (IndexError, ValueError) as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+
+@app.post("/api/sessions/{session_id}/selections/resolve")
+def resolve_selection(session_id: str, selection: SelectionResolve) -> dict:
+    try:
+        indices = _call(
+            session_id,
+            lambda document: document.resolve_indices(selection.atom_indices, selection.scope),
+        )
+    except (ValueError, IndexError) as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    return {"atom_indices": indices.tolist(), "count": len(indices)}
+
+
+@app.post("/api/sessions/{session_id}/selections/query")
+def query_selection(session_id: str, selection: SelectionQuery) -> dict:
+    try:
+        indices = _call(
+            session_id,
+            lambda document: document.query_indices(
+                selection.expression,
+                syntax=selection.syntax,
+                scope=selection.scope,
+            ),
+        )
+    except (IndexError, NameError, SyntaxError, TypeError, ValueError) as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    return {"atom_indices": indices.tolist(), "count": len(indices)}
+
+
 @app.get("/api/sessions/{session_id}/cif", response_class=PlainTextResponse)
 def get_cif(session_id: str) -> PlainTextResponse:
     cif, name = _call(session_id, lambda document: (document.to_cif(), document.name))
@@ -581,6 +707,39 @@ def edit_bond(session_id: str, mutation: BondMutation) -> dict:
             mutation.atom2,
             mutation.action,
             mutation.bond_type,
+        ),
+    )
+
+
+@app.get("/api/sessions/{session_id}/bonds")
+def inspect_bonds(session_id: str, atom_index: int | None = None) -> dict:
+    try:
+        bonds = _call(session_id, lambda document: document.inspect_bonds(atom_index))
+    except IndexError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    return {"bonds": bonds, "count": len(bonds)}
+
+
+@app.post("/api/sessions/{session_id}/bonds/infer-ccd")
+def infer_bonds_from_ccd(session_id: str) -> dict:
+    return _apply(session_id, lambda document: document.infer_bonds_from_ccd())
+
+
+@app.get("/api/sessions/{session_id}/distance-restraints")
+def get_distance_restraints(session_id: str) -> dict:
+    restraints = _call(session_id, lambda document: document.distance_restraints())
+    return {"restraints": restraints, "count": len(restraints)}
+
+
+@app.post("/api/sessions/{session_id}/distance-restraints")
+def edit_distance_restraint(session_id: str, mutation: DistanceRestraintMutation) -> dict:
+    return _apply(
+        session_id,
+        lambda document: document.edit_distance_restraint(
+            mutation.atom1,
+            mutation.atom2,
+            mutation.action,
+            mutation.distance,
         ),
     )
 

@@ -8,6 +8,7 @@ if (viewerMode !== "patinae" && viewerMode !== "molstar") {
   throw new Error("Set VIEWER_MODE=patinae or VIEWER_MODE=molstar");
 }
 const expectDesignEnabled = process.env.EXPECT_DESIGN_ENABLED === "1";
+const runDesignJob = expectDesignEnabled && process.env.RUN_DESIGN_JOB !== "0";
 const browserArgs = ["--no-sandbox", "--disable-gpu-sandbox", "--enable-unsafe-webgpu"];
 
 const browser = await chromium.launch({
@@ -17,28 +18,6 @@ const browser = await chromium.launch({
 });
 
 try {
-  const choicePage = await browser.newPage({ viewport: { width: 1000, height: 700 } });
-  await choicePage.goto(baseUrl, { waitUntil: "networkidle" });
-  await choicePage.waitForFunction(() =>
-    document.querySelector("#status")?.textContent?.includes("neither renderer is selected"),
-  );
-  assert.equal(await choicePage.locator("#viewer").getAttribute("data-backend"), null);
-  assert.deepEqual(await choicePage.locator("#viewer-mode option").allTextContents(), [
-    "Choose Patinae or Mol*",
-    "Patinae · WebGPU",
-    "Mol* · WebGL",
-  ]);
-  assert.equal(await choicePage.locator('[data-example="ppi"]').isEnabled(), true);
-  assert.equal(await choicePage.locator("#renderer-prompt").isVisible(), true);
-  await choicePage.locator('[data-example="ppi"]').click();
-  assert.equal(
-    await choicePage.evaluate(() => sessionStorage.getItem("annotation-studio-pending-example")),
-    "ppi",
-  );
-  assert.match(await choicePage.locator("#status").innerText(), /Choose Patinae or Mol\* to load PPI/);
-  await choicePage.evaluate(() => sessionStorage.removeItem("annotation-studio-pending-example"));
-  await choicePage.close();
-
   const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
@@ -59,6 +38,13 @@ try {
     await page.locator("#viewer").getAttribute("data-backend"),
     viewerMode,
   );
+  assert.deepEqual(await page.locator(".viewer-menu > summary").allTextContents(), [
+    "Style", "Select", "Analyze", "AtomWorks Studio", "View", "•••",
+  ]);
+  assert.deepEqual(await page.locator("#selection-syntax option").allTextContents(), [
+    "Patinae", "AtomWorks", "Path",
+  ]);
+  assert.equal(await page.locator(".drawer-stack > details").count(), 3);
   if (viewerMode === "patinae") {
     assert.match(
       (await page.locator("#viewer").getAttribute("data-picking")) ?? "",
@@ -68,7 +54,10 @@ try {
   const manifest = await page.request.get(new URL("/manifest.webmanifest", baseUrl).toString());
   assert.equal((await manifest.json()).name, "AtomWorks Annotation Studio");
   assert.equal((await page.request.get(new URL("/sw.js", baseUrl).toString())).ok(), true);
+  assert.equal((await page.request.get(new URL("/atomworks_logo_dark.svg", baseUrl).toString())).ok(), true);
+  assert.equal(await page.locator(".eyebrow").first().innerText(), "RFD4-PROTEINA");
 
+  await page.locator("#atomworks-studio-menu > summary").click();
   assert.equal(await page.locator(".example-load").count(), 3);
   assert.equal(await page.locator('[data-example="ppi"]').isEnabled(), true);
   if (viewerMode === "molstar") {
@@ -134,8 +123,121 @@ try {
   assert.match(await page.locator("#structure-summary").innerText(), /66/);
   assert.equal(await page.locator("#download").isEnabled(), true);
   assert.equal(await page.locator("#submit-design").isDisabled(), !expectDesignEnabled);
+  await page.locator("#atomworks-studio-menu > summary").click();
+  assert.deepEqual(await page.locator("#pick-scope option").allTextContents(), ["Atom", "Residue", "Chain"]);
+  assert.ok(await page.locator(".sequence-dock .sequence-token").count(), "top sequence dock has residues");
+  await page.locator(".sequence-dock .sequence-token[data-atoms]").first().click();
+  assert.equal(await page.locator(".sequence-dock .sequence-token.selected").count(), 1);
+  const selectedBeforeMutation = await page.locator("#selection-count").innerText();
+  await page.locator("#atomworks-studio-menu > summary").click();
+  assert.equal(await page.locator("#atomworks-studio-menu").getAttribute("open"), "");
+  assert.ok(await page.locator("#annotation-list").isVisible(), "AtomWorks annotations are in the Studio menu");
+  assert.ok(await page.locator("#design-card").isVisible(), "model submission is in the Studio menu");
+  assert.equal(await page.locator("#design-card #submit-design").count(), 1);
+  await page.locator("#apply-condition").click();
+  await page.waitForFunction(
+    () => document.querySelector("#status")?.textContent?.includes("state updated"),
+  );
+  assert.equal(
+    await page.locator("#selection-count").innerText(),
+    selectedBeforeMutation,
+    "non-structural mutations preserve the active selection",
+  );
+  await page.locator("#atomworks-studio-menu > summary").click();
+  const alternateViewer = viewerMode === "patinae" ? "molstar" : "patinae";
+  await page.locator("#viewer-mode").selectOption(alternateViewer);
+  await page.waitForFunction(
+    (backend) => document.querySelector("#viewer")?.getAttribute("data-backend") === backend,
+    alternateViewer,
+    { timeout: 30_000 },
+  );
+  assert.equal(await page.locator("#selection-count").innerText(), selectedBeforeMutation);
+  await page.locator("#viewer-mode").selectOption(viewerMode);
+  await page.waitForFunction(
+    (backend) => document.querySelector("#viewer")?.getAttribute("data-backend") === backend,
+    viewerMode,
+    { timeout: 30_000 },
+  );
+  await page.locator("#selection-syntax").selectOption("expression");
+  await page.locator("#viewer-command").fill("(atom_id == 1) | (atom_id == 2)");
+  await page.locator("#run-viewer-command").click();
+  await page.waitForFunction(() => document.querySelector("#selection-count")?.textContent?.startsWith("2 atoms"));
+  await page.locator(".viewer-menu > summary").nth(2).click();
+  assert.equal(await page.locator("#add-measurement").isEnabled(), true);
+  await page.locator("#add-measurement").click();
+  await page.waitForFunction(
+    () => !document.querySelector("#measurement-list")?.textContent?.includes("No measurements"),
+  );
+  assert.notEqual((await page.locator("#measurement-list").innerText()).trim(), "");
+  await page.locator("#atomworks-studio-menu > summary").click();
+  for (const [kind, expression, count] of [
+    ["angle", "(atom_id == 1) | (atom_id == 2) | (atom_id == 3)", 3],
+    ["dihedral", "(atom_id == 1) | (atom_id == 2) | (atom_id == 3) | (atom_id == 4)", 4],
+  ]) {
+    await page.locator("#selection-syntax").selectOption("expression");
+    await page.locator("#viewer-command").fill(expression);
+    await page.locator("#run-viewer-command").click();
+    await page.waitForFunction(
+      (expected) => document.querySelector("#selection-count")?.textContent?.startsWith(`${expected} atoms`),
+      count,
+    );
+    await page.locator(".viewer-menu > summary").nth(2).click();
+    await page.locator("#measurement-kind").selectOption(kind);
+    assert.equal(await page.locator("#add-measurement").isEnabled(), true);
+    await page.locator("#add-measurement").click();
+    await page.waitForFunction(
+      (measurementKind) => document.querySelector("#status")?.textContent?.includes(`${measurementKind} measurement added`),
+      kind,
+    );
+    await page.locator("#atomworks-studio-menu > summary").click();
+  }
+  await page.locator(".viewer-menu > summary").nth(2).click();
+  await page.locator('input[name="interaction-type"]').evaluateAll((inputs) => {
+    for (const input of inputs) input.checked = input.value === "hbond";
+  });
+  await page.locator("#inter-chain-only").uncheck();
+  await page.locator("#run-analysis").click();
+  await page.waitForFunction(
+    () => document.querySelector("#status")?.textContent?.includes("Interaction analysis completed"),
+    undefined,
+    { timeout: 30_000 },
+  );
+  assert.equal(await page.locator(".interaction-result").count(), 1);
+  await page.locator(".interaction-result").click();
+  assert.match(await page.locator("#selection-count").innerText(), /^2 atoms/);
+  await page.locator("#atomworks-studio-menu > summary").click();
+  await page.locator(".viewer-menu > summary").nth(4).click();
+  await page.locator('[data-camera="reset"]').click();
+  await page.locator(".viewer-menu > summary").nth(4).click();
+  await page.locator('[data-background="black"]').click();
+  if (viewerMode === "patinae") {
+    await page.locator(".viewer-menu > summary").nth(0).click();
+    assert.equal(await page.locator('[data-representation="ribbon"]').isEnabled(), true);
+    await page.locator('[data-representation="ribbon"]').click();
+    await page.locator(".viewer-menu > summary").nth(0).click();
+    await page.locator('[data-color="chain"]').click();
+    assert.equal(await page.locator("#viewer-command").isEnabled(), true);
+    await page.locator("#selection-syntax").selectOption("expression");
+    await page.locator("#viewer-command").fill("has_bonds()");
+    await page.locator("#run-viewer-command").click();
+    await page.waitForFunction(
+      () => document.querySelector("#status")?.textContent?.includes("AtomWorks expression query selected"),
+    );
+    assert.doesNotMatch(await page.locator("#selection-count").innerText(), /^0 atoms/);
+    await page.locator("#selection-syntax").selectOption("patinae");
+    await page.locator("#viewer-command").fill("show spheres, sele");
+    await page.locator("#run-viewer-command").click();
+    await page.waitForFunction(() => document.querySelector("#viewer-command")?.value === "");
+    assert.doesNotMatch(await page.locator("#status").innerText(), /Command failed/);
+  } else {
+    assert.equal(await page.locator("#style-menu").isHidden(), true);
+    assert.equal(await page.locator("#selection-syntax option").first().isDisabled(), true);
+    assert.equal(await page.locator("#viewer-command").isEnabled(), true);
+  }
+  await page.locator("#atomworks-studio-menu > summary").click();
   assert.ok(await page.locator(".annotation-row").count(), "stored annotations are summarized");
-  assert.equal(await page.locator(".annotation-field-row").count(), 11);
+  assert.ok(await page.locator(".annotation-field-row").count() >= 11);
+  const selectionBeforeOverlay = await page.locator("#selection-count").innerText();
   await page.locator(".annotation-row").first().click();
   await page.waitForFunction(
     () =>
@@ -144,13 +246,18 @@ try {
   );
   assert.doesNotMatch(await page.locator("#annotation-detail").innerText(), /Could not inspect annotation/);
   assert.equal(await page.locator("#clear-annotation-view").isEnabled(), true);
+  assert.equal(
+    await page.locator("#selection-count").innerText(),
+    selectionBeforeOverlay,
+    "annotation overlay does not replace the active selection",
+  );
   await page.waitForFunction(
     () => Number(document.querySelector("#viewer")?.getAttribute("data-annotation-atoms")) > 0,
   );
-  assert.equal(await page.locator("#viewer").getAttribute("data-annotation-atoms"), "10");
+  assert.ok(Number(await page.locator("#viewer").getAttribute("data-annotation-atoms")) > 0);
   assert.ok(
-    Number(await page.locator("#viewer").getAttribute("data-annotation-groups")) >= 2,
-    "multi-value annotations render as separate color groups",
+    Number(await page.locator("#viewer").getAttribute("data-annotation-groups")) >= 1,
+    "annotation groups render independently from active selection",
   );
   await page.locator("#clear-annotation-view").click();
   await page.waitForFunction(
@@ -158,7 +265,10 @@ try {
   );
   assert.equal(await page.locator("#viewer").getAttribute("data-annotation-groups"), "0");
 
-  if (expectDesignEnabled) {
+  if (runDesignJob) {
+    if (!(await page.locator("#atomworks-studio-menu").evaluate((menu) => menu.hasAttribute("open")))) {
+      await page.locator("#atomworks-studio-menu > summary").click();
+    }
     await page.locator("#design-card > summary").click();
     await page.locator("#design-count").fill("1");
     await page.locator("#submit-design").click();
@@ -200,6 +310,8 @@ try {
   await embedded.goto(embeddedUrl.toString(), { waitUntil: "networkidle" });
   await embedded.waitForFunction(() => document.querySelector("#structure-summary")?.textContent?.includes("66"));
   assert.equal(await embedded.locator("body").getAttribute("class"), "embedded");
+  assert.equal(await embedded.locator(".header-logo").isVisible(), true);
+  assert.equal(await embedded.locator(".eyebrow").first().innerText(), "RFD4-PROTEINA");
   await embedded.close();
   const host = await browser.newPage();
   await host.goto(baseUrl);

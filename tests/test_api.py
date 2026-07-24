@@ -131,6 +131,36 @@ def test_upload_defenses_and_unknown_session() -> None:
     assert invalid_enum.status_code == 422
 
 
+def test_selection_scope_and_atomworks_query_api() -> None:
+    session_id = _session()
+    atom = client.get(f"/api/sessions/{session_id}/atoms/0/annotations").json()
+
+    residue = client.post(
+        f"/api/sessions/{session_id}/selections/resolve",
+        json={"atom_indices": [0], "scope": "residue"},
+    )
+    assert residue.status_code == 200, residue.text
+    assert 0 in residue.json()["atom_indices"]
+    assert residue.json()["count"] > 1
+
+    expression = (
+        f"(chain_iid == {atom['chain']!r}) & "
+        f"(res_id == {atom['residue_id']})"
+    )
+    queried = client.post(
+        f"/api/sessions/{session_id}/selections/query",
+        json={"expression": expression, "syntax": "expression"},
+    )
+    assert queried.status_code == 200, queried.text
+    assert queried.json()["atom_indices"] == residue.json()["atom_indices"]
+
+    unsafe = client.post(
+        f"/api/sessions/{session_id}/selections/query",
+        json={"expression": "__import__('os').system('true')"},
+    )
+    assert unsafe.status_code == 422
+
+
 def test_charge_bond_delete_and_undo_routes() -> None:
     session_id = _session()
     original = client.get(f"/api/sessions/{session_id}").json()["structure"]["atom_count"]
@@ -154,6 +184,116 @@ def test_charge_bond_delete_and_undo_routes() -> None:
     restored = client.post(f"/api/sessions/{session_id}/undo")
     assert restored.status_code == 200, restored.text
     assert restored.json()["structure"]["atom_count"] == original
+
+
+def test_bond_inspection_ccd_inference_and_distance_restraints() -> None:
+    session_id = _session()
+    original = client.get(f"/api/sessions/{session_id}").json()["structure"]
+
+    bonds = client.get(f"/api/sessions/{session_id}/bonds")
+    assert bonds.status_code == 200, bonds.text
+    assert bonds.json()["count"] > 0
+    first_bond = bonds.json()["bonds"][0]
+    assert first_bond["bond_type"] in client.get("/api/schema").json()["bond_types"]
+    assert first_bond["distance"] > 0
+
+    touching = client.get(
+        f"/api/sessions/{session_id}/bonds",
+        params={"atom_index": first_bond["atom1"]},
+    )
+    assert touching.status_code == 200, touching.text
+    assert all(first_bond["atom1"] in (bond["atom1"], bond["atom2"]) for bond in touching.json()["bonds"])
+
+    set_restraint = client.post(
+        f"/api/sessions/{session_id}/distance-restraints",
+        json={"atom1": 0, "atom2": 1, "action": "set", "distance": 3.25},
+    )
+    assert set_restraint.status_code == 200, set_restraint.text
+    assert set_restraint.json()["structure"]["revision"] == original["revision"] + 1
+    restraints = client.get(f"/api/sessions/{session_id}/distance-restraints")
+    assert restraints.status_code == 200, restraints.text
+    assert restraints.json()["restraints"] == [
+        {
+            "atom1": 0,
+            "atom2": 1,
+            "distance": 3.25,
+            "current_distance": restraints.json()["restraints"][0]["current_distance"],
+        }
+    ]
+
+    removed = client.post(
+        f"/api/sessions/{session_id}/distance-restraints",
+        json={"atom1": 1, "atom2": 0, "action": "remove"},
+    )
+    assert removed.status_code == 200, removed.text
+    assert client.get(f"/api/sessions/{session_id}/distance-restraints").json()["count"] == 0
+
+    inferred = client.post(f"/api/sessions/{session_id}/bonds/infer-ccd")
+    assert inferred.status_code == 200, inferred.text
+    assert inferred.json()["structure"]["revision"] == original["revision"] + 3
+
+
+def test_interaction_analysis_filtering_validation_and_revision_cache() -> None:
+    session_id = _session()
+    request = {
+        "interaction_types": ["hbond", "hydrophobic", "pi", "salt", "halogen", "metal"],
+        "hbond_model": "plip",
+        "inter_chain_only": True,
+    }
+    first = client.post(f"/api/sessions/{session_id}/interactions/analyze", json=request)
+    assert first.status_code == 200, first.text
+    payload = first.json()
+    assert payload["cached"] is False
+    assert payload["interaction_count"] == len(payload["interactions"])
+    for interaction in payload["interactions"]:
+        assert interaction["type"] in request["interaction_types"]
+        assert interaction["interaction_type"] in {
+            "hbond",
+            "hydrophobic",
+            "pistacking",
+            "pication",
+            "saltbridge",
+            "halogen",
+            "metal",
+        }
+        assert interaction["atom1_role"]
+        assert interaction["atom2_role"]
+        assert interaction["distance"] >= 0
+
+    cached = client.post(f"/api/sessions/{session_id}/interactions/analyze", json=request)
+    assert cached.status_code == 200, cached.text
+    assert cached.json()["cached"] is True
+    assert cached.json()["interactions"] == payload["interactions"]
+
+    if payload["interactions"]:
+        source = payload["interactions"][0]["atom2"]
+        filtered = client.post(
+            f"/api/sessions/{session_id}/interactions/analyze",
+            json={**request, "source_atom_indices": [source]},
+        )
+        assert filtered.status_code == 200, filtered.text
+        assert all(interaction["atom1"] == source for interaction in filtered.json()["interactions"])
+
+    mutated = client.post(
+        f"/api/sessions/{session_id}/charges",
+        json={"atom_indices": [0], "delta": 1},
+    )
+    assert mutated.status_code == 200, mutated.text
+    refreshed = client.post(f"/api/sessions/{session_id}/interactions/analyze", json=request)
+    assert refreshed.status_code == 200, refreshed.text
+    assert refreshed.json()["cached"] is False
+    assert refreshed.json()["revision"] == payload["revision"] + 1
+
+    invalid_type = client.post(
+        f"/api/sessions/{session_id}/interactions/analyze",
+        json={"interaction_types": ["unknown"]},
+    )
+    assert invalid_type.status_code == 422
+    invalid_filter = client.post(
+        f"/api/sessions/{session_id}/interactions/analyze",
+        json={"source_atom_indices": [1_000_000]},
+    )
+    assert invalid_filter.status_code == 422
 
 
 def test_expandable_segment_routes() -> None:

@@ -13,11 +13,21 @@ import numpy as np
 from atomworks.constants import MASKED
 from atomworks.io import parse
 from atomworks.io.config import ParseConfig
+from atomworks.io.template import infer_bonds_from_residue_names
 from atomworks.io.transforms.atom_array import add_id_and_entity_annotations, add_iid_annotations
-from atomworks.io.utils.atom_array_plus import AtomArrayPlus, as_atom_array_plus, concatenate_atom_array_plus
+from atomworks.io.utils.atom_array_plus import (
+    AnnotationList2D,
+    AtomArrayPlus,
+    as_atom_array_plus,
+    concatenate_atom_array_plus,
+)
 from atomworks.io.utils.chain import create_chain_id_generator
 from atomworks.io.utils.io_utils import CIFWriteConfig, to_cif_string
+from atomworks.io.utils.query import QueryExpression
+from atomworks.io.utils.selection import AtomSelectionStack
 from atomworks.io.utils.standard_annotations import S_SEGMAX, S_SEGMIN
+from atomworks.ml.conditions import C_DIS
+from atomworks.ml.transforms.interactions import AnnotateInteractions, InteractionType
 from atomworks.ml.utils.expandable_segment import (
     collapse_expandable_segments,
     insert_expandable_segment,
@@ -60,6 +70,38 @@ BOND_TYPES = {
     "AROMATIC_DOUBLE": struc.BondType.AROMATIC_DOUBLE,
     "COORDINATION": struc.BondType.COORDINATION,
     "ANY": struc.BondType.ANY,
+}
+BOND_TYPE_NAMES = {int(value): name for name, value in BOND_TYPES.items()}
+INTERACTION_TYPES = (
+    "hbond",
+    "hydrophobic",
+    "pistacking",
+    "pication",
+    "saltbridge",
+    "halogen",
+    "metal",
+)
+INTERACTION_ROLES = {
+    "hbond": ("donor", "acceptor"),
+    "hydrophobic": ("hydrophobic", "hydrophobic"),
+    "pistacking": ("aromatic", "aromatic"),
+    "pication": ("aromatic", "cation"),
+    "saltbridge": ("positive", "negative"),
+    "halogen": ("halogen", "acceptor"),
+    "metal": ("metal", "coordinating"),
+}
+INTERACTION_FAMILIES = {
+    "hbond": "hbond",
+    "hydrophobic": "hydrophobic",
+    "pistacking": "pi",
+    "pication": "pi",
+    "saltbridge": "salt",
+    "halogen": "halogen",
+    "metal": "metal",
+}
+INTERACTION_ANNOTATIONS = {
+    name: f"interaction_{name}"
+    for name in INTERACTION_TYPES
 }
 
 
@@ -112,6 +154,8 @@ class StudioDocument:
         self.condition_provider = condition_provider
         self.validation_provider = validation_provider
         self._undo: list[AtomArrayPlus] = []
+        self.revision = 0
+        self._interaction_cache: dict[tuple[Any, ...], dict[str, Any]] = {}
 
     @classmethod
     def from_cif(
@@ -130,12 +174,18 @@ class StudioDocument:
         )
 
     def clone(self) -> StudioDocument:
-        return StudioDocument(
+        clone = StudioDocument(
             copy.deepcopy(self.array),
             self.name,
             condition_provider=self.condition_provider,
             validation_provider=self.validation_provider,
         )
+        clone.revision = self.revision
+        return clone
+
+    def _mark_changed(self) -> None:
+        self.revision += 1
+        self._interaction_cache.clear()
 
     def snapshot(self) -> None:
         self._undo.append(copy.deepcopy(self.array))
@@ -146,6 +196,7 @@ class StudioDocument:
         if not self._undo:
             return False
         self.array = self._undo.pop()
+        self._mark_changed()
         return True
 
     def annotation_details(self, condition_name: str | None = None) -> list[dict[str, Any]]:
@@ -450,6 +501,26 @@ class StudioDocument:
             raise ValueError(f"unsupported selection scope: {scope}")
         return np.flatnonzero(mask)
 
+    def query_indices(
+        self,
+        expression: str,
+        *,
+        syntax: Literal["expression", "path"] = "expression",
+        scope: ConditionScope = "atom",
+    ) -> np.ndarray:
+        """Resolve a safe AtomWorks query into document atom indices."""
+        if not expression.strip():
+            raise ValueError("selection query must not be empty")
+        if syntax == "expression":
+            selected = QueryExpression(expression).idxs(self.array)
+        elif syntax == "path":
+            selected = np.flatnonzero(AtomSelectionStack.from_query(expression).get_mask(self.array))
+        else:
+            raise ValueError(f"unsupported AtomWorks query syntax: {syntax}")
+        if len(selected) == 0:
+            return selected.astype(np.int64)
+        return self.resolve_indices(selected.tolist(), scope)
+
     def set_condition(
         self,
         name: str,
@@ -471,6 +542,7 @@ class StudioDocument:
                 mask[selected] = not enabled if spec.invert_mask else enabled
                 condition.set_mask(self.array, mask)
                 self.condition_provider.after_condition_update(name, self.array)
+                self._mark_changed()
                 return
 
             if spec.kind == "vector3":
@@ -487,6 +559,7 @@ class StudioDocument:
                     mask[selected] = False
                 condition.set_annotation(self.array, annotation)
                 condition.set_mask(self.array, mask)
+                self._mark_changed()
                 return
 
             annotation = condition.annotation(self.array, default="generate").copy()
@@ -505,6 +578,7 @@ class StudioDocument:
                 mask = condition.mask(self.array, default="generate").copy()
                 mask[selected] = enabled and value != default
                 condition.set_mask(self.array, mask)
+            self._mark_changed()
         except Exception:
             self.array = self._undo.pop()
             raise
@@ -521,6 +595,7 @@ class StudioDocument:
         else:
             self.array = self._undo.pop()
             raise ValueError("value or delta is required")
+        self._mark_changed()
 
     def edit_bond(self, atom1: int, atom2: int, action: Literal["add", "remove"], bond_type: str = "SINGLE") -> None:
         selected = self.resolve_indices([atom1, atom2])
@@ -536,6 +611,7 @@ class StudioDocument:
                 self.array.bonds.remove_bond(int(selected[0]), int(selected[1]))
             else:
                 raise ValueError(f"unsupported bond action: {action}")
+            self._mark_changed()
         except Exception:
             self.array = self._undo.pop()
             raise
@@ -549,6 +625,7 @@ class StudioDocument:
         self.snapshot()
         if not close_residue_gaps:
             self.array = self.array[keep]
+            self._mark_changed()
             return
         residue_bounds = struc.get_residue_starts(self.array, add_exclusive_stop=True)
         last_kept_start: dict[str, int] = {}
@@ -568,12 +645,14 @@ class StudioDocument:
             adjusted[start:stop] = self.array.res_id[start:stop] - shift
         self.array = self.array[keep]
         self.array.res_id = adjusted[keep]
+        self._mark_changed()
 
     def reset_residue_ids(self) -> None:
         self.snapshot()
         for chain in np.unique(self.array.chain_iid):
             mask = self.array.chain_iid == chain
             self.array.res_id[mask] -= int(self.array.res_id[mask].min()) - 1
+        self._mark_changed()
 
     def insert_segment(
         self,
@@ -603,6 +682,7 @@ class StudioDocument:
                 new_chain_id=chain_id,
                 new_chain_type=chain_type,
             )
+            self._mark_changed()
         except Exception:
             self.array = self._undo.pop()
             raise
@@ -610,10 +690,12 @@ class StudioDocument:
     def realize_segments(self, seed: int | None = None) -> None:
         self.snapshot()
         self.array = realize_expandable_segments(self.array, np.random.default_rng(seed))
+        self._mark_changed()
 
     def collapse_segments(self) -> None:
         self.snapshot()
         self.array = collapse_expandable_segments(self.array)
+        self._mark_changed()
 
     def align_to(self, reference: StudioDocument) -> dict[str, float | int]:
         """Rigidly align common protein-backbone atoms to a reference document."""
@@ -677,6 +759,7 @@ class StudioDocument:
         self.array.coord[finite] = ((transformed - moving_center) @ rotation + target_center).astype(
             self.array.coord.dtype
         )
+        self._mark_changed()
         return {
             "matched_atom_count": len(pairs),
             "rmsd_before": before,
@@ -698,6 +781,184 @@ class StudioDocument:
         self.snapshot()
         self.array = concatenate_atom_array_plus(arrays)
         _refresh_chain_derived_annotations(self.array)
+        self._mark_changed()
+
+    def inspect_bonds(self, atom_index: int | None = None) -> list[dict[str, Any]]:
+        """Return covalent bonds, optionally restricted to one atom."""
+        if atom_index is not None:
+            atom_index = int(self.resolve_indices([atom_index])[0])
+        if self.array.bonds is None:
+            return []
+        bonds = []
+        for atom1, atom2, bond_type in self.array.bonds.as_array():
+            atom1, atom2, bond_type = int(atom1), int(atom2), int(bond_type)
+            if atom_index is not None and atom_index not in (atom1, atom2):
+                continue
+            bonds.append(
+                {
+                    "atom1": atom1,
+                    "atom2": atom2,
+                    "bond_type": BOND_TYPE_NAMES.get(bond_type, str(bond_type)),
+                    "distance": float(np.linalg.norm(self.array.coord[atom1] - self.array.coord[atom2])),
+                }
+            )
+        return bonds
+
+    def infer_bonds_from_ccd(self) -> None:
+        """Merge bonds inferred by AtomWorks' CCD templates into the document."""
+        self.snapshot()
+        try:
+            result = infer_bonds_from_residue_names(self.array, sanitize=False)
+            if result is not None:
+                self.array = as_atom_array_plus(result)
+            self._mark_changed()
+        except Exception:
+            self.array = self._undo.pop()
+            raise
+
+    def distance_restraints(self) -> list[dict[str, Any]]:
+        annotation = C_DIS.annotation(self.array, default="generate")
+        restraints = []
+        seen: set[tuple[int, int]] = set()
+        for pair, value in zip(annotation.pairs, annotation.values, strict=True):
+            atom1, atom2 = sorted((int(pair[0]), int(pair[1])))
+            if atom1 == atom2 or (atom1, atom2) in seen:
+                continue
+            seen.add((atom1, atom2))
+            restraints.append(
+                {
+                    "atom1": atom1,
+                    "atom2": atom2,
+                    "distance": float(value),
+                    "current_distance": float(np.linalg.norm(self.array.coord[atom1] - self.array.coord[atom2])),
+                }
+            )
+        return restraints
+
+    def edit_distance_restraint(
+        self,
+        atom1: int,
+        atom2: int,
+        action: Literal["set", "remove"],
+        distance: float | None = None,
+    ) -> None:
+        selected = self.resolve_indices([atom1, atom2])
+        if len(selected) != 2:
+            raise ValueError("a distance restraint requires two different atoms")
+        pair = tuple(sorted((int(selected[0]), int(selected[1]))))
+        annotation = C_DIS.annotation(self.array, default="generate")
+        retained_pairs: list[tuple[int, int]] = []
+        retained_values: list[float] = []
+        for existing, value in zip(annotation.pairs, annotation.values, strict=True):
+            existing_pair = tuple(sorted((int(existing[0]), int(existing[1]))))
+            if existing_pair != pair:
+                retained_pairs.append((int(existing[0]), int(existing[1])))
+                retained_values.append(float(value))
+        if action == "set":
+            if distance is None or not np.isfinite(distance) or distance <= 0:
+                raise ValueError("distance must be a positive finite number")
+            retained_pairs.append(pair)
+            retained_values.append(float(distance))
+        elif action != "remove":
+            raise ValueError(f"unsupported distance restraint action: {action}")
+
+        self.snapshot()
+        try:
+            C_DIS.set_annotation(
+                self.array,
+                AnnotationList2D(
+                    len(self.array),
+                    np.asarray(retained_pairs, dtype=np.int32),
+                    np.asarray(retained_values, dtype=float),
+                ),
+            )
+            self._mark_changed()
+        except Exception:
+            self.array = self._undo.pop()
+            raise
+
+    def analyze_interactions(
+        self,
+        *,
+        interaction_types: tuple[str, ...] = INTERACTION_TYPES,
+        hbond_model: Literal["rosetta", "plip"] = "rosetta",
+        inter_chain_only: bool = True,
+        source_atom_indices: tuple[int, ...] = (),
+        target_atom_indices: tuple[int, ...] = (),
+    ) -> dict[str, Any]:
+        """Run AtomWorks interaction annotation without mutating the document."""
+        source = (
+            tuple(int(value) for value in self.resolve_indices(list(source_atom_indices)))
+            if source_atom_indices
+            else ()
+        )
+        target = (
+            tuple(int(value) for value in self.resolve_indices(list(target_atom_indices)))
+            if target_atom_indices
+            else ()
+        )
+        cache_key = (self.revision, interaction_types, hbond_model, inter_chain_only, source, target)
+        if cache_key in self._interaction_cache:
+            response = copy.deepcopy(self._interaction_cache[cache_key])
+            response["cached"] = True
+            return response
+
+        analyzed = AnnotateInteractions(
+            interaction_types=interaction_types,
+            hbond_model=hbond_model,
+            inter_chain_only=inter_chain_only,
+            silence_rdkit_warnings=True,
+        )({"atom_array": copy.deepcopy(self.array)})["atom_array"]
+        source_set, target_set = set(source), set(target)
+        interactions = []
+        for interaction_type in interaction_types:
+            annotation = analyzed.get_annotation_2d(INTERACTION_ANNOTATIONS[interaction_type])
+            roles = INTERACTION_ROLES[interaction_type]
+            for pair, value in zip(annotation.pairs, annotation.values, strict=True):
+                atom1, atom2 = int(pair[0]), int(pair[1])
+                role1, role2 = roles
+                if source_set and target_set:
+                    if atom1 in source_set and atom2 in target_set:
+                        pass
+                    elif atom2 in source_set and atom1 in target_set:
+                        atom1, atom2, role1, role2 = atom2, atom1, role2, role1
+                    else:
+                        continue
+                elif source_set:
+                    if atom1 not in source_set and atom2 in source_set:
+                        atom1, atom2, role1, role2 = atom2, atom1, role2, role1
+                    elif atom1 not in source_set:
+                        continue
+                elif target_set:
+                    if atom2 not in target_set and atom1 in target_set:
+                        atom1, atom2, role1, role2 = atom2, atom1, role2, role1
+                    elif atom2 not in target_set:
+                        continue
+                item = {
+                    "type": INTERACTION_FAMILIES[interaction_type],
+                    "interaction_type": interaction_type,
+                    "atom1": atom1,
+                    "atom2": atom2,
+                    "atom1_role": role1,
+                    "atom2_role": role2,
+                    "distance": float(np.linalg.norm(self.array.coord[atom1] - self.array.coord[atom2])),
+                }
+                if interaction_type == "pistacking":
+                    item["subtype"] = (
+                        "parallel" if int(value) == int(InteractionType.PISTACKING_P) else "t_shaped"
+                    )
+                elif interaction_type == "pication":
+                    item["subtype"] = "cation"
+                interactions.append(item)
+
+        response = {
+            "revision": self.revision,
+            "cached": False,
+            "interaction_count": len(interactions),
+            "interactions": interactions,
+        }
+        self._interaction_cache[cache_key] = copy.deepcopy(response)
+        return response
 
     def validate(self, full_pipeline: bool = False) -> list[dict[str, str]]:
         issues: list[dict[str, str]] = []
@@ -832,6 +1093,7 @@ class StudioDocument:
         ]
         return {
             "name": self.name,
+            "revision": self.revision,
             "atom_count": len(self.array),
             "chain_ids": sorted(str(value) for value in np.unique(self.array.get_annotation(chain_key))),
             "sequence": self.sequence_view(),

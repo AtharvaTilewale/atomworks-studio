@@ -32,6 +32,41 @@ ALLOWED_CONFIG_KEYS = {
 }
 SEARCH_STRATEGY_TARGET = "rfproteina.search.beam_search.BeamSearchStrategy"
 AF3_ENVIRONMENT_KEYS = ("AF3_APPTAINER_PATH", "AF3_SCRIPTS_DIR", "AF3_JAX_CACHE_DIR", "AF3_MODEL_DIR")
+ANSI_ESCAPE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+
+
+def _job_progress(record: dict[str, Any], log_path: Path | None, log_tail: str) -> dict[str, Any]:
+    status = record["status"]
+    phase = {
+        "queued": "Waiting for GPU",
+        "completed": "Completed",
+        "failed": "Failed",
+    }.get(status, "Starting RFD4")
+    if status == "running":
+        lowered = log_tail.lower()
+        milestones = (
+            ("generation complete", "Collecting outputs"),
+            ("saved per_example_metrics", "Collecting outputs"),
+            ("metrics-pool", "Computing metrics"),
+            ("validation [", "Sampling designs"),
+            ("steps/s=", "Sampling designs"),
+            ("torch.compile", "Compiling kernels"),
+            ("compiling autoencoder", "Compiling kernels"),
+            ("loading checkpoint", "Loading models"),
+        )
+        latest = max(
+            ((lowered.rfind(marker), label) for marker, label in milestones),
+            default=(-1, phase),
+        )
+        if latest[0] >= 0:
+            phase = latest[1]
+    stop_time = time.time() if status in {"queued", "running"} else record["updated_at"]
+    return {
+        "phase": phase,
+        "elapsed_seconds": max(0, round(stop_time - record["created_at"])),
+        "log_updated_at": log_path.stat().st_mtime if log_path and log_path.is_file() else None,
+        "indeterminate": status in {"queued", "running"},
+    }
 
 
 class SearchOptions(BaseModel):
@@ -577,7 +612,9 @@ class ProcessDesignProvider:
                 raise KeyError(job_id)
             record = copy.deepcopy(self._jobs[job_id])
         log_path = self.root / job_id / "job.log" if self.root is not None else None
-        record["log_tail"] = log_path.read_text(encoding="utf-8")[-4000:] if log_path and log_path.is_file() else ""
+        raw_log = log_path.read_text(encoding="utf-8", errors="replace")[-4000:] if log_path and log_path.is_file() else ""
+        record["log_tail"] = ANSI_ESCAPE.sub("", raw_log)
+        record["progress"] = _job_progress(record, log_path, record["log_tail"])
         return record
 
     def output_cif(self, job_id: str, output_id: str) -> tuple[str, dict[str, Any]]:
