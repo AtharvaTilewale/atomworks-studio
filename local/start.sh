@@ -66,7 +66,7 @@ if [[ -n "${LOCAL_RFD4_IMAGE:-}" ]]; then
     echo "Local RFD4 image does not exist: ${LOCAL_RFD4_IMAGE}" >&2
     exit 1
   }
-  export ANNOTATION_STUDIO_RFD4_COMMAND="docker run --rm --gpus device=${gpu_device} --volume ${project_root}:${project_root} --volume ${DATA_PATH}:${DATA_PATH}:ro --volume ${state_root}:${state_root} --env DATA_PATH=${DATA_PATH} --env CLUSTER=local --env PROJECT_ROOT=${project_root} --env PYTHONPATH=${project_root}/src:${project_root}/lib/atomworks/src --env TORCHINDUCTOR_CACHE_DIR=${TORCHINDUCTOR_CACHE_DIR} --env TRITON_CACHE_DIR=${TRITON_CACHE_DIR} --env CUDA_CACHE_PATH=${CUDA_CACHE_PATH} --env TORCHINDUCTOR_FX_GRAPH_CACHE=${TORCHINDUCTOR_FX_GRAPH_CACHE} --workdir ${project_root} ${LOCAL_RFD4_IMAGE} ${project_root}/src/rfproteina/generate.py"
+  export ANNOTATION_STUDIO_RFD4_COMMAND="docker run --rm --gpus device=${gpu_device} --volume ${project_root}:${project_root} --volume ${DATA_PATH}:${DATA_PATH}:ro --volume ${state_root}:${state_root} --volume /tmp:/tmp --env DATA_PATH=${DATA_PATH} --env CLUSTER=local --env PROJECT_ROOT=${project_root} --env PYTHONPATH=${project_root}/src:${project_root}/lib/atomworks/src --env TORCHINDUCTOR_CACHE_DIR=${TORCHINDUCTOR_CACHE_DIR} --env TRITON_CACHE_DIR=${TRITON_CACHE_DIR} --env CUDA_CACHE_PATH=${CUDA_CACHE_PATH} --env TORCHINDUCTOR_FX_GRAPH_CACHE=${TORCHINDUCTOR_FX_GRAPH_CACHE} --env AF3_LAUNCHER_SOCKET_TEMPLATE --workdir ${project_root} ${LOCAL_RFD4_IMAGE} ${project_root}/src/rfproteina/generate.py"
 elif [[ -n "${LOCAL_RFD4_COMMAND:-}" ]]; then
   export ANNOTATION_STUDIO_RFD4_COMMAND="${LOCAL_RFD4_COMMAND}"
 else
