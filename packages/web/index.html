@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#0b1720" />
+    <meta name="theme-color" content="#14161e" />
     <link rel="icon" href="./annotation-studio.svg" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <title>AtomWorks Annotation Studio</title>
@@ -14,7 +14,7 @@
         <div class="header-identity">
           <img src="./atomworks_logo_dark.svg" alt="AtomWorks" class="header-logo" />
           <div>
-            <p class="eyebrow">RFD4-Proteina</p>
+            <p class="eyebrow">AtomWorks</p>
             <h1>Annotation Studio</h1>
           </div>
         </div>
@@ -306,7 +306,7 @@
 
           <details id="design-card" class="card" data-studio-panel="rfd4" open>
             <summary>Generate with RFD4</summary>
-            <p id="design-availability" class="muted">Checking GPU design service…</p>
+            <p id="design-availability" class="muted gpu-status" data-state="checking">Checking GPU design service…</p>
             <label>Workflow
               <select id="design-mode">
                 <option value="generate">Generate</option>

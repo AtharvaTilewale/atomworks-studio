@@ -35,6 +35,24 @@ const selectionSyntax = element<HTMLSelectElement>("selection-syntax");
 const summaryElement = element<HTMLDivElement>("structure-summary");
 const statusElement = element<HTMLPreElement>("status");
 const query = new URLSearchParams(window.location.search);
+const hostThemes = new Set(["light", "dark", "high-contrast", "high-contrast-light"]);
+
+function applyHostTheme(theme: unknown): void {
+  if (typeof theme === "string" && hostThemes.has(theme)) {
+    document.body.dataset.hostTheme = theme;
+  }
+}
+
+window.addEventListener("message", (event) => {
+  if (
+    query.get("host") === "vscode" &&
+    event.source === window.parent &&
+    event.data?.source === "atomworks-vscode-host" &&
+    event.data?.type === "theme"
+  ) {
+    applyHostTheme(event.data.theme);
+  }
+});
 
 function notifyHost(type: "ready" | "changed"): void {
   const parentOrigin = query.get("parent_origin");
@@ -211,6 +229,9 @@ async function mutate(path: string, body?: unknown): Promise<void> {
 
 async function initialize(): Promise<void> {
   document.body.classList.toggle("embedded", query.get("embed") === "1");
+  const host = query.get("host");
+  document.body.classList.toggle("host-vscode", host === "vscode");
+  if (host === "vscode") applyHostTheme(query.get("hostTheme"));
   const mode = requestedViewerMode(query) ?? "molstar";
   viewerModeSelect.value = mode;
   localStorage.setItem(VIEWER_STORAGE_KEY, mode);

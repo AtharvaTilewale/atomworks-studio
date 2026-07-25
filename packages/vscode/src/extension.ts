@@ -1,12 +1,27 @@
+import { randomBytes } from "node:crypto";
 import * as vscode from "vscode";
 
 const DEFAULT_SERVER_URL = "http://127.0.0.1:8000";
 const SETUP_URL =
   "https://github.com/baker-laboratory/atomworks-studio#quick-start";
 type ViewerBackend = "patinae" | "molstar";
+type HostTheme = "dark" | "light" | "high-contrast" | "high-contrast-light";
 
 function escapeAttribute(value: string): string {
   return value.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;");
+}
+
+function activeHostTheme(kind = vscode.window.activeColorTheme.kind): HostTheme {
+  switch (kind) {
+    case vscode.ColorThemeKind.Light:
+      return "light";
+    case vscode.ColorThemeKind.HighContrast:
+      return "high-contrast";
+    case vscode.ColorThemeKind.HighContrastLight:
+      return "high-contrast-light";
+    default:
+      return "dark";
+  }
 }
 
 async function serviceIsHealthy(baseUrl: URL): Promise<boolean> {
@@ -123,6 +138,8 @@ async function openStudio(): Promise<void> {
   const studioUrl = new URL(externalUri.toString());
   studioUrl.searchParams.set("embed", "1");
   studioUrl.searchParams.set("viewer", viewerBackend);
+  studioUrl.searchParams.set("host", "vscode");
+  studioUrl.searchParams.set("hostTheme", activeHostTheme());
 
   const panel = vscode.window.createWebviewPanel(
     "atomworksAnnotationStudio",
@@ -135,21 +152,54 @@ async function openStudio(): Promise<void> {
   );
   const origin = escapeAttribute(studioUrl.origin);
   const src = escapeAttribute(studioUrl.toString());
+  const nonce = randomBytes(16).toString("base64");
+  const childOrigin = JSON.stringify(studioUrl.origin);
+  const initialTheme = JSON.stringify(activeHostTheme());
   panel.webview.html = `<!doctype html>
 <html>
   <head>
     <meta charset="UTF-8">
     <meta http-equiv="Content-Security-Policy"
-      content="default-src 'none'; frame-src ${origin}; style-src 'unsafe-inline';">
+      content="default-src 'none'; frame-src ${origin}; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
     <style>
+      :root { color-scheme: light dark; }
       html, body, iframe { width: 100%; height: 100%; margin: 0; border: 0; overflow: hidden; }
+      body {
+        color: var(--vscode-foreground);
+        background: var(--vscode-editor-background);
+        font-family: var(--vscode-font-family);
+      }
+      iframe { display: block; background: var(--vscode-editor-background); }
     </style>
   </head>
   <body>
-    <iframe src="${src}" title="AtomWorks Annotation Studio"
+    <iframe id="studio-frame" src="${src}" title="AtomWorks Annotation Studio"
       allow="clipboard-read; clipboard-write; fullscreen"></iframe>
+    <script nonce="${nonce}">
+      const frame = document.getElementById("studio-frame");
+      const childOrigin = ${childOrigin};
+      const sendTheme = (theme) => frame.contentWindow?.postMessage({
+        source: "atomworks-vscode-host",
+        type: "theme",
+        theme,
+      }, childOrigin);
+      frame.addEventListener("load", () => sendTheme(${initialTheme}));
+      window.addEventListener("message", (event) => {
+        if (event.data?.source === "atomworks-vscode-host" && event.data?.type === "theme") {
+          sendTheme(event.data.theme);
+        }
+      });
+    </script>
   </body>
 </html>`;
+  const themeSubscription = vscode.window.onDidChangeActiveColorTheme((theme) => {
+    void panel.webview.postMessage({
+      source: "atomworks-vscode-host",
+      type: "theme",
+      theme: activeHostTheme(theme.kind),
+    });
+  });
+  panel.onDidDispose(() => themeSubscription.dispose());
 }
 
 export function activate(context: vscode.ExtensionContext): void {

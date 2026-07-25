@@ -49,19 +49,22 @@ export class ConditionController {
 
   updateSelectionUi(hasSession: boolean): void {
     this.hasSession = hasSession;
-    const pair = this.currentDefinition()?.kind === "pair";
+    const definition = this.currentDefinition();
+    const pair = definition?.kind === "pair";
     const count = this.options.selection.size;
-    this.applyButton.disabled = !hasSession || (pair ? count !== 2 : count === 0);
+    this.applyButton.disabled = !hasSession || !definition || (pair ? count !== 2 : count === 0);
     this.applyButton.textContent = this.enabledInput.checked ? "Apply to selection" : "Remove from selection";
     this.feedback.textContent = !hasSession
       ? "Open a structure to edit conditions."
-      : pair
-        ? count === 2
-          ? "Ready: the selected atoms define one pair."
-          : `Select exactly two atoms (${count} selected).`
-        : count
-          ? `Ready to update ${count} selected atom${count === 1 ? "" : "s"}.`
-          : "Select one or more atoms.";
+      : !definition
+        ? "Condition editing requires an installed provider."
+        : pair
+          ? count === 2
+            ? "Ready: the selected atoms define one pair."
+            : `Select exactly two atoms (${count} selected).`
+          : count
+            ? `Ready to update ${count} selected atom${count === 1 ? "" : "s"}.`
+            : "Select one or more atoms.";
   }
 
   private conditionChanged(): void {

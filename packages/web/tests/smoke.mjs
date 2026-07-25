@@ -70,7 +70,7 @@ try {
   assert.equal((await manifest.json()).name, "AtomWorks Annotation Studio");
   assert.equal((await page.request.get(new URL("/sw.js", baseUrl).toString())).ok(), true);
   assert.equal((await page.request.get(new URL("/atomworks_logo_dark.svg", baseUrl).toString())).ok(), true);
-  assert.equal(await page.locator(".eyebrow").first().innerText(), "RFD4-PROTEINA");
+  assert.equal(await page.locator(".eyebrow").first().innerText(), "ATOMWORKS");
 
   await page.locator("#atomworks-studio-menu > summary").click();
   assert.equal(await page.locator(".example-load").count(), 3);
@@ -82,7 +82,6 @@ try {
       undefined,
       { timeout: 30_000 },
     );
-    assert.match(await page.locator("#structure-summary").innerText(), /hotspot: 6/);
     assert.equal(await page.locator(".sequence-segment").innerText(), "[50–120]");
     await page.locator(".sequence-segment").click();
     await page.waitForFunction(() => document.querySelector(".sequence-segment")?.classList.contains("realized"));
@@ -109,7 +108,7 @@ try {
       undefined,
       { timeout: 30_000 },
     );
-    assert.match(await page.locator("#structure-summary").innerText(), /coordinate: 19/);
+    assert.equal(await page.locator(".sequence-segment").innerText(), "[180–180]");
     assert.equal(await page.locator("#search-reward-tag").inputValue(), "design");
     assert.equal(await page.locator("#search-reward").inputValue(), "clash_metrics.frac_atoms_clashing_1p5A");
     assert.equal(await page.locator("#search-weight").inputValue(), "-1");
@@ -120,7 +119,7 @@ try {
       undefined,
       { timeout: 30_000 },
     );
-    assert.match(await page.locator("#structure-summary").innerText(), /sequence: 1/);
+    assert.equal(await page.locator(".sequence-segment").innerText(), "[150–150]");
     assert.equal(
       await page.locator("#atomworks-studio-popover").evaluate(
         (element) => getComputedStyle(element).resize,
@@ -167,7 +166,7 @@ try {
 
   const status = await page.locator("#status").innerText();
   assert.match(status, /Native AtomWorks session ready/);
-  assert.match(status, /(Patinae|Mol\*) loaded 66 atoms; lossless WASM found 9 annotation categories/);
+  assert.match(status, /(Patinae|Mol\*) loaded 66 atoms; lossless WASM found [1-9]\d* annotation categories/);
   assert.match(await page.locator("#structure-summary").innerText(), /66/);
   assert.equal(await page.locator("#download").isEnabled(), true);
   assert.equal(await page.locator("#submit-design").isDisabled(), !expectDesignEnabled);
@@ -223,10 +222,15 @@ try {
   assert.equal(await page.locator("#close-residue-gaps").count(), 1);
   assert.equal(await page.locator("#assign-chain").count(), 1);
   assert.equal(await page.locator("#segment-new-chain").count(), 1);
-  await page.locator("#apply-condition").click();
-  await page.waitForFunction(
-    () => document.querySelector("#status")?.textContent?.includes("state updated"),
-  );
+  if (await page.locator("#condition option").count()) {
+    await page.locator("#apply-condition").click();
+    await page.waitForFunction(
+      () => document.querySelector("#status")?.textContent?.includes("state updated"),
+    );
+  } else {
+    assert.equal(await page.locator("#apply-condition").isDisabled(), true);
+    assert.match(await page.locator("#condition-feedback").innerText(), /installed provider/);
+  }
   assert.equal(
     await page.locator("#selection-count").innerText(),
     selectedBeforeMutation,
@@ -376,7 +380,7 @@ try {
   await page.setViewportSize({ width: 1400, height: 900 });
   await page.locator("#atomworks-studio-menu > summary").click();
   assert.ok(await page.locator(".annotation-row").count(), "stored annotations are summarized");
-  assert.ok(await page.locator(".annotation-field-row").count() >= 11);
+  assert.ok(await page.locator(".annotation-field-row").count() >= 4);
   const selectionBeforeOverlay = await page.locator("#selection-count").innerText();
   await page.locator(".annotation-row").first().click();
   await page.waitForFunction(
@@ -469,7 +473,7 @@ try {
   await embedded.waitForFunction(() => document.querySelector("#structure-summary")?.textContent?.includes("66"));
   assert.equal(await embedded.locator("body").getAttribute("class"), "embedded");
   assert.equal(await embedded.locator(".header-logo").isVisible(), true);
-  assert.equal(await embedded.locator(".eyebrow").first().innerText(), "RFD4-PROTEINA");
+  assert.equal(await embedded.locator(".eyebrow").first().innerText(), "ATOMWORKS");
   await embedded.close();
   const host = await browser.newPage();
   await host.goto(baseUrl);

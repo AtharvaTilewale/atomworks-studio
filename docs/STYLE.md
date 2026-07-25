@@ -2,6 +2,16 @@
 
 - The AtomWorks mark and “Annotation Studio” identify the product. RFD4 is an
   optional workflow, not a competing brand.
+- Dark neutral workbench surfaces carry the website. Restrained IPD purple is
+  the interaction accent and institutional gold is reserved for identity and
+  supporting emphasis.
+- NVIDIA green communicates Brev/GPU readiness only. It is not used for
+  navigation, selection, or general actions.
+- The VS Code surface maps the active host theme kind to Studio semantic tokens;
+  its containing webview uses native `--vscode-*` colors and typography.
+- Molecular element and chain colors are renderer-owned. Condition and metric
+  colors use a separate color-blind-safe data palette and never inherit product
+  branding colors.
 - The app is one `100dvh` plane: header, toolbar, sequence, and molecular
   canvas. Page-level scrolling is forbidden.
 - AtomWorks Studio and RFD4-Proteina use separate toolbar tabs. Panels are

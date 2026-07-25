@@ -796,8 +796,10 @@ export async function initializeDesignController(options: DesignControllerOption
     availability.textContent = enabled
       ? `${schema.provider} GPU queue is ready at ${window.location.host}.`
       : "GPU generation is not configured on this deployment; editing remains available.";
+    availability.dataset.state = enabled ? "ready" : "offline";
   } catch (error) {
     availability.textContent = `Could not inspect the GPU service: ${String(error)}`;
+    availability.dataset.state = "error";
   }
   updateSession();
 

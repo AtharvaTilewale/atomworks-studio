@@ -5,8 +5,8 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#071017",
-  "theme_color": "#0b1720",
+  "background_color": "#101117",
+  "theme_color": "#14161e",
   "icons": [
     {
       "src": "/annotation-studio.svg",
