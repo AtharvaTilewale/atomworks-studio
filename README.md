@@ -113,6 +113,7 @@ editor.
 - [Building and extending Studio](docs/DEVELOPMENT.md)
 - [Example annotated CIFs](examples/README.md)
 - [Production deployment runbook](deploy/README.md)
+- [Authenticated Brev pilot status](deploy/brev/PILOT_STATUS.md)
 - [Architecture](docs/ARCHITECTURE.md) and [feature parity](docs/PARITY.md)
 - [Source provenance](docs/PROVENANCE.md)
 

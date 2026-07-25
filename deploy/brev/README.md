@@ -9,6 +9,8 @@ The complete DNS, Kubernetes, GHCR, Brev, AF3, operations, and acceptance
 checklist is in the [production runbook](../README.md).
 After the service is ready, follow the [website guide](../../docs/WEB.md) to
 load, annotate, submit, and compare designs.
+The current authenticated deployment, ownership, acceptance evidence, and
+operator commands are recorded in [PILOT_STATUS.md](PILOT_STATUS.md).
 
 ## One-click Launchable
 
