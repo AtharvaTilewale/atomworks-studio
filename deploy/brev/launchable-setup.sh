@@ -7,8 +7,8 @@ if [[ -n "${RFPROTEINA_ROOT:-}" && -n "${ANNOTATION_STUDIO_RFD4_ROOT:-}" ]] \
   echo "RFPROTEINA_ROOT and ANNOTATION_STUDIO_RFD4_ROOT must identify the same checkout." >&2
   exit 2
 fi
-rfd4_revision="0e9050ca426a74069b99b63ca4a6520b05c2f8c7"
-rfd4_root="${RFPROTEINA_ROOT:-${ANNOTATION_STUDIO_RFD4_ROOT:-${studio_root}/../RFD4-Proteina-dev}}"
+rfd4_revision="cb1fc2a4d47bdf59117fb3a4316028f830e3eae5"
+rfd4_root="${RFPROTEINA_ROOT:-${ANNOTATION_STUDIO_RFD4_ROOT:-${studio_root}/external/RFD4-Proteina-dev}}"
 if [[ ! -d "${rfd4_root}/.git" ]]; then
   git clone https://github.com/baker-laboratory/RFD4-Proteina-dev.git "${rfd4_root}"
   git -C "${rfd4_root}" checkout --detach "${rfd4_revision}"
@@ -54,7 +54,7 @@ uv sync --project "${studio_root}" --all-packages --all-extras --all-groups
 BREV_RFD4_IMAGE="${BREV_RFD4_IMAGE:-latent-dev:cuda12}"
 if ! docker image inspect "${BREV_RFD4_IMAGE}" >/dev/null 2>&1; then
   RFPROTEINA_CUDA_STACK=cuda12 \
-    bash "${rfd4_root}/scripts/build_latent_dev_docker.sh" "${BREV_RFD4_IMAGE}"
+    bash "${studio_root}/deploy/lib/build_latent_dev_docker.sh" "${rfd4_root}" "${BREV_RFD4_IMAGE}"
 fi
 
 default_state_root="${HOME}/.local/share/rfd4-annotation-studio"

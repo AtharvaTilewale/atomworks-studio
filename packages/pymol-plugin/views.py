@@ -5,7 +5,7 @@ commands to style the named object. Views must not mutate the array.
 
 The registry is a plain ordered dict keyed by display name. One view is
 marked the **default** and is applied by every load/reload path in
-:py:mod:`atomworks.pymol_plugin.bridge`.
+:py:mod:`atomworks_studio_pymol.bridge`.
 """
 
 import logging
@@ -20,10 +20,10 @@ from atomworks.ml.utils.visualize import (
     get_atom_array_style_cmd,
     prepare_for_display,
 )
-from atomworks.pymol_plugin.state import STATE
+from atomworks_studio_pymol.state import STATE
 from pymol import cmd
 
-logger = logging.getLogger("atomworks.pymol_plugin")
+logger = logging.getLogger("atomworks_studio_pymol")
 
 ViewFn = Callable[[AtomArrayPlus, str], None]
 
@@ -158,7 +158,7 @@ def _label_charges_view(arr: AtomArrayPlus, obj_name: str) -> None:
     does not expose ``ins_code`` directly, so we parse it from ``resi``
     (e.g. ``"14A"`` → ``(14, "A")``) using the bridge helper.
     """
-    from atomworks.pymol_plugin.bridge import _pymol_resi_to_res_id_ins_code  # avoid circular import
+    from atomworks_studio_pymol.bridge import _pymol_resi_to_res_id_ins_code  # avoid circular import
 
     if "charge" not in arr.get_annotation_categories():
         raise ValueError("array must have 'charge' annotation to use this view")

@@ -4,6 +4,7 @@ SHELL := /usr/bin/env bash
 .PHONY: bootstrap format lint typecheck test build run accept-local accept-tools accept-brev
 
 bootstrap:
+	git submodule update --init external/RFD4-Proteina-dev external/atomworks-dev
 	bash scripts/build_patinae_viewer.sh
 	corepack enable
 	pnpm install --frozen-lockfile
@@ -18,7 +19,7 @@ format:
 lint:
 	uv run ruff check packages providers tests
 	cargo clippy --workspace --all-targets -- -D warnings
-	bash -n run.sh deploy/brev/*.sh deploy/local/*.sh scripts/*.sh
+	bash -n run.sh deploy/brev/*.sh deploy/local/*.sh deploy/lib/*.sh scripts/*.sh
 
 typecheck:
 	bash scripts/generate_api_types.sh
@@ -26,7 +27,7 @@ typecheck:
 
 test:
 	cargo test --workspace --locked
-	@rfd4_root="$${ANNOTATION_STUDIO_RFD4_ROOT:-$${RFPROTEINA_ROOT:-$(CURDIR)/../RFD4-Proteina-dev}}"; \
+	@rfd4_root="$${ANNOTATION_STUDIO_RFD4_ROOT:-$${RFPROTEINA_ROOT:-$(CURDIR)/external/RFD4-Proteina-dev}}"; \
 	if [[ ! -d "$${rfd4_root}/src/rfproteina" ]]; then \
 		echo "RFD4 checkout not found: $${rfd4_root}" >&2; \
 		echo "Set ANNOTATION_STUDIO_RFD4_ROOT or place RFD4-Proteina-dev beside this repository." >&2; \

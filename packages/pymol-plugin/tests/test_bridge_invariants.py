@@ -7,12 +7,12 @@ key uniqueness.
 """
 
 import numpy as np
-from atomworks.pymol_plugin.bridge import (
+from atomworks_studio_pymol.bridge import (
     refresh_chain_derived_annotations,
     refresh_coords_from_pymol,
     selection_to_indices,
 )
-from atomworks.pymol_plugin.state import STATE
+from atomworks_studio_pymol.state import STATE
 from pymol import cmd
 
 from .helpers import assert_pymol_matches_array, visible_atom_mask

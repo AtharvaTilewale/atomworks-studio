@@ -2,13 +2,13 @@
 
 The standalone distribution publishes :func:`__init_plugin__` through the
 ``pymol.plugins`` entry-point group.  The function remains compatible with
-PyMOL's traditional ``run /path/to/atomworks/pymol_plugin/__init__.py`` loader.
+PyMOL's traditional ``run /path/to/atomworks_studio_pymol/__init__.py`` loader.
 """
 
 import logging
 from importlib.util import find_spec
 
-logger = logging.getLogger("atomworks.pymol_plugin")
+logger = logging.getLogger("atomworks_studio_pymol")
 
 
 def __init_plugin__(app: object | None = None) -> None:
@@ -70,7 +70,7 @@ def _register_plugin(app: object | None) -> None:
 
     # Register the custom editors for specific annotation classes
     try:
-        from atomworks.pymol_plugin.editors.custom import register_custom_editors
+        from atomworks_studio_pymol.editors.custom import register_custom_editors
 
         register_custom_editors()
     except Exception as e:
@@ -78,7 +78,7 @@ def _register_plugin(app: object | None) -> None:
 
     # Load user-registered extensions (before commands/intercepts so editors are ready)
     try:
-        from atomworks.pymol_plugin.extensions import load_extensions
+        from atomworks_studio_pymol.extensions import load_extensions
 
         load_extensions()
     except Exception as e:
@@ -86,7 +86,7 @@ def _register_plugin(app: object | None) -> None:
 
     # Register aw_* console commands
     try:
-        from atomworks.pymol_plugin.commands import register_commands
+        from atomworks_studio_pymol.commands import register_commands
 
         register_commands()
     except Exception as e:
@@ -95,7 +95,7 @@ def _register_plugin(app: object | None) -> None:
     # Add the menu item — must tolerate headless environments (e.g. pytest)
     # where Qt isn't available even though ``pymol`` itself imports fine.
     try:
-        from atomworks.pymol_plugin.panel import open_main_panel
+        from atomworks_studio_pymol.panel import open_main_panel
 
         addmenuitemqt("AtomWorks", open_main_panel)
     except Exception as e:
@@ -106,5 +106,5 @@ def _register_plugin(app: object | None) -> None:
 
 
 # When loaded via `run __init__.py` in ~/.pymolrc, PyMOL executes this file
-if __name__ != "atomworks.pymol_plugin":
+if __name__ != "atomworks_studio_pymol":
     __init_plugin__()

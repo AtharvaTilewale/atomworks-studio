@@ -10,6 +10,7 @@ import { ConditionController } from "./studio/condition-controller";
 import {
   PENDING_EXAMPLE_KEY,
   VIEWER_STORAGE_KEY,
+  parseViewerMode,
   persistSession as persistSessionStorage,
   requestedViewerMode,
 } from "./studio/persistence";
@@ -232,7 +233,10 @@ async function initialize(): Promise<void> {
   const host = query.get("host");
   document.body.classList.toggle("host-vscode", host === "vscode");
   if (host === "vscode") applyHostTheme(query.get("hostTheme"));
-  const mode = requestedViewerMode(query) ?? "molstar";
+  // A renderer pinned in the URL (?viewer=) is honored exactly and never auto-swapped.
+  // Otherwise Patinae is the default and may auto-fall-back to Mol* when WebGPU is absent.
+  const urlPinnedViewer = parseViewerMode(query.get("viewer"));
+  const mode = requestedViewerMode(query) ?? "patinae";
   viewerModeSelect.value = mode;
   localStorage.setItem(VIEWER_STORAGE_KEY, mode);
   await initCifCore();
@@ -318,17 +322,36 @@ async function initialize(): Promise<void> {
   for (const button of document.querySelectorAll<HTMLButtonElement>(".example-load")) {
     button.disabled = false;
   }
-  try {
-    await molecularViewer.initialize();
-    viewerToolbarController.refreshCapabilities();
-    updateSelectionUi();
-  } catch (error) {
+  const degradeToEditingOnly = (error: unknown): void => {
     applyCapabilities({});
     element("style-menu").hidden = true;
     pickScope.disabled = true;
     selectionSyntax.querySelector<HTMLOptionElement>('option[value="patinae"]')!.disabled = true;
     if (selectionSyntax.value === "patinae") selectionSyntax.value = "expression";
     log(`Renderer initialization failed; editing remains available: ${String(error)}`);
+  };
+  try {
+    await molecularViewer.initialize();
+    viewerToolbarController.refreshCapabilities();
+    updateSelectionUi();
+  } catch (error) {
+    // Patinae (WebGPU) is the default renderer. If it is unavailable and the user did not
+    // pin a renderer in the URL, fall back to Mol* (WebGL) rather than dropping to
+    // editing-only, so the 3D viewer still works on browsers without WebGPU. The fallback is
+    // not persisted, so a browser that later gains WebGPU support returns to Patinae.
+    if (mode === "patinae" && urlPinnedViewer === null) {
+      try {
+        await molecularViewer.switchBackend("molstar");
+        viewerModeSelect.value = "molstar";
+        viewerToolbarController.refreshCapabilities();
+        updateSelectionUi();
+        log(`Patinae (WebGPU) unavailable; using Mol* (WebGL) instead: ${String(error)}`);
+      } catch (fallbackError) {
+        degradeToEditingOnly(fallbackError);
+      }
+    } else {
+      degradeToEditingOnly(error);
+    }
   }
   let restoredSession = false;
   const savedSession = query.get("session") ?? sessionStorage.getItem("annotation-studio-session");

@@ -8,19 +8,19 @@ if [[ -n "${RFPROTEINA_ROOT:-}" && -n "${ANNOTATION_STUDIO_RFD4_ROOT:-}" ]] \
   echo "RFPROTEINA_ROOT and ANNOTATION_STUDIO_RFD4_ROOT must identify the same checkout." >&2
   exit 2
 fi
-rfd4_root="${RFPROTEINA_ROOT:-${ANNOTATION_STUDIO_RFD4_ROOT:-${studio_root}/../RFD4-Proteina-dev}}"
+rfd4_root="${RFPROTEINA_ROOT:-${ANNOTATION_STUDIO_RFD4_ROOT:-${studio_root}/external/RFD4-Proteina-dev}}"
 [[ -d "${rfd4_root}" ]] || {
   echo "RFD4 checkout not found: ${rfd4_root}" >&2
   echo "Set RFPROTEINA_ROOT or ANNOTATION_STUDIO_RFD4_ROOT." >&2
   exit 1
 }
 rfd4_root="$(cd "${rfd4_root}" && pwd)"
-rfd4_revision="0e9050ca426a74069b99b63ca4a6520b05c2f8c7"
+rfd4_revision="cb1fc2a4d47bdf59117fb3a4316028f830e3eae5"
 git -C "${rfd4_root}" merge-base --is-ancestor "${rfd4_revision}" HEAD || {
   echo "RFD4 checkout must contain pinned revision ${rfd4_revision}." >&2
   exit 1
 }
-runtime_helper="${rfd4_root}/scripts/inference_runtime.sh"
+runtime_helper="${studio_root}/deploy/lib/inference_runtime.sh"
 [[ -r "${runtime_helper}" ]] || {
   echo "Missing RFD4 runtime helper: ${runtime_helper}" >&2
   exit 1
@@ -107,6 +107,7 @@ if [[ -n "${LOCAL_RFD4_IMAGE:-}" ]]; then
     --env "TRITON_CACHE_DIR=${TRITON_CACHE_DIR}"
     --env "CUDA_CACHE_PATH=${CUDA_CACHE_PATH}"
     --env "TORCHINDUCTOR_FX_GRAPH_CACHE=${TORCHINDUCTOR_FX_GRAPH_CACHE}"
+    --env "TORCH_COMPILE_CACHE_BLOB=${TORCH_COMPILE_CACHE_BLOB}"
     --env AF3_LAUNCHER_SOCKET_TEMPLATE
     --workdir "${rfd4_root}"
     "${LOCAL_RFD4_IMAGE}"

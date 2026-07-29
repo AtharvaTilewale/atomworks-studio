@@ -2,8 +2,12 @@
   "name": "atomworks-annotation-studio",
   "displayName": "AtomWorks Annotation Studio",
   "description": "Create, inspect, and submit RFD4-Proteina annotated CIFs with Mol*, Patinae, and native AtomWorks.",
+  "icon": "icon.png",
   "version": "0.1.0",
-  "publisher": "nvidia",
+  "publisher": "rfd4-proteina-team",
+  "author": {
+    "name": "RFD4-Proteina Team"
+  },
   "license": "SEE LICENSE IN LICENSE.md",
   "repository": {
     "type": "git",
@@ -66,14 +70,15 @@
             "Use Patinae/WebGPU.",
             "Use Mol*/WebGL."
           ],
-          "description": "Molecular viewer used by the shared Annotation Studio client. You are prompted when unset; renderers never fall back to one another."
+          "default": "patinae",
+          "description": "Molecular viewer used by the shared Annotation Studio client. Defaults to Patinae (WebGPU); Mol* (WebGL) is used only if you select it via 'Annotation Studio: Select renderer'. Renderers never fall back to one another."
         }
       }
     }
   },
   "scripts": {
     "compile": "tsc -p tsconfig.json",
-    "package": "pnpm compile && vsce package --no-dependencies"
+    "package": "pnpm compile && vsce package --no-dependencies --no-rewrite-relative-links"
   },
   "devDependencies": {
     "@types/node": "^26.1.1",

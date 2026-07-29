@@ -1,0 +1,23 @@
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "atomworks-studio-editing"
+version = "0.1.0"
+description = "Shared annotated-CIF editing primitives for AtomWorks Studio editors"
+requires-python = ">=3.12,<=3.12.10"
+license = { text = "NVIDIA Source Code License" }
+dependencies = [
+    "atomworks[ml]",
+    "numpy>=1.26,<3",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["atomworks_studio_editing"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "atomworks_studio_editing",
+    "pyproject.toml",
+]

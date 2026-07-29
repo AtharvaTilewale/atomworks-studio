@@ -1,9 +1,15 @@
 [tool.uv.workspace]
 members = [
     "packages/api",
+    "packages/editing",
     "packages/pymol-plugin",
     "providers/rfd4",
 ]
+
+# atomworks and RFD4 are vendored as git submodules under external/ so a fresh
+# `git clone --recursive` pins the exact library (dev) and model (main) commits.
+[tool.uv.sources]
+atomworks = { path = "external/atomworks-dev", editable = true }
 
 [tool.ruff]
 line-length = 120
@@ -20,6 +26,8 @@ select = ["B", "E", "F", "I", "N", "RUF", "UP"]
 "packages/pymol-plugin/**/*.py" = ["BLE001", "N999"]
 # PyMOL must be initialized before importing modules that bind to its command API.
 "packages/pymol-plugin/tests/conftest.py" = ["E402"]
+# Optional RFD4 PyMOL editors follow Qt/PyMOL naming and broad-except conventions.
+"providers/rfd4/atomworks_studio_rfd4/pymol/**/*.py" = ["BLE001", "N802", "N807", "N999"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "packages/pymol-plugin/tests"]

@@ -19,17 +19,17 @@ import numpy as np
 from atomworks.io.config import ParseConfig
 from atomworks.io.utils.io_utils import to_cif_file
 from atomworks.ml.utils.expandable_segment import insert_expandable_segment
-from atomworks.pymol_plugin.bridge import (
+from atomworks_studio_pymol.bridge import (
     combine_visible,
     delete_atoms,
     load_structure,
     reload_structure_in_pymol,
     selection_to_indices,
 )
-from atomworks.pymol_plugin.state import STATE
+from atomworks_studio_pymol.state import STATE
 from pymol import cmd
 
-logger = logging.getLogger("atomworks.pymol_plugin")
+logger = logging.getLogger("atomworks_studio_pymol")
 
 
 def _aw_load(path: str, obj_name: str = "") -> None:

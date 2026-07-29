@@ -23,18 +23,18 @@ from atomworks.io.utils.atom_array_plus import (
 )
 from atomworks.io.utils.chain import create_chain_id_generator
 from atomworks.io.utils.io_utils import CIFWriteConfig, to_cif_string
-from atomworks.io.utils.structure_mutations import (
+from atomworks.ml.utils.visualize import prepare_for_display
+from atomworks_studio_editing.structure_mutations import (
     delete_atoms,
     deletion_would_create_res_id_gap,
     refresh_chain_derived_annotations,
 )
-from atomworks.ml.utils.visualize import prepare_for_display
-from atomworks.pymol_plugin.state import STATE
-from atomworks.pymol_plugin.views import apply_current_view
+from atomworks_studio_pymol.state import STATE
+from atomworks_studio_pymol.views import apply_current_view
 from biotite.structure import AtomArrayStack
 from pymol import cmd
 
-logger = logging.getLogger("atomworks.pymol_plugin")
+logger = logging.getLogger("atomworks_studio_pymol")
 
 __all__ = ["delete_atoms", "deletion_would_create_res_id_gap"]
 
@@ -246,7 +246,7 @@ def _load_array_into_pymol(
         array: Structure to load.
         obj_name: PyMOL object name.
         hide_nans: Whether NaN-coord atoms are hidden in the view (applied later
-            by :py:func:`~atomworks.pymol_plugin.views.apply_current_view`). They
+            by :py:func:`~atomworks_studio_pymol.views.apply_current_view`). They
             are always loaded into the object — moved to their residue centroid —
             so they stay selectable and every ground-truth atom has a PyMOL counterpart.
         show_seq_gaps: If True, write ``_entity``/``_entity_poly``/

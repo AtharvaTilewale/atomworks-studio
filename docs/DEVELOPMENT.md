@@ -14,10 +14,13 @@ Studio pins its development toolchain:
 - Rust 1.97.1 with `wasm32-unknown-unknown` (`rust-toolchain.toml`)
 - `uv`
 - `wasm-pack` 0.13.1
+- `git` with access to the private `baker-laboratory` repositories
 
-The pinned AtomWorks and Patinae sources are fetched from GitHub. Configure Git
-authentication before the first bootstrap if those repositories are private to
-your account.
+AtomWorks and RFD4-Proteina are vendored as git submodules under `external/`,
+pinned to their default branches (atomworks `dev`, RFD4 `main`). Clone with
+`git clone --recursive`, or run `git submodule update --init` before the first
+bootstrap. The patched Patinae viewer is a committed tarball. Configure Git
+authentication first if the submodule repositories are private to your account.
 
 ## Repository layout
 
@@ -26,8 +29,11 @@ your account.
 - `packages/core` — lossless annotated-CIF inspector compiled to WASM
 - `packages/vscode` — thin VS Code/Cursor webview launcher
 - `packages/patinae-plugin` — thin Patinae desktop launcher
-- `packages/pymol-plugin` — native PyMOL authoring interface
-- `providers/rfd4` — optional RFD4 condition, validation, and design provider
+- `packages/pymol-plugin` — model-neutral PyMOL authoring interface (`atomworks_studio_pymol`)
+- `packages/editing` — shared annotated-CIF editing primitives (`atomworks_studio_editing`)
+- `providers/rfd4` — optional RFD4 condition/validation/design provider, plus the
+  optional `[pymol]` extra with RFD4-specific PyMOL editors (`atomworks_studio_rfd4.pymol`)
+- `external/` — the atomworks and RFD4-Proteina git submodules (the pinned dependencies)
 - `vendor/patinae` — pinned Patinae source revision and reviewed patch series
 - `deploy` — container, Kubernetes, local GPU, and Brev assets
 - `tests` — API, provider, conformance, and cross-interface tests
@@ -45,9 +51,10 @@ make bootstrap
 make run
 ```
 
-`make bootstrap` verifies the committed Patinae viewer archive, installs the
-pnpm and uv workspaces, and adds the Rust WASM target. `make run` rebuilds stale
-web assets and starts Uvicorn on `127.0.0.1:8000` by default.
+`make bootstrap` initializes the `external/` submodules, verifies the committed
+Patinae viewer archive, installs the pnpm and uv workspaces (atomworks resolves
+from its submodule via a uv path source), and adds the Rust WASM target. `make
+run` rebuilds stale web assets and starts Uvicorn on `127.0.0.1:8000` by default.
 
 Useful overrides:
 
@@ -72,12 +79,16 @@ make test
 make build
 ```
 
-Provider conformance tests import RFD4 but do not require a GPU or model
-weights. Put `RFD4-Proteina-dev` beside this repository or set:
+Provider conformance tests import the RFD4 condition surface but do not require a
+GPU or model weights; they use the `external/RFD4-Proteina-dev` submodule by
+default. Point at a different checkout with:
 
 ```bash
 export ANNOTATION_STUDIO_RFD4_ROOT=/path/to/RFD4-Proteina-dev
 ```
+
+Tests that drive the RFD4 PyMOL editors or the full design pipeline need the
+complete RFD4 model runtime and skip automatically when it is absent.
 
 The test target uses `scripts/run_pytest.py` because embedded PyMOL shutdown
 hooks can otherwise replace pytest's nonzero exit status. Do not bypass that

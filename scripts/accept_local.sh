@@ -6,7 +6,7 @@ artifact_dir="${root}/artifacts/local"
 accept_port="${ANNOTATION_STUDIO_ACCEPT_PORT:-18000}"
 accept_url="http://127.0.0.1:${accept_port}"
 mkdir -p "${artifact_dir}"
-rfd4_root="${ANNOTATION_STUDIO_RFD4_ROOT:-${RFPROTEINA_ROOT:-${root}/../RFD4-Proteina-dev}}"
+rfd4_root="${ANNOTATION_STUDIO_RFD4_ROOT:-${RFPROTEINA_ROOT:-${root}/external/RFD4-Proteina-dev}}"
 if [[ -d "${rfd4_root}/src/rfproteina" ]]; then
   export PYTHONPATH="${rfd4_root}/src${PYTHONPATH:+:${PYTHONPATH}}"
 fi

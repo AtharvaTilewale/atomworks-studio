@@ -27,8 +27,8 @@ from atomworks.ml.utils.expandable_segment import (
     realize_expandable_segments,
 )
 from atomworks.ml.utils.visualize import count_hidden_nan_atoms
-from atomworks.pymol_plugin.bond_wizard import BondWizard
-from atomworks.pymol_plugin.bridge import (
+from atomworks_studio_pymol.bond_wizard import BondWizard
+from atomworks_studio_pymol.bridge import (
     combine_visible,
     delete_atoms,
     deletion_would_create_res_id_gap,
@@ -36,12 +36,12 @@ from atomworks.pymol_plugin.bridge import (
     reload_structure_in_pymol,
     selection_to_indices,
 )
-from atomworks.pymol_plugin.chain_wizard import ChainWizard
-from atomworks.pymol_plugin.charge_wizard import ChargeWizard
-from atomworks.pymol_plugin.editors import editor_for, is_excluded
-from atomworks.pymol_plugin.extensions import add_extension, read_extensions, remove_extension
-from atomworks.pymol_plugin.state import STATE, PluginState
-from atomworks.pymol_plugin.views import (
+from atomworks_studio_pymol.chain_wizard import ChainWizard
+from atomworks_studio_pymol.charge_wizard import ChargeWizard
+from atomworks_studio_pymol.editors import editor_for, is_excluded
+from atomworks_studio_pymol.extensions import add_extension, read_extensions, remove_extension
+from atomworks_studio_pymol.state import STATE, PluginState
+from atomworks_studio_pymol.views import (
     DEFAULT_VIEW_NAME,
     VIEWS,
     apply_current_view,
@@ -51,7 +51,7 @@ from atomworks.pymol_plugin.views import (
 from pymol import cmd
 from pymol.Qt import QtCore, QtWidgets
 
-logger = logging.getLogger("atomworks.pymol_plugin")
+logger = logging.getLogger("atomworks_studio_pymol")
 
 # ---------------------------------------------------------------------------
 # Hook registries (populated by extensions)

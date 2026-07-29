@@ -175,24 +175,25 @@ class DocumentStore:
             return result
 
 
-def _load_optional_providers() -> tuple[ConditionProvider, ValidationProvider]:
+def _load_optional_providers() -> tuple[ConditionProvider, ValidationProvider, dict[str, Any]]:
     """Load one installed provider without making it an API import dependency."""
 
     failures: list[str] = []
     for entry_point in entry_points(group="atomworks_studio.providers"):
         try:
             provider = entry_point.load()
-            return provider.CONDITION_PROVIDER, provider.VALIDATION_PROVIDER
+            operations = getattr(provider, "CONDITION_OPERATIONS", {})
+            return provider.CONDITION_PROVIDER, provider.VALIDATION_PROVIDER, operations
         except (ImportError, OSError, RuntimeError) as error:
             failures.append(f"{entry_point.name}: {error}")
     if failures and os.environ.get("ANNOTATION_STUDIO_PROVIDER_REQUIRED") == "1":
         raise RuntimeError("could not initialize a required Studio provider: " + "; ".join(failures))
-    return NEUTRAL_CONDITION_PROVIDER, NEUTRAL_VALIDATION_PROVIDER
+    return NEUTRAL_CONDITION_PROVIDER, NEUTRAL_VALIDATION_PROVIDER, {}
 
 
 session_dir_value = os.environ.get("ANNOTATION_STUDIO_SESSION_DIR")
 project_root = Path(os.environ.get("ANNOTATION_STUDIO_RFD4_ROOT", Path.cwd())).resolve()
-condition_provider, validation_provider = _load_optional_providers()
+condition_provider, validation_provider, condition_operations = _load_optional_providers()
 design_jobs = ProcessDesignProvider.from_environment(project_root)
 store = DocumentStore(
     Path(session_dir_value) if session_dir_value else None,
@@ -797,6 +798,17 @@ def inspect_bonds(session_id: str, atom_index: int | None = None) -> dict:
 @app.post("/api/sessions/{session_id}/bonds/infer-ccd")
 def infer_bonds_from_ccd(session_id: str) -> dict:
     return _apply(session_id, lambda document: document.infer_bonds_from_ccd())
+
+
+@app.post("/api/sessions/{session_id}/internal-coords")
+def convert_internal_coords(session_id: str, selection: SelectionResolve) -> dict:
+    transform = condition_operations.get("internal_coordinate")
+    if transform is None:
+        raise HTTPException(status_code=422, detail="internal-coordinate conditioning is not available")
+    return _apply(
+        session_id,
+        lambda document: document.apply_selection_transform(selection.atom_indices, selection.scope, transform),
+    )
 
 
 @app.get("/api/sessions/{session_id}/distance-restraints")

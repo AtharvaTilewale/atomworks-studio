@@ -220,9 +220,9 @@ Create a Brev Launchable in VM Mode:
 4. Add an authenticated Secure Link named `studio` for port `8000`.
 5. Use a GPU with enough VRAM for RFD4 and the intended input sizes.
 6. Use persistent disk mounted under `/home/ubuntu/workspace`.
-7. Clone RFD4 separately and set `RFPROTEINA_ROOT` (or
-   `ANNOTATION_STUDIO_RFD4_ROOT`) to that checkout. The launcher never derives
-   RFD4 from the Studio path.
+7. RFD4 is the `external/RFD4-Proteina-dev` submodule (from a `git clone
+   --recursive`); the launcher uses it by default. Set `RFPROTEINA_ROOT` (or
+   `ANNOTATION_STUDIO_RFD4_ROOT`) only to place RFD4 on a separate persistent disk.
 8. Set `DATA_PATH` to a persistent directory containing the RFD4 checkpoints.
 9. Set `BREV_RFD4_STATE_DIR` to
    `/home/ubuntu/workspace/rfd4-annotation-studio`.

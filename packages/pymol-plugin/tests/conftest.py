@@ -20,8 +20,8 @@ import pymol
 pymol.finish_launching(["pymol", "-qck"])
 
 from atomworks.io.config import ParseConfig
-from atomworks.pymol_plugin.bridge import load_structure
-from atomworks.pymol_plugin.state import STATE
+from atomworks_studio_pymol.bridge import load_structure
+from atomworks_studio_pymol.state import STATE
 from pymol import cmd
 
 # Anchor: <repo>/packages/pymol-plugin/tests/conftest.py → <repo>

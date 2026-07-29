@@ -15,7 +15,7 @@ import importlib
 import logging
 from pathlib import Path
 
-logger = logging.getLogger("atomworks.pymol_plugin")
+logger = logging.getLogger("atomworks_studio_pymol")
 
 _EXTENSIONS_FILE = Path.home() / ".atomworks" / "pymol_extensions"
 

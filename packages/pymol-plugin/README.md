@@ -53,9 +53,14 @@ python -m pip install .
 Contributors should use the editable install and test workflow in the
 [development guide](../../docs/DEVELOPMENT.md#pymol).
 
-The wheel pins and installs `atomworks[ml]`, which remains the authority for
-all mutation, annotation, and CIF IO behavior. The plugin does not carry local
-copies of those primitives.
+The plugin depends on `atomworks[ml]` (structure/CIF IO and model conditions) and
+`atomworks-studio-editing` (the shared annotated-CIF editing primitives), both
+resolved from the Studio workspace.
+
+`CCD_MIRROR_PATH` and `PDB_MIRROR_PATH` are **optional**: they are only needed for
+features that resolve chemical components or fetch PDB entries (for example **Infer
+Bonds from CCD**). AtomWorks prints a one-time warning about them at import; it is
+safe to ignore unless you use those features.
 
 ### Start PyMOL
 
@@ -67,12 +72,13 @@ Start PyMOL from the environment where the package was installed:
 pymol
 ```
 
-For older PyMOL builds that do not discover entry points, add this fallback to
-`~/.pymolrc` using the installed file path reported by
-`python -c "import atomworks.pymol_plugin as p; print(p.__file__)"`:
+Conda PyMOL 3.1 does not discover Python package entry points, so the `~/.pymolrc`
+fallback below is **required** there (as it is for any older PyMOL build that does
+not auto-load entry points). Add it using the installed file path reported by
+`python -c "import atomworks_studio_pymol as p; print(p.__file__)"`:
 
 ```text
-run /path/to/site-packages/atomworks/pymol_plugin/__init__.py
+run /path/to/site-packages/atomworks_studio_pymol/__init__.py
 ```
 
 ### Open the Panel

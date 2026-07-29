@@ -10,7 +10,8 @@ readme = "README.md"
 requires-python = ">=3.12,<=3.12.10"
 license = { text = "NVIDIA Source Code License" }
 dependencies = [
-    "atomworks[ml] @ git+https://github.com/baker-laboratory/atomworks-dev.git@8e4b2c39dc87a5097fbac1553154a99a46cf9bb7",
+    "atomworks[ml]",
+    "atomworks-studio-editing>=0.1.0,<0.2",
     "fastapi>=0.115,<2",
     "numpy>=1.26,<3",
     "pydantic>=2.10,<3",
@@ -30,6 +31,7 @@ test = [
 
 [tool.uv.sources]
 atomworks-annotation-studio-rfd4 = { workspace = true }
+atomworks-studio-editing = { workspace = true }
 
 [tool.hatch.build.targets.wheel]
 packages = ["annotation_studio"]

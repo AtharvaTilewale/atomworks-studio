@@ -39,9 +39,9 @@ Two ways in:
 
 ### Website and PWA
 
-Use the complete editor in any supported browser. Choose Patinae/WebGPU or
-Mol*/WebGL explicitly, load a CIF, edit conditions, inspect interactions, and
-download the same annotated CIF.
+Use the complete editor in any supported browser. Patinae/WebGPU is the default
+renderer; switch to Mol*/WebGL at any time. Load a CIF, edit conditions, inspect
+interactions, and download the same annotated CIF.
 
 [Use the browser editor →](docs/WEB.md)
 
@@ -55,15 +55,20 @@ document model, so saved files round-trip into the website and RFD4.
 
 ### VS Code and Cursor extension
 
-Open the shared Studio service in an editor webview. The extension stores only
-the server URL and renderer choice; sessions and model data remain in the
-service.
+Open the shared Studio service in an editor webview. The extension defaults to
+Patinae/WebGPU and only uses Mol*/WebGL if you select it. It stores only the
+server URL and renderer choice; sessions and model data remain in the service.
 
 <p align="center">
   <img src="docs/images/web-embedded.png" width="820" alt="AtomWorks Studio embedded as used by the VS Code and Cursor extension">
 </p>
 
-[Install the VS Code/Cursor extension →](packages/vscode/README.md)
+**Download the latest build** (rebuilt from `main` by CI on every push):
+[`atomworks-annotation-studio.vsix`](https://github.com/baker-laboratory/atomworks-studio/releases/download/vscode-latest/atomworks-annotation-studio.vsix),
+then `code --install-extension atomworks-annotation-studio.vsix --force` and
+point it at a running Studio server.
+
+[Install and set up the VS Code/Cursor extension →](packages/vscode/README.md)
 
 ---
 
@@ -73,14 +78,19 @@ You need Python 3.12, Node 22, pnpm 11, Rust, `uv`, and `wasm-pack`. The
 [development guide](docs/DEVELOPMENT.md#prerequisites) lists the exact pinned
 versions and authentication requirements.
 
+AtomWorks and RFD4-Proteina are vendored as git submodules under `external/`, so
+clone with submodules, then bootstrap and run:
+
 ```bash
+git clone --recursive <repository-url>   # or run: git submodule update --init
 make bootstrap
 make run
 ```
 
-Open one of the supported renderers:
+Open [http://127.0.0.1:8000/](http://127.0.0.1:8000/); it opens with the default
+renderer. Pin a specific renderer with a query parameter:
 
-- [Patinae · WebGPU](http://127.0.0.1:8000/?viewer=patinae)
+- [Patinae · WebGPU](http://127.0.0.1:8000/?viewer=patinae) (default)
 - [Mol* · WebGL](http://127.0.0.1:8000/?viewer=molstar)
 
 The CPU service is enough to edit, validate, and round-trip annotated CIFs. See
@@ -90,11 +100,12 @@ starting points.
 
 ## Add RFD4 generation
 
-Keep RFD4-Proteina in a sibling or external checkout, configure its checkpoints,
-and start the local GPU launcher:
+RFD4-Proteina is bundled as the `external/RFD4-Proteina-dev` submodule. Run its
+one-time model setup, point `DATA_PATH` at the checkpoints, and start the local
+GPU launcher (set `ANNOTATION_STUDIO_RFD4_ROOT` only to override the bundled
+submodule with a separate checkout):
 
 ```bash
-export ANNOTATION_STUDIO_RFD4_ROOT=/path/to/RFD4-Proteina-dev
 export DATA_PATH=/persistent/rfd4-data
 bash deploy/local/start.sh
 ```

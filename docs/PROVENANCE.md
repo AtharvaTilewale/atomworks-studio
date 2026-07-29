@@ -12,5 +12,33 @@ The patched Patinae viewer is rebuilt from
 `vendor/patinae/patches` reproduces Studio branch
 `2bf8d2cc6dde586e80a728f0d8718ba0bbb584f0`.
 
-AtomWorks and RFD4-Proteina remain upstream dependencies. Their complete source
-trees, checkpoints, and model weights are intentionally not copied here.
+## Vendored dependencies (git submodules)
+
+AtomWorks and RFD4-Proteina remain upstream dependencies, vendored as git
+submodules under `external/` and pinned by commit (see `dependencies.toml` and
+`.gitmodules`):
+
+- `external/atomworks-dev` — atomworks, branch `dev`.
+- `external/RFD4-Proteina-dev` — RFD4-Proteina, branch `main`.
+
+Their complete source trees, checkpoints, and model weights are intentionally not
+copied here.
+
+## Migrated editor code
+
+Some editor code was copied out of the dependencies so Studio can track their
+default branches; it is maintained here and removed upstream by the coordinated
+PRs noted below. Re-verify parity when bumping the submodules.
+
+- `packages/editing/atomworks_studio_editing/{structure_mutations,mutations,validation,selection}.py`
+  — from atomworks commit `8e4b2c39` (before upstream removal).
+- `providers/rfd4/atomworks_studio_rfd4/{condition_specs,interactive_validation}.py`
+  and `providers/rfd4/atomworks_studio_rfd4/pymol/` — from RFD4 commit `0e9050ca`
+  (`rfproteina.condition_specs`, `rfproteina.interactive_validation`, `rfproteina.pymol`);
+  the RFD4 PyMOL editors align with RFD4-Proteina-dev PR #107.
+- `deploy/lib/{inference_runtime.sh,build_latent_dev_docker.sh}` — RFD4 deploy helpers
+  vendored so Studio's launchers do not depend on scripts inside the RFD4 checkout.
+
+The base PyMOL plugin (`packages/pymol-plugin`) is published as
+`atomworks_studio_pymol`; atomworks-dev PR #297 removes its former
+`atomworks.pymol_plugin` copy.

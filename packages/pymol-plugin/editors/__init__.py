@@ -17,7 +17,7 @@ from collections.abc import Callable
 from typing import TypeVar
 
 from atomworks.io.utils.standard_annotations.base import StandardAnnotationBase
-from atomworks.pymol_plugin.editors.widgets import MaskEditor, PairValueEditor, ScalarEditor
+from atomworks_studio_pymol.editors.widgets import MaskEditor, PairValueEditor, ScalarEditor
 
 _EditorT = TypeVar("_EditorT", bound=type)
 

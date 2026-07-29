@@ -3,39 +3,53 @@ requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "atomworks-pymol-plugin"
+name = "atomworks-studio-pymol"
 version = "0.1.0"
 description = "PyMOL interface for authoring AtomWorks annotated CIF files"
 readme = "README.md"
 requires-python = ">=3.12,<=3.12.10"
 license = "LicenseRef-NVIDIA-Source-Code-License"
 dependencies = [
-    "atomworks[ml] @ git+https://github.com/baker-laboratory/atomworks-dev.git@8e4b2c39dc87a5097fbac1553154a99a46cf9bb7",
+    "atomworks[ml]",
+    "atomworks-studio-editing>=0.1.0,<0.2",
+    # NOTE: Conda PyMOL (3.x) needs numpy<2 / scipy<1.17, but the PyPI `pymol-open-source`
+    # wheel used for pip-only CI (see the `pymol-pip` extra) requires numpy>=2 -- the two
+    # cannot be pinned in one lock. A conda install gets the correct numpy/scipy from
+    # pymol_env.yaml; the compatible upper bounds belong in atomworks-dev's numpy/scipy
+    # specifiers (currently unbounded) so a plain `pip install .` into a conda env is safe.
 ]
+
+[tool.uv.sources]
+atomworks-studio-editing = { workspace = true }
 
 [project.optional-dependencies]
 test = [
+    "pytest>=8.2,<9",
+]
+# PyPI PyMOL/Qt for pip-only environments (CI). Do NOT install these into a conda
+# PyMOL environment -- pymol_env.yaml already supplies PyMOL and Qt there, and the
+# PyPI wheels would clobber the conda build. `uv sync --all-extras` picks these up in CI.
+pymol-pip = [
     "pymol-open-source>=3.2.0a0",
     "pyqt5>=5.15.11",
-    "pytest>=8.2,<9",
 ]
 
 [project.entry-points."pymol.plugins"]
-atomworks = "atomworks.pymol_plugin:__init_plugin__"
+atomworks = "atomworks_studio_pymol:__init_plugin__"
 
 [tool.setuptools]
 packages = [
-    "atomworks.pymol_plugin",
-    "atomworks.pymol_plugin.editors",
+    "atomworks_studio_pymol",
+    "atomworks_studio_pymol.editors",
 ]
 include-package-data = true
 
 [tool.setuptools.package-dir]
-"atomworks.pymol_plugin" = "."
-"atomworks.pymol_plugin.editors" = "editors"
+"atomworks_studio_pymol" = "."
+"atomworks_studio_pymol.editors" = "editors"
 
 [tool.setuptools.package-data]
-"atomworks.pymol_plugin" = ["pymol_env.yaml"]
+"atomworks_studio_pymol" = ["pymol_env.yaml"]
 
 [tool.pytest.ini_options]
 testpaths = ["smoke", "tests"]

@@ -8,18 +8,18 @@ import logging
 import os
 
 from atomworks.io.template import infer_bonds_from_residue_names
-from atomworks.io.utils.structure_mutations import edit_bond
-from atomworks.pymol_plugin.bridge import (
+from atomworks_studio_editing.structure_mutations import edit_bond
+from atomworks_studio_pymol.bridge import (
     _pymol_resi_to_res_id_ins_code,
     reload_structure_in_pymol,
     selection_to_indices,
 )
-from atomworks.pymol_plugin.state import PluginState
+from atomworks_studio_pymol.state import PluginState
 from biotite.structure.bonds import BondType
 from pymol import cmd
 from pymol.Qt import QtCore, QtWidgets
 
-logger = logging.getLogger("atomworks.pymol_plugin")
+logger = logging.getLogger("atomworks_studio_pymol")
 
 # Bond types offered in the dropdown, in display order.
 _BOND_TYPE_OPTIONS: list[BondType] = [

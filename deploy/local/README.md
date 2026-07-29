@@ -18,7 +18,7 @@ This guide configures the GPU runtime. Once the service is ready, use the
 - The standalone Studio repository setup and web dependencies are installed.
 - RFD4 is a separate checkout. Set `RFPROTEINA_ROOT` (or
   `ANNOTATION_STUDIO_RFD4_ROOT`) to its absolute path. When neither is set,
-  the local launcher checks the sibling `../RFD4-Proteina-dev` checkout.
+  the local launcher uses the bundled `external/RFD4-Proteina-dev` submodule.
 - `nvidia-smi` works and the Python environment reports CUDA.
 - `$RFPROTEINA_ROOT/.ipd/.env.local` sets an absolute `DATA_PATH`.
 - The release denoiser and autoencoder checkpoints exist under `DATA_PATH`.
@@ -48,7 +48,7 @@ supported CUDA 12 image and use it only for RFD4:
 
 ```bash
 RFPROTEINA_CUDA_STACK=cuda12 \
-  bash "${RFPROTEINA_ROOT}/scripts/build_latent_dev_docker.sh" latent-dev:cuda12
+  bash deploy/lib/build_latent_dev_docker.sh "${RFPROTEINA_ROOT}" latent-dev:cuda12
 
 LOCAL_RFD4_IMAGE=latent-dev:cuda12 \
 RFD4_GPU_DEVICE=0 \

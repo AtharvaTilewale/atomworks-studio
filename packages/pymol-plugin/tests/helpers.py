@@ -4,7 +4,7 @@ The two critical operations:
 
 - :py:func:`collect_pymol_atoms` — freeze PyMOL's view of an object as a list of
   plain tuples, in PyMOL's own enumeration order. This is what
-  :py:func:`atomworks.pymol_plugin.bridge.build_index_map` walks.
+  :py:func:`atomworks_studio_pymol.bridge.build_index_map` walks.
 - :py:func:`assert_pymol_matches_array` — assert that PyMOL's atoms match the
   AtomArrayPlus row-by-row. If this fails, the bridge's core assumption
   (PyMOL index == array index) is broken.

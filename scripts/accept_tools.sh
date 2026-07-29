@@ -4,7 +4,7 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 artifact_dir="${root}/artifacts/tools"
 mkdir -p "${artifact_dir}"
-rfd4_root="${ANNOTATION_STUDIO_RFD4_ROOT:-${RFPROTEINA_ROOT:-${root}/../RFD4-Proteina-dev}}"
+rfd4_root="${ANNOTATION_STUDIO_RFD4_ROOT:-${RFPROTEINA_ROOT:-${root}/external/RFD4-Proteina-dev}}"
 if [[ -d "${rfd4_root}/src/rfproteina" ]]; then
   export PYTHONPATH="${rfd4_root}/src${PYTHONPATH:+:${PYTHONPATH}}"
 fi

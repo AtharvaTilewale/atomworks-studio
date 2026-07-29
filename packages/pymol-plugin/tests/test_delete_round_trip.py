@@ -19,14 +19,14 @@ import copy
 
 import numpy as np
 from atomworks.io.utils.atom_array_plus import AtomArrayPlus
-from atomworks.pymol_plugin.bridge import (
+from atomworks_studio_pymol.bridge import (
     build_index_map,
     delete_atoms,
     deletion_would_create_res_id_gap,
     reload_structure_in_pymol,
     selection_to_indices,
 )
-from atomworks.pymol_plugin.state import STATE
+from atomworks_studio_pymol.state import STATE
 from pymol import cmd
 
 from .helpers import (

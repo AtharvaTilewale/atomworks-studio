@@ -6,10 +6,10 @@ import numpy as np
 import pytest
 from annotation_studio.core import StudioDocument
 from annotation_studio.rfd4_provider import CONDITION_PROVIDER, VALIDATION_PROVIDER
-from atomworks.io.utils.validation import validate_atom_array
 from atomworks.ml.conditions import C_DIS
-from atomworks.ml.conditions.mutations import edit_distance_restraint
-from rfproteina.condition_specs import INTERACTIVE_CONDITION_SPECS
+from atomworks_studio_editing.mutations import edit_distance_restraint
+from atomworks_studio_editing.validation import validate_atom_array
+from atomworks_studio_rfd4.condition_specs import INTERACTIVE_CONDITION_SPECS
 
 FIXTURE = Path(__file__).parent / "fixtures" / "SAM_hbonds.cif"
 CONDITIONS = {

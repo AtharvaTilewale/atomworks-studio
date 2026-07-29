@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import copy
+from collections.abc import Callable
 from io import StringIO
 from typing import Any, Literal
 
@@ -18,21 +19,22 @@ from atomworks.io.utils.atom_array_plus import (
     as_atom_array_plus,
     concatenate_atom_array_plus,
 )
-from atomworks.io.utils.validation import validate_atom_array
+from atomworks_studio_editing.validation import validate_atom_array
 from atomworks.io.utils.chain import create_chain_id_generator
 from atomworks.io.utils.io_utils import CIFWriteConfig, to_cif_string
 from atomworks.io.utils.query import QueryExpression
-from atomworks.io.utils.selection import AtomSelectionStack
+from atomworks_studio_editing.selection import AtomSelectionStack
 from atomworks.io.utils.standard_annotations import S_SEGMAX, S_SEGMIN
-from atomworks.io.utils.structure_mutations import (
+from atomworks.ml.conditions import C_DIS
+
+from atomworks_studio_editing.mutations import edit_distance_restraint as mutate_distance_restraint
+from atomworks_studio_editing.structure_mutations import (
     assign_chain_id,
     delete_atoms as mutate_delete_atoms,
     edit_bond as mutate_bond,
     refresh_chain_derived_annotations,
     set_formal_charge,
 )
-from atomworks.ml.conditions import C_DIS
-from atomworks.ml.conditions.mutations import edit_distance_restraint as mutate_distance_restraint
 from atomworks.ml.transforms.interactions import AnnotateInteractions, InteractionType
 from atomworks.ml.utils.expandable_segment import (
     collapse_expandable_segments,
@@ -260,6 +262,26 @@ class StudioDocument:
                                 "atom_indices": indices,
                             }
                         ],
+                    }
+                )
+                continue
+
+            if spec.kind == "operation":
+                # Operations (e.g. internal-coordinate conditioning) store a per-atom mask marking
+                # where they were applied; surface that as a plain active-atom count.
+                if not condition.has_mask(self.array):
+                    continue
+                mask = condition.mask(self.array, default="generate")
+                if not mask.any():
+                    continue
+                indices = atom_indices(mask)
+                entries.append(
+                    {
+                        "name": spec.key,
+                        "label": spec.label,
+                        "count": len(indices),
+                        "unit": spec.count_unit,
+                        "values": [{"label": "Active", "count": len(indices), "atom_indices": indices}],
                     }
                 )
                 continue
@@ -577,6 +599,8 @@ class StudioDocument:
         selected = self.resolve_indices(indices, scope)
         spec = self.condition_provider.definitions_by_key[name]
         condition = spec.condition
+        if spec.kind == "operation":
+            raise ValueError(f"{name} is applied via its operation endpoint, not set_condition")
         if spec.kind == "pair":
             if len(selected) != 2:
                 raise ValueError(f"{name} requires exactly two different atoms")
@@ -631,6 +655,22 @@ class StudioDocument:
                 mask = condition.mask(self.array, default="generate").copy()
                 mask[selected] = enabled and value != default
                 condition.set_mask(self.array, mask)
+            self._mark_changed()
+        except Exception:
+            self.array = self._undo.pop()
+            raise
+
+    def apply_selection_transform(
+        self,
+        indices: list[int],
+        scope: ConditionScope,
+        transform: Callable[[Any, np.ndarray], None],
+    ) -> None:
+        """Apply a provider-supplied in-place array transform to the resolved selection, with undo."""
+        selected = self.resolve_indices(indices, scope)
+        self.snapshot()
+        try:
+            transform(self.array, selected)
             self._mark_changed()
         except Exception:
             self.array = self._undo.pop()

@@ -8,12 +8,12 @@ import logging
 
 import numpy as np
 from atomworks.io.utils.atom_array_plus import AtomArrayPlus
-from atomworks.io.utils.structure_mutations import set_formal_charge
-from atomworks.pymol_plugin.bridge import reload_structure_in_pymol, selection_to_indices
-from atomworks.pymol_plugin.state import PluginState
+from atomworks_studio_editing.structure_mutations import set_formal_charge
+from atomworks_studio_pymol.bridge import reload_structure_in_pymol, selection_to_indices
+from atomworks_studio_pymol.state import PluginState
 from pymol.Qt import QtWidgets
 
-logger = logging.getLogger("atomworks.pymol_plugin")
+logger = logging.getLogger("atomworks_studio_pymol")
 
 
 def _read_charges(arr: AtomArrayPlus) -> np.ndarray:

@@ -13,8 +13,16 @@ dependencies = [
     "numpy>=1.26,<3",
 ]
 
+# The RFD4 PyMOL condition editors (atomworks_studio_rfd4.pymol) are an optional extra:
+# they need the model-neutral plugin plus the full rfproteina runtime (GPU/Brev only).
+[project.optional-dependencies]
+pymol = [
+    "atomworks-studio-pymol>=0.1.0,<0.2",
+]
+
 [tool.uv.sources]
 atomworks-annotation-studio = { workspace = true }
+atomworks-studio-pymol = { workspace = true }
 
 [project.entry-points."atomworks_studio.providers"]
 rfd4 = "atomworks_studio_rfd4"

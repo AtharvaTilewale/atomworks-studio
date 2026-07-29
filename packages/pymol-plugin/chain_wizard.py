@@ -10,15 +10,15 @@ import logging
 
 import numpy as np
 from atomworks.io.utils.chain import create_chain_id_generator
-from atomworks.io.utils.structure_mutations import assign_chain_id
-from atomworks.pymol_plugin.bridge import (
+from atomworks_studio_editing.structure_mutations import assign_chain_id
+from atomworks_studio_pymol.bridge import (
     reload_structure_in_pymol,
     selection_to_indices,
 )
-from atomworks.pymol_plugin.state import PluginState
+from atomworks_studio_pymol.state import PluginState
 from pymol.Qt import QtWidgets
 
-logger = logging.getLogger("atomworks.pymol_plugin")
+logger = logging.getLogger("atomworks_studio_pymol")
 
 
 class ChainWizard:

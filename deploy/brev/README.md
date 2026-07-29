@@ -50,8 +50,9 @@ batch script, while direct local/Brev services use
 ## Manual launch
 
 1. Create a Brev GPU environment with enough VRAM for the longest intended
-   input. Clone this Studio repository and RFD4 as separate checkouts on its
-   persistent disk.
+   input. Clone this Studio repository with `git clone --recursive` on its
+   persistent disk; RFD4 comes in as the `external/RFD4-Proteina-dev` submodule
+   (set `RFPROTEINA_ROOT` to override it with a separate checkout).
 2. Run the RFD4 `setup.sh` once and stage the checkpoint under a persistent
    `DATA_PATH`.
 3. Start the service:
@@ -62,7 +63,7 @@ batch script, while direct local/Brev services use
    export BREV_RFD4_STATE_DIR=/home/ubuntu/workspace/rfd4-annotation-studio
    export BREV_RFD4_IMAGE=latent-dev:cuda12
    RFPROTEINA_CUDA_STACK=cuda12 \
-     bash "${RFPROTEINA_ROOT}/scripts/build_latent_dev_docker.sh" "${BREV_RFD4_IMAGE}"
+     bash deploy/lib/build_latent_dev_docker.sh "${RFPROTEINA_ROOT}" "${BREV_RFD4_IMAGE}"
    bash deploy/brev/start.sh
    ```
 

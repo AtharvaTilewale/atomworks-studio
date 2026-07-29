@@ -45,25 +45,35 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
+COPY external/atomworks-dev ./external/atomworks-dev
+COPY packages/editing ./packages/editing
 COPY packages/api ./packages/api
 COPY providers/rfd4 ./providers/rfd4
 COPY --from=web-builder /build/packages/web/dist ./packages/web/dist
+# atomworks (git submodule) and the shared editing package (workspace member) are vendored
+# locally, so install them from the build context in dependency order before the API,
+# instead of resolving atomworks from a git URL. A pip constraints file pins biotite to the
+# version atomworks asserts at import (its dependency bound is looser, `biotite>=1.6.0`), so
+# an unlocked pip install cannot pull a newer biotite than atomworks accepts.
 RUN --mount=type=secret,id=github_token,required=true \
     github_token="$(cat /run/secrets/github_token)" \
     && export GIT_CONFIG_COUNT=1 \
        GIT_CONFIG_KEY_0="url.https://x-access-token:${github_token}@github.com/.insteadOf" \
        GIT_CONFIG_VALUE_0="https://github.com/" \
+    && printf 'biotite==1.6.0\n' > /tmp/pip-constraints.txt \
     && python -m pip install --no-cache-dir \
       --index-url https://download.pytorch.org/whl/cpu \
       torch==2.7.1 \
-    && python -m pip install --no-cache-dir ./packages/api \
+    && python -m pip install --no-cache-dir -c /tmp/pip-constraints.txt "./external/atomworks-dev[ml]" \
+    && python -m pip install --no-cache-dir -c /tmp/pip-constraints.txt ./packages/editing \
+    && python -m pip install --no-cache-dir -c /tmp/pip-constraints.txt ./packages/api \
     && if [ "${ANNOTATION_STUDIO_INSTALL_RFD4_PROVIDER}" = "true" ]; then \
-         python -m pip install --no-cache-dir ./providers/rfd4; \
+         python -m pip install --no-cache-dir -c /tmp/pip-constraints.txt ./providers/rfd4; \
        elif [ "${ANNOTATION_STUDIO_INSTALL_RFD4_PROVIDER}" != "false" ]; then \
          echo "ANNOTATION_STUDIO_INSTALL_RFD4_PROVIDER must be true or false" >&2; \
          exit 2; \
        fi \
-    && rm -rf ./packages ./providers \
+    && rm -rf ./packages ./providers ./external \
     && apt-get purge --yes --auto-remove git \
     && rm -rf /var/lib/apt/lists/*
 

@@ -7,6 +7,12 @@ export interface ConditionControllerOptions {
   mutate: (path: string, body?: unknown) => Promise<void>;
 }
 
+// Conditions whose kind is "operation" are applied through a dedicated endpoint (they are
+// computed from the current structure, not set from a client value). Map each to its route.
+const OPERATION_ENDPOINTS: Record<string, string> = {
+  internal_coordinate: "/internal-coords",
+};
+
 export class ConditionController {
   private readonly conditionSelect = element<HTMLSelectElement>("condition");
   private readonly scopeSelect = element<HTMLSelectElement>("scope");
@@ -34,6 +40,20 @@ export class ConditionController {
       this.updateSelectionUi(this.hasSession);
     });
     this.applyButton.addEventListener("click", () => {
+      const definition = this.currentDefinition();
+      if (definition?.kind === "operation") {
+        const endpoint = OPERATION_ENDPOINTS[this.conditionSelect.value];
+        if (!endpoint) {
+          this.feedback.textContent = "This operation is not available in this build.";
+          return;
+        }
+        this.feedback.textContent = "Applying operation to the selection…";
+        void this.options.mutate(endpoint, {
+          atom_indices: [...this.options.selection.values],
+          scope: this.scopeSelect.value,
+        });
+        return;
+      }
       this.feedback.textContent = this.enabledInput.checked
         ? "Applying condition…"
         : "Removing condition from the selection…";
@@ -51,9 +71,14 @@ export class ConditionController {
     this.hasSession = hasSession;
     const definition = this.currentDefinition();
     const pair = definition?.kind === "pair";
+    const operation = definition?.kind === "operation";
     const count = this.options.selection.size;
     this.applyButton.disabled = !hasSession || !definition || (pair ? count !== 2 : count === 0);
-    this.applyButton.textContent = this.enabledInput.checked ? "Apply to selection" : "Remove from selection";
+    this.applyButton.textContent = operation
+      ? "Apply to selection"
+      : this.enabledInput.checked
+        ? "Apply to selection"
+        : "Remove from selection";
     this.feedback.textContent = !hasSession
       ? "Open a structure to edit conditions."
       : !definition
@@ -73,6 +98,9 @@ export class ConditionController {
     this.scopeSelect.value =
       definition.level === "chain" ? "chain" : definition.level === "atom" ? "atom" : "residue";
     this.scopeSelect.disabled = definition.kind === "pair";
+    // Operations are one-directional transforms; the enabled toggle does not apply to them.
+    this.enabledInput.disabled = definition.kind === "operation";
+    if (definition.kind === "operation") this.enabledInput.checked = true;
     this.renderValue();
     this.updateSelectionUi(this.hasSession);
   }
@@ -80,7 +108,7 @@ export class ConditionController {
   private renderValue(): void {
     const definition = this.currentDefinition();
     this.conditionValue.replaceChildren();
-    if (!definition || definition.kind === "mask") return;
+    if (!definition || definition.kind === "mask" || definition.kind === "operation") return;
 
     const label = document.createElement("label");
     label.textContent =
@@ -126,7 +154,8 @@ export class ConditionController {
 
   private selectedValue(): number | number[] | null {
     const definition = this.currentDefinition();
-    if (!definition || !this.enabledInput.checked || definition.kind === "mask") return null;
+    if (!definition || !this.enabledInput.checked || definition.kind === "mask" || definition.kind === "operation")
+      return null;
     if (definition.kind === "vector3") {
       return ["x", "y", "z"].map((axis) =>
         Number(element<HTMLInputElement>(`condition-value-${axis}`).value)

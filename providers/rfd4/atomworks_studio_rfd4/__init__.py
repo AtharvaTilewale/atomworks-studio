@@ -8,18 +8,27 @@ from pathlib import Path
 import numpy as np
 from atomworks.io.utils.atom_array_plus import AtomArrayPlus
 
-# AtomWorks must initialize before RFD4 reads site-specific environment files.
+from atomworks_studio_rfd4._bootstrap import install_lightweight_rfproteina_stub
+
+# The stub below is what lets rfproteina.conditions import without RFD4's torch-heavy
+# package init on main. RFPROTEINA_LIGHTWEIGHT_IMPORT is set only as a harmless fallback
+# for RFD4 revisions that still honor it (main ignores it).
 os.environ.setdefault("RFPROTEINA_LIGHTWEIGHT_IMPORT", "1")
-from annotation_studio.contracts import (
+install_lightweight_rfproteina_stub()
+
+# Imports below intentionally follow the runtime setup above (env + rfproteina stub).
+from annotation_studio.contracts import (  # noqa: E402
     ConditionDefinition,
     ConditionProvider,
     ConditionValue,
     ValidationProvider,
 )
-from annotation_studio.design_jobs import ProcessDesignProvider
-from rfproteina.condition_specs import INTERACTIVE_CONDITION_SPECS
-from rfproteina.conditions import C_IDXGRP
-from rfproteina.interactive_validation import validate_rfd4
+from annotation_studio.design_jobs import ProcessDesignProvider  # noqa: E402
+from rfproteina.conditions import C_IDXGRP  # noqa: E402
+
+from .condition_specs import INTERACTIVE_CONDITION_SPECS  # noqa: E402
+from .interactive_validation import validate_rfd4  # noqa: E402
+from .internal_coords import convert_to_internal_coordinates  # noqa: E402
 
 
 class RFD4ConditionProvider(ConditionProvider):
@@ -71,6 +80,11 @@ class RFD4ValidationProvider(ValidationProvider):
 
 CONDITION_PROVIDER = RFD4ConditionProvider()
 VALIDATION_PROVIDER = RFD4ValidationProvider()
+
+# Named in-place operations the API can apply to a document's array. internal-coordinate
+# conditioning is computed from the current structure (centered + randomly rotated), so it
+# is exposed as an operation rather than a value the client sets directly.
+CONDITION_OPERATIONS = {"internal_coordinate": convert_to_internal_coordinates}
 
 
 def create_design_provider(project_root: Path) -> ProcessDesignProvider:

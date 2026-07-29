@@ -26,6 +26,17 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: pnpm --dir packages/vscode package
+      - name: Publish the extension to the VS Code Marketplace (if VSCE_PAT is set)
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: |
+          if [ -n "${VSCE_PAT:-}" ]; then
+            pnpm --dir packages/vscode exec vsce publish \
+              -p "$VSCE_PAT" \
+              --packagePath "$(ls packages/vscode/*.vsix | head -1)"
+          else
+            echo "VSCE_PAT secret not set; skipping Marketplace publish (GitHub release still includes the .vsix)."
+          fi
       - run: uv build --all-packages
       - run: cargo build --workspace --release --locked
       - run: |

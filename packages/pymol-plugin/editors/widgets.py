@@ -14,18 +14,18 @@ import logging
 import numpy as np
 from atomworks.io.utils.atom_array_plus import AnnotationList2D
 from atomworks.io.utils.standard_annotations.base import StandardAnnotationBase
-from atomworks.pymol_plugin.bridge import (
+from atomworks_studio_pymol.bridge import (
     _pymol_resi_to_res_id_ins_code,
     reload_structure_in_pymol,
     selection_to_indices,
 )
-from atomworks.pymol_plugin.state import PluginState
-from atomworks.pymol_plugin.views import apply_current_view
+from atomworks_studio_pymol.state import PluginState
+from atomworks_studio_pymol.views import apply_current_view
 from pymol import cmd
 from pymol.Qt import QtCore
 from pymol.Qt import QtWidgets as _QtWidgets
 
-logger = logging.getLogger("atomworks.pymol_plugin")
+logger = logging.getLogger("atomworks_studio_pymol")
 
 # ---------------------------------------------------------------------------
 # Base editor
@@ -686,7 +686,7 @@ class PairValueEditor(_QtWidgets.QWidget, BaseAnnotationEditor):
         pairs_arr = np.array(resolved_pairs, dtype=int)
         values_arr = np.array(resolved_values, dtype=float)
         from atomworks.ml.conditions import C_DIS
-        from atomworks.ml.conditions.mutations import replace_distance_restraints
+        from atomworks_studio_editing.mutations import replace_distance_restraints
 
         if self._annotation_cls is C_DIS:
             replace_distance_restraints(arr, pairs_arr, values_arr)

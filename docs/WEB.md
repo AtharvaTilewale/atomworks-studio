@@ -15,14 +15,16 @@ make bootstrap
 make run
 ```
 
-Open one renderer explicitly:
+Open <http://127.0.0.1:8000/>. It uses **Patinae/WebGPU by default**; if the
+browser has no WebGPU support it automatically falls back to Mol*/WebGL. Pin a
+renderer explicitly with a query parameter:
 
 - <http://127.0.0.1:8000/?viewer=patinae> — Patinae using WebGPU
 - <http://127.0.0.1:8000/?viewer=molstar> — Mol* using WebGL
 
-Patinae and Mol* implement the same Studio actions, but they are separate
-renderers and never silently fall back to one another. Use Mol* when WebGPU is
-not available. A renderer choice is retained for later visits.
+Patinae and Mol* implement the same Studio actions. When a renderer is pinned
+explicitly it is never swapped automatically. A renderer choice is retained for
+later visits.
 
 ## Load a structure
 

@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from atomworks.io.utils.atom_array_plus import AtomArrayPlus
 from pymol import cmd
 
-logger = logging.getLogger("atomworks.pymol_plugin")
+logger = logging.getLogger("atomworks_studio_pymol")
 
 
 @dataclass
@@ -48,7 +48,7 @@ class PluginState:
         renumbered into the same ``res_id`` after ``close_res_id_gaps``).
         """
         self.arrays[obj_name] = array
-        from atomworks.pymol_plugin.bridge import build_index_map
+        from atomworks_studio_pymol.bridge import build_index_map
 
         self.index_maps[obj_name] = build_index_map(obj_name)
         self.versions[obj_name] = self.versions.get(obj_name, 0) + 1
@@ -64,7 +64,7 @@ class PluginState:
         ``arrays`` directly: a raw PyMOL coordinate mutation (``translate``,
         dragging, ``alter_state``, etc.) never touches the cache on its own, so
         indexing ``arrays`` directly can silently return a stale pose. Import is
-        lazy to avoid a circular import with :py:mod:`atomworks.pymol_plugin.bridge`
+        lazy to avoid a circular import with :py:mod:`atomworks_studio_pymol.bridge`
         (which imports ``STATE`` from this module).
 
         A raw PyMOL-level structural edit (``remove``, ``alter``, deleting atoms
@@ -84,7 +84,7 @@ class PluginState:
         """
         if obj_name not in self.arrays:
             return None
-        from atomworks.pymol_plugin.bridge import (
+        from atomworks_studio_pymol.bridge import (
             find_pymol_array_divergence,
             refresh_coords_from_pymol,
             reload_structure_in_pymol,

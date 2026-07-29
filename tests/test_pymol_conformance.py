@@ -1,27 +1,30 @@
 # ruff: noqa: I001
 """Cross-check browser mutations against the existing PyMOL bridge."""
 
-import os
 from pathlib import Path
 
 import numpy as np
 import pytest
 
-os.environ.setdefault("RFPROTEINA_LIGHTWEIGHT_IMPORT", "1")
 pymol = pytest.importorskip("pymol", reason="PyMOL is not installed")
+# This cross-check drives the real RFD4 PyMOL editors, which import the full RFD4 runtime
+# (the rfproteina package init + datapipes pull environs, torch, and rootutils). Skip the
+# whole module unless that runtime is installed -- e.g. in a CPU-only Studio environment.
+pytest.importorskip("environs", reason="full RFD4 runtime not installed")
+pytest.importorskip("rootutils", reason="full RFD4 runtime not installed")
 pymol.finish_launching(["pymol", "-qck"])
 
 from pymol import cmd  # noqa: E402
 
 from atomworks.io.config import ParseConfig  # noqa: E402
-from atomworks.pymol_plugin.bridge import load_structure, selection_to_indices  # noqa: E402
-from atomworks.pymol_plugin.editors import editor_for  # noqa: E402
-from atomworks.pymol_plugin.editors.widgets import PairValueEditor  # noqa: E402
-from atomworks.pymol_plugin.state import STATE  # noqa: E402
+from atomworks_studio_pymol.bridge import load_structure, selection_to_indices  # noqa: E402
+from atomworks_studio_pymol.editors import editor_for  # noqa: E402
+from atomworks_studio_pymol.editors.widgets import PairValueEditor  # noqa: E402
+from atomworks_studio_pymol.state import STATE  # noqa: E402
 from atomworks.ml.conditions import C_DIS  # noqa: E402
 from rfproteina.conditions import C_HOT, C_RAS  # noqa: E402
-from rfproteina.condition_specs import INTERACTIVE_CONDITION_SPECS  # noqa: E402
-from rfproteina.pymol.editors import _run_pipeline_validation  # noqa: E402
+from atomworks_studio_rfd4.condition_specs import INTERACTIVE_CONDITION_SPECS  # noqa: E402
+from atomworks_studio_rfd4.pymol.editors import _run_pipeline_validation  # noqa: E402
 
 from annotation_studio.core import StudioDocument  # noqa: E402
 from annotation_studio.rfd4_provider import CONDITION_PROVIDER, VALIDATION_PROVIDER  # noqa: E402
@@ -140,7 +143,7 @@ def test_every_shared_condition_roundtrips_into_pymol(tmp_path: Path) -> None:
 
 
 def test_distance_condition_uses_existing_pair_editor() -> None:
-    from rfproteina.pymol import condition_registry
+    from atomworks_studio_rfd4.pymol import condition_registry
 
     condition_registry.apply()
 

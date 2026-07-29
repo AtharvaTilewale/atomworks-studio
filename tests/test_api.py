@@ -163,6 +163,47 @@ def test_full_condition_api_and_download_roundtrip() -> None:
     assert counts["distance"] == 1
 
 
+def test_internal_coordinate_operation_clears_absolute_coords() -> None:
+    session_id = _session()
+    # Absolute coordinate conditioning on the first residue, then convert it to internal coords.
+    assert (
+        client.post(
+            f"/api/sessions/{session_id}/conditions",
+            json={"condition": "coordinate", "atom_indices": [0], "scope": "residue"},
+        ).status_code
+        == 200
+    )
+    response = client.post(
+        f"/api/sessions/{session_id}/internal-coords",
+        json={"atom_indices": [0], "scope": "residue"},
+    )
+    assert response.status_code == 200, response.text
+    counts = response.json()["structure"]["condition_counts"]
+    # The operation turns absolute coordinate conditioning into internal-coordinate conditioning.
+    assert counts.get("internal_coordinate", 0) > 0
+    assert "coordinate" not in counts
+
+    download = client.get(f"/api/sessions/{session_id}/cif")
+    assert download.status_code == 200
+    # The centered/rotated internal coordinates (not just the mask) must serialize so the model
+    # actually receives them; they are written as a dedicated sparse category with xyz columns.
+    assert "_condition_InternalCoordinate_1_atom.val0" in download.text
+
+    reupload = client.post(
+        "/api/sessions",
+        files={"file": ("intcrd.cif", download.content, "chemical/x-mmcif")},
+    )
+    assert reupload.status_code == 200, reupload.text
+    assert reupload.json()["structure"]["condition_counts"].get("internal_coordinate", 0) > 0
+
+
+def test_internal_coordinate_endpoint_rejects_empty_selection() -> None:
+    session_id = _session()
+    assert (
+        client.post(f"/api/sessions/{session_id}/internal-coords", json={"atom_indices": []}).status_code == 422
+    )
+
+
 def test_upload_defenses_and_unknown_session() -> None:
     wrong_type = client.post(
         "/api/sessions",

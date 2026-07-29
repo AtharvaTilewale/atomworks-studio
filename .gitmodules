@@ -1,0 +1,6 @@
+[submodule "external/RFD4-Proteina-dev"]
+	path = external/RFD4-Proteina-dev
+	url = https://github.com/baker-laboratory/RFD4-Proteina-dev.git
+[submodule "external/atomworks-dev"]
+	path = external/atomworks-dev
+	url = https://github.com/baker-laboratory/atomworks-dev.git

@@ -34,6 +34,7 @@ still requires the cited automated check to pass.
 | Interaction visualization | renderer overlays with distance-only midpoint labels | viewer-contract + screenshot smoke | Implemented |
 | Distance / angle / dihedral | cardinality-checked renderer measurements | unit + dual-renderer smoke | Implemented |
 | Distance restraints | AtomWorks condition mutation routes and editor | API + browser smoke | Implemented |
+| Internal-coordinate conditioning | shared torch-light `convert_to_internal_coordinates` op; web `/internal-coords` route + PyMOL editor | API test + PyMOL conformance | Implemented |
 | Submit / poll / cancel design | optional RFD4 process provider with persisted job records | fake-provider + Brev acceptance | Implemented |
 | Metrics and progress | requested metrics, ranges, phase, elapsed time, logs | fake-provider + Brev acceptance | Implemented |
 | Cycle / align / compare designs | simultaneous input/output objects, colors, toggles, renderer replay | dual-renderer browser smoke | Implemented |

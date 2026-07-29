@@ -21,6 +21,17 @@ def main() -> None:
     dependencies = api["project"]["dependencies"]
     assert any(item.startswith("atomworks") for item in dependencies)
     assert all("../../../" not in item for item in dependencies)
+
+    # atomworks and RFD4 are git submodules pinned by commit in dependencies.toml; every
+    # submodule must declare a 40-hex revision under external/ so the pin is reproducible.
+    manifest = tomllib.loads((ROOT / "dependencies.toml").read_text())
+    revisions = {}
+    for name in ("atomworks", "rfd4"):
+        entry = manifest[name]
+        assert re.fullmatch(r"[0-9a-f]{40}", entry["revision"]), f"{name} revision must be a 40-hex commit"
+        assert entry["submodule"].startswith("external/"), f"{name} must be an external/ submodule"
+        revisions[f"{name}_revision"] = entry["revision"]
+
     print(
         json.dumps(
             {
@@ -28,6 +39,7 @@ def main() -> None:
                 "molstar": web["dependencies"]["molstar"],
                 "patinae_revision": patinae["revision"],
                 "patinae_patches": len(patches),
+                **revisions,
             },
             sort_keys=True,
         )
