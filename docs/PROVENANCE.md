@@ -36,6 +36,12 @@ PRs noted below. Re-verify parity when bumping the submodules.
   and `providers/rfd4/atomworks_studio_rfd4/pymol/` — from RFD4 commit `0e9050ca`
   (`rfproteina.condition_specs`, `rfproteina.interactive_validation`, `rfproteina.pymol`);
   the RFD4 PyMOL editors align with RFD4-Proteina-dev PR #107.
+- `providers/rfd4/atomworks_studio_rfd4/internal_coords.py` — lightweight
+  Studio-operation adapter for
+  `rfproteina.transforms.utils.conditioning_utils.convert_to_internal_coords`.
+  The adapter is retained because importing that upstream module pulls the
+  RFD4 training stack (`lightning_fabric`) into the CPU editor. Its behavioral
+  invariants are checked by `tests/test_rfd4_internal_coords.py`.
 - `deploy/lib/{inference_runtime.sh,build_latent_dev_docker.sh}` — RFD4 deploy helpers
   vendored so Studio's launchers do not depend on scripts inside the RFD4 checkout.
 

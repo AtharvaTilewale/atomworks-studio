@@ -64,6 +64,18 @@ installed from the checked-out Studio workspace. The plugin does not import
 `atomworks.pymol_plugin` or `rfproteina.pymol`; its package namespace is
 `atomworks_studio_pymol`.
 
+### Local runtime boundary
+
+The PyMOL plugin runs entirely inside the Python process that runs PyMOL.
+`AtomArrayPlus` is the in-memory source of truth, and annotated CIF files are
+read and written directly on the local filesystem. The plugin does **not**
+require the Studio website, Node.js, Uvicorn, `packages/api`, a browser, or a
+running Studio service. You do not need to run `make run` to use it.
+
+The website is only another compatible interface for files saved by the
+plugin. RFD4-specific editors are also optional and separately installed; the
+base plugin can load, edit, annotate, and save CIFs without RFD4.
+
 `CCD_MIRROR_PATH` and `PDB_MIRROR_PATH` are **optional**: they are only needed for
 features that resolve chemical components or fetch PDB entries (for example **Infer
 Bonds from CCD**). AtomWorks prints a one-time warning about them at import; it is

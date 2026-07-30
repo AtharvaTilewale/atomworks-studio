@@ -1,10 +1,12 @@
-"""Internal-coordinate conditioning as a lightweight Studio operation.
+"""Lightweight adapter for RFD4 internal-coordinate conditioning.
 
-Reimplements ``rfproteina.transforms.utils.conditioning_utils.convert_to_internal_coords``
-WITHOUT importing that module, whose import chain pulls the full RFD4 training runtime
-(lightning / rootutils). The logic here is numpy plus atomworks' ``random_rigid_augmentation``
--- both importable in the CPU editor -- so internal-coordinate conditioning works in the web
-API just like any other document operation, no GPU/model runtime required.
+This intentionally mirrors
+``rfproteina.transforms.utils.conditioning_utils.convert_to_internal_coords``
+without importing that module. Its import chain pulls the RFD4 training runtime
+(``lightning_fabric`` and related packages), which is not part of the CPU editor.
+The adapter also exposes Studio's in-place ``(array, atom_indices)`` operation
+contract. Keep its invariants aligned with the pinned upstream implementation;
+``tests/test_rfd4_internal_coords.py`` guards the shared behavior.
 """
 
 from __future__ import annotations
@@ -22,12 +24,12 @@ from rfproteina.conditions import C_CRDGRP, C_INTCRD
 def convert_to_internal_coordinates(array: AtomArrayPlus, atom_indices: Sequence[int]) -> None:
     """Move the selected atoms from absolute to internal-coordinate conditioning, in place.
 
-    Mirrors rfproteina's ``convert_to_internal_coords``: clears the absolute-coord mask
-    (``C_CRD``) on the selection, assigns it a fresh coordinate group (``C_CRDGRP``), and
-    stores its centered + randomly rotated ground-truth coordinates as the internal-coord
-    annotation (``C_INTCRD``). Atoms with non-finite coordinates are skipped. The random
-    rotation only strips the absolute frame -- internal geometry (which the model conditions
-    on) is rotation-invariant -- so this matches the model's expectation exactly.
+    Clears the absolute-coordinate mask (``C_CRD``) on the selection, assigns
+    it a fresh coordinate group (``C_CRDGRP``), and stores its centered and
+    randomly rotated ground-truth coordinates as the internal-coordinate
+    annotation (``C_INTCRD``). Atoms with non-finite coordinates are skipped.
+    The random rotation strips the absolute frame while preserving internal
+    geometry.
     """
     mask = np.zeros(len(array), dtype=bool)
     mask[list(atom_indices)] = True

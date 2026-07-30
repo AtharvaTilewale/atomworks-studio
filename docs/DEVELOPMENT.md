@@ -38,9 +38,11 @@ authentication first if the submodule repositories are private to your account.
 - `deploy` — container, Kubernetes, local GPU, and Brev assets
 - `tests` — API, provider, conformance, and cross-interface tests
 
-The FastAPI service owns document truth. Browser and desktop clients use the
-same API rather than maintaining separate copies of editor state. See
-[Architecture](ARCHITECTURE.md) for the runtime boundaries.
+The FastAPI service owns document truth for the browser, PWA, VS Code/Cursor,
+and Patinae clients. The PyMOL plugin is a separate, fully local runtime:
+`AtomArrayPlus` owns its in-process document state, and no website or API
+service is required. See [Architecture](ARCHITECTURE.md) for the runtime
+boundaries.
 
 ## Bootstrap and daily loop
 

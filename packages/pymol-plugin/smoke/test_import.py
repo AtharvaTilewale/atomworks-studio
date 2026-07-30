@@ -6,6 +6,7 @@ from pathlib import Path
 
 import atomworks_studio_pymol as plugin
 import pytest
+from packaging.requirements import Requirement
 
 
 def test_plugin_entry_point_is_importable() -> None:
@@ -75,3 +76,10 @@ def test_distribution_contains_only_the_standalone_namespace() -> None:
     files = [str(path) for path in installed.files or ()]
     assert not any(path.startswith("atomworks/pymol_plugin/") for path in files)
     assert not any(path.startswith("rfproteina/pymol/") for path in files)
+
+
+def test_distribution_has_no_studio_service_dependency() -> None:
+    installed = distribution("atomworks-studio-pymol")
+    dependency_names = {Requirement(requirement).name for requirement in installed.requires or ()}
+
+    assert "atomworks-studio-api" not in dependency_names

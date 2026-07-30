@@ -10,6 +10,13 @@ that single API. Browser viewer adapters implement the same structure,
 selection, representation, camera, measurement, interaction, object, and
 teardown contract. They do not own document truth.
 
+The PyMOL plugin is deliberately outside that client/server boundary. It runs
+locally in PyMOL, keeps its authoritative `AtomArrayPlus` in process, and reads
+and writes annotated CIF files directly. It depends on AtomWorks and
+`atomworks-studio-editing`, not on the FastAPI or web packages. Interoperability
+with the website and RFD4 happens through the saved CIF format, not through a
+running Studio service.
+
 Mutable session state is process-local and bounded. Production deployment must
 run one API worker until a transactional shared store and distributed locking
 are implemented. GPU work is a provider subprocess; the CPU editor remains

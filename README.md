@@ -49,7 +49,9 @@ interactions, and download the same annotated CIF.
 
 Author annotated CIFs inside PyMOL with native panels for conditions, bonds,
 charges, chains, and expandable segments. AtomWorks remains the authoritative
-document model, so saved files round-trip into the website and RFD4.
+in-process document model, so saved files round-trip into the website and RFD4.
+The plugin is a fully local application: it does not start, connect to, or
+depend on the Studio website or FastAPI service.
 
 [Install and use the PyMOL plugin →](packages/pymol-plugin/README.md)
 
