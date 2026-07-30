@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.12,<=3.12.10"
 license = "LicenseRef-NVIDIA-Source-Code-License"
 dependencies = [
-    "atomworks[ml]",
+    "atomworks[ml]>=2.1.1,<3",
     "atomworks-studio-editing>=0.1.0,<0.2",
     # NOTE: Conda PyMOL (3.x) needs numpy<2 / scipy<1.17, but the PyPI `pymol-open-source`
     # wheel used for pip-only CI (see the `pymol-pip` extra) requires numpy>=2 -- the two
@@ -35,7 +35,7 @@ pymol-pip = [
 ]
 
 [project.entry-points."pymol.plugins"]
-atomworks = "atomworks_studio_pymol:__init_plugin__"
+atomworks_studio = "atomworks_studio_pymol:__init_plugin__"
 
 [tool.setuptools]
 packages = [

@@ -1,14 +1,15 @@
 """AtomWorks PyMOL plugin entry point.
 
 The standalone distribution publishes :func:`__init_plugin__` through the
-``pymol.plugins`` entry-point group.  The function remains compatible with
-PyMOL's traditional ``run /path/to/atomworks_studio_pymol/__init__.py`` loader.
+``pymol.plugins`` entry-point group. The function remains compatible with
+PyMOL's traditional startup-file loader.
 """
 
 import logging
 from importlib.util import find_spec
 
 logger = logging.getLogger("atomworks_studio_pymol")
+_INITIALIZED = False
 
 
 def __init_plugin__(app: object | None = None) -> None:
@@ -20,11 +21,23 @@ def __init_plugin__(app: object | None = None) -> None:
     Args:
         app: PyMOL application object (passed by PyMOL; may be None).
     """
+    global _INITIALIZED
+    if _INITIALIZED:
+        return
+
     if find_spec("atomworks") is None:
         _register_unavailable_menu()
         return
 
-    _register_plugin(app)
+    # Newer PyMOL builds may discover the package entry point and also source a
+    # legacy ~/.pymolrc. Mark the process initialized before registering hooks
+    # so the two loaders cannot duplicate extension callbacks or menu entries.
+    _INITIALIZED = True
+    try:
+        _register_plugin(app)
+    except Exception:
+        _INITIALIZED = False
+        raise
 
 
 def _register_unavailable_menu() -> None:
@@ -36,7 +49,7 @@ def _register_unavailable_menu() -> None:
     except Exception:
         print(
             "AtomWorks plugin: atomworks is not installed in this Python environment.\n"
-            "Reinstall with: python -m pip install atomworks-pymol-plugin"
+            "Reinstall with: python -m pip install atomworks-studio-pymol"
         )
 
 
@@ -49,13 +62,13 @@ def _show_install_error() -> None:
             None,
             "AtomWorks Not Installed",
             "atomworks is not installed in this Python environment.\n\n"
-            "Reinstall it with:\n    python -m pip install atomworks-pymol-plugin\n\n"
+            "Reinstall it with:\n    python -m pip install atomworks-studio-pymol\n\n"
             "Ensure you install in the same conda/venv where PyMOL is running.",
         )
     except Exception:
         print(
             "AtomWorks is not installed.\n"
-            "Run: python -m pip install atomworks-pymol-plugin "
+            "Run: python -m pip install atomworks-studio-pymol "
             "(in the environment where PyMOL runs)"
         )
 
@@ -105,6 +118,10 @@ def _register_plugin(app: object | None) -> None:
     print("AtomWorks plugin loaded. Use Plugin → AtomWorks or type aw_load in the console.")
 
 
-# When loaded via `run __init__.py` in ~/.pymolrc, PyMOL executes this file
+# When executed by PyMOL's traditional startup-file loader, initialize directly.
 if __name__ != "atomworks_studio_pymol":
-    __init_plugin__()
+    # Delegate to the canonical imported module so its idempotence guard is
+    # shared with entry-point discovery in the same PyMOL process.
+    from atomworks_studio_pymol import __init_plugin__ as _initialize_plugin
+
+    _initialize_plugin()

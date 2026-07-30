@@ -35,7 +35,7 @@ Two ways in:
 
 ---
 
-## Three interfaces, one document
+## Four interfaces, one document
 
 ### Website and PWA
 
@@ -69,6 +69,14 @@ then `code --install-extension atomworks-annotation-studio.vsix --force` and
 point it at a running Studio server.
 
 [Install and set up the VS Code/Cursor extension →](packages/vscode/README.md)
+
+### Patinae desktop
+
+Open the same Studio service in the Patinae desktop application through the
+thin native launcher. Document state remains in the shared API, just as it does
+for the browser and editor extension.
+
+[Build and install the Patinae launcher →](packages/patinae-plugin/README.md)
 
 ---
 

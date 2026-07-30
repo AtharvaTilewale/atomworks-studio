@@ -45,7 +45,7 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with: { node-version-file: .node-version, cache: pnpm }
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
-        with: { toolchain: 1.97.1, components: rustfmt,clippy }
+        with: { toolchain: 1.97.1, components: "rustfmt,clippy" }
       - run: cargo install wasm-pack --locked --version 0.13.1
       - run: uv sync --all-packages --all-extras --all-groups
       - run: bash scripts/build_patinae_viewer.sh
@@ -82,7 +82,7 @@ jobs:
       - run: bash scripts/build_patinae_viewer.sh
       - run: pnpm install --frozen-lockfile
       - run: cargo test --workspace --locked
-      - run: uv run python scripts/run_pytest.py -q tests packages/pymol-plugin/tests
+      - run: uv run python scripts/run_pytest.py -q tests packages/pymol-plugin/smoke packages/pymol-plugin/tests
       - run: pnpm --dir packages/web test:unit
 
   package:

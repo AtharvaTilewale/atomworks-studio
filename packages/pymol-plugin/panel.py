@@ -182,7 +182,7 @@ def _builtin_annotation_summary(arr: AtomArrayPlus) -> str:
     return "\n".join(lines)
 
 
-# Atomworks ships a default summary for its own conditions; extensions add their own.
+# AtomWorks Studio ships a default summary for its own conditions; extensions add their own.
 register_summary_hook(_builtin_annotation_summary)
 
 
@@ -763,9 +763,8 @@ class MainPanel:
 
         layout.addSpacing(4)
 
-        # Extensions
         extensions_btn = QtWidgets.QPushButton("Extensions...")
-        extensions_btn.setToolTip("Manage AtomWorks PyMOL editor extensions")
+        extensions_btn.setToolTip("Manage AtomWorks Studio PyMOL editor extensions")
         layout.addWidget(extensions_btn)
 
         layout.addStretch()
@@ -1325,34 +1324,22 @@ class AnnotationWizard:
         self._right_stack.setCurrentWidget(editor)
 
 
-# ---------------------------------------------------------------------------
-# Extensions dialog
-# ---------------------------------------------------------------------------
-
-
 class ExtensionsDialog:
-    """Dialog for managing AtomWorks PyMOL editor extensions.
-
-    Displays registered extensions with their import status, and allows
-    adding or removing entries that persist to ``~/.atomworks/pymol_extensions``.
-    Newly added extensions are activated immediately without restarting PyMOL.
-    """
+    """Manage persistent AtomWorks Studio PyMOL editor extensions."""
 
     def __init__(self, parent: QtWidgets.QWidget | None = None):
         self._dialog = QtWidgets.QDialog(parent)
-        self._dialog.setWindowTitle("AtomWorks — Extensions")
+        self._dialog.setWindowTitle("AtomWorks Studio - Extensions")
         self._dialog.setMinimumWidth(480)
         layout = QtWidgets.QVBoxLayout(self._dialog)
 
         layout.addWidget(QtWidgets.QLabel("<b>Registered editor extensions</b>"))
-
         self._list = QtWidgets.QListWidget()
         layout.addWidget(self._list)
 
-        # Add row
         add_row = QtWidgets.QHBoxLayout()
         self._add_edit = QtWidgets.QLineEdit()
-        self._add_edit.setPlaceholderText("e.g. proteinfoundation.pymol.editors")
+        self._add_edit.setPlaceholderText("e.g. atomworks_studio_rfd4.pymol.editors")
         self._btn_add = QtWidgets.QPushButton("Add")
         add_row.addWidget(self._add_edit, stretch=1)
         add_row.addWidget(self._btn_add)
@@ -1372,8 +1359,9 @@ class ExtensionsDialog:
 
         self._btn_add.clicked.connect(self._add)
         self._btn_remove.clicked.connect(self._remove)
-        self._list.itemSelectionChanged.connect(lambda: self._btn_remove.setEnabled(bool(self._list.selectedItems())))
-
+        self._list.itemSelectionChanged.connect(
+            lambda: self._btn_remove.setEnabled(bool(self._list.selectedItems()))
+        )
         self._refresh()
 
     def show(self) -> None:
@@ -1387,10 +1375,10 @@ class ExtensionsDialog:
         for module in read_extensions():
             try:
                 importlib.import_module(module)
-                label = f"{module}  ✓"
+                label = f"{module}  [available]"
                 color = QtCore.Qt.darkGreen
             except ImportError:
-                label = f"{module}  ✗ not found"
+                label = f"{module}  [not found]"
                 color = QtCore.Qt.red
             item = QtWidgets.QListWidgetItem(label)
             item.setData(QtCore.Qt.UserRole, module)
@@ -1400,26 +1388,25 @@ class ExtensionsDialog:
     def _add(self) -> None:
         module = self._add_edit.text().strip()
         if not module:
+            self._status.setText("Enter a Python module path.")
             return
 
         try:
-            mod = importlib.import_module(module)
-        except ImportError as e:
-            self._status.setText(f"Cannot import '{module}': {e}")
+            extension = importlib.import_module(module)
+        except ImportError as error:
+            self._status.setText(f"Cannot import '{module}': {error}")
             return
 
-        if not callable(getattr(mod, "register", None)):
+        if not callable(getattr(extension, "register", None)):
             self._status.setText(f"'{module}' has no register() function.")
             return
 
-        added = add_extension(module)
-        if added:
-            # Apply immediately so the wizard reflects the new editors right away
+        if add_extension(module):
             try:
-                mod.register()
+                extension.register()
                 self._status.setText(f"Registered and activated '{module}'.")
-            except Exception as e:
-                self._status.setText(f"Registered '{module}' but register() raised: {e}")
+            except Exception as error:
+                self._status.setText(f"Registered '{module}' but register() raised: {error}")
             panel = get_main_panel()
             if panel is not None:
                 panel.refresh_views()

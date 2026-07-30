@@ -9,9 +9,8 @@ each is summarized all live in :py:mod:`atomworks_studio_rfd4.pymol.condition_re
 -- this module just wires that registry up alongside views and the pre-save
 validation hook.
 
-Register with::
-
-    atomworks pymol add atomworks_studio_rfd4.pymol.editors
+Register ``atomworks_studio_rfd4.pymol.editors`` from the base plugin's
+``Extensions...`` dialog.
 """
 
 import numpy as np

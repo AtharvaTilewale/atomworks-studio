@@ -38,6 +38,7 @@ def main() -> None:
             raise SystemExit(f"{label} version {manifest.get('version')!r} does not match VERSION {version!r}")
     python_manifests = {
         "Python API": STUDIO_ROOT / "packages" / "api" / "pyproject.toml",
+        "Editing core": STUDIO_ROOT / "packages" / "editing" / "pyproject.toml",
         "RFD4 provider": STUDIO_ROOT / "providers" / "rfd4" / "pyproject.toml",
         "PyMOL plugin": STUDIO_ROOT / "packages" / "pymol-plugin" / "pyproject.toml",
     }

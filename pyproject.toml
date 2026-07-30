@@ -30,7 +30,7 @@ select = ["B", "E", "F", "I", "N", "RUF", "UP"]
 "providers/rfd4/atomworks_studio_rfd4/pymol/**/*.py" = ["BLE001", "N802", "N807", "N999"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests", "packages/pymol-plugin/tests"]
+testpaths = ["tests", "packages/pymol-plugin/smoke", "packages/pymol-plugin/tests"]
 
 [dependency-groups]
 dev = [

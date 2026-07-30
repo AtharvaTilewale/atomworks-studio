@@ -17,14 +17,23 @@ def main() -> None:
     assert re.fullmatch(r"[0-9a-f]{40}", patinae["revision"])
     patches = sorted((ROOT / "vendor/patinae/patches").glob("*.patch"))
     assert patches, "Patinae patch series is empty"
-    api = tomllib.loads((ROOT / "packages/api/pyproject.toml").read_text())
-    dependencies = api["project"]["dependencies"]
-    assert any(item.startswith("atomworks") for item in dependencies)
-    assert all("../../../" not in item for item in dependencies)
 
     # atomworks and RFD4 are git submodules pinned by commit in dependencies.toml; every
     # submodule must declare a 40-hex revision under external/ so the pin is reproducible.
     manifest = tomllib.loads((ROOT / "dependencies.toml").read_text())
+    atomworks_requirement = f"atomworks[ml]>={manifest['atomworks']['version']},<3"
+    dependency_manifests = (
+        ROOT / "packages/api/pyproject.toml",
+        ROOT / "packages/editing/pyproject.toml",
+        ROOT / "packages/pymol-plugin/pyproject.toml",
+    )
+    for path in dependency_manifests:
+        dependencies = tomllib.loads(path.read_text())["project"]["dependencies"]
+        assert atomworks_requirement in dependencies, (
+            f"{path.relative_to(ROOT)} must require the reviewed AtomWorks major range"
+        )
+        assert all("../../../" not in item for item in dependencies)
+
     revisions = {}
     for name in ("atomworks", "rfd4"):
         entry = manifest[name]
@@ -35,7 +44,7 @@ def main() -> None:
     print(
         json.dumps(
             {
-                "atomworks": next(item for item in dependencies if item.startswith("atomworks")),
+                "atomworks": atomworks_requirement,
                 "molstar": web["dependencies"]["molstar"],
                 "patinae_revision": patinae["revision"],
                 "patinae_patches": len(patches),

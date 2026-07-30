@@ -25,6 +25,7 @@ cargo test --manifest-path "${root}/packages/patinae-plugin/Cargo.toml" --locked
 cargo build --manifest-path "${root}/packages/patinae-plugin/Cargo.toml" --release --locked
 
 uv run --project "${root}" --all-extras python "${root}/scripts/run_pytest.py" -q \
+  "${root}/packages/pymol-plugin/smoke" \
   "${root}/packages/pymol-plugin/tests" \
   "${root}/tests/test_pymol_conformance.py" \
   | tee "${artifact_dir}/pymol.log"

@@ -41,13 +41,18 @@ This will be streamlined in a future version with native support for more PyMOL 
 
 ## Setup
 
-PyMOL open-source is not reliably pip-installable. Create the supplied conda
-environment, then install this package into that same environment:
+PyMOL and the plugin must use the same Python environment. From the Studio
+repository root, initialize the pinned AtomWorks dependency, create the supplied
+Conda environment, and install each local workspace package explicitly:
 
 ```bash
-conda env create -f pymol_env.yaml
+git submodule update --init external/atomworks-dev
+conda env create -f packages/pymol-plugin/pymol_env.yaml
 conda activate atomworks
-python -m pip install .
+python -m pip install \
+  -e external/atomworks-dev \
+  -e packages/editing \
+  -e packages/pymol-plugin
 ```
 
 Contributors should use the editable install and test workflow in the
@@ -55,7 +60,9 @@ Contributors should use the editable install and test workflow in the
 
 The plugin depends on `atomworks[ml]` (structure/CIF IO and model conditions) and
 `atomworks-studio-editing` (the shared annotated-CIF editing primitives), both
-resolved from the Studio workspace.
+installed from the checked-out Studio workspace. The plugin does not import
+`atomworks.pymol_plugin` or `rfproteina.pymol`; its package namespace is
+`atomworks_studio_pymol`.
 
 `CCD_MIRROR_PATH` and `PDB_MIRROR_PATH` are **optional**: they are only needed for
 features that resolve chemical components or fetch PDB entries (for example **Infer
@@ -73,13 +80,43 @@ pymol
 ```
 
 Conda PyMOL 3.1 does not discover Python package entry points, so the `~/.pymolrc`
-fallback below is **required** there (as it is for any older PyMOL build that does
-not auto-load entry points). Add it using the installed file path reported by
-`python -c "import atomworks_studio_pymol as p; print(p.__file__)"`:
+fallback below is **required** there. Use a package import rather than `run` with
+an absolute file path; that prevents a Homebrew PyMOL process from executing a
+file installed in an unrelated Conda environment.
 
 ```text
-run /path/to/site-packages/atomworks_studio_pymol/__init__.py
+python
+from importlib.util import find_spec
+if find_spec("atomworks_studio_pymol") is not None:
+    from atomworks_studio_pymol import __init_plugin__
+    __init_plugin__()
+python end
 ```
+
+This is the complete minimal `~/.pymolrc`. The guard lets another PyMOL
+installation share the file without trying to cross-load the Conda package.
+Launch the plugin-capable copy with `conda activate atomworks && pymol`, and
+verify it with:
+
+```bash
+python -c "import sys, pymol, atomworks_studio_pymol; print(sys.executable); print(pymol.__file__); print(atomworks_studio_pymol.__file__)"
+```
+
+### RFD4-specific editors
+
+The base plugin is model-neutral. RFD4-specific PyMOL editors are owned by the
+Studio provider package at `atomworks_studio_rfd4.pymol`, not by RFD4 itself.
+After installing the full RFD4 runtime into the same environment, install the
+Studio provider and register its editor module from **Main -> Extensions...**:
+
+```bash
+python -m pip install -e packages/api -e "providers/rfd4[pymol]"
+```
+
+Use the module path `atomworks_studio_rfd4.pymol.editors`. Registered extensions
+persist in `~/.atomworks-studio/pymol_extensions`. The plugin automatically
+migrates the former `~/.atomworks/pymol_extensions` file and replaces the
+legacy `rfproteina.pymol.editors` module path.
 
 ### Open the Panel
 
@@ -89,20 +126,6 @@ Start PyMOL with the conda environment active, then open the panel via:
 - **Console**: `aw_load` (also loads a file directly)
 
 The panel has three tabs: **Main**, **Annotations**, and **Bonds**.
-
----
-
-## Extensions: Loading Model-Specific Editors
-
-Different models define their own condition types and ship their own annotation editors as extensions. Extensions are registered separately from AtomWorks core and persist across PyMOL sessions.
-
-**The `proteinfoundation` extension** registers editors for conditions used by the protein foundation model family (sequence, coordinate, distance, hydrogen bond conditioning, etc.). Without it, the Annotations tab only shows base AtomWorks annotations.
-
-Install model-specific extension packages into the same environment as PyMOL.
-Extensions are managed from **Main tab → Extensions...** and persist in
-`~/.atomworks/pymol_extensions`.
-
-Any model package can ship an extension by exposing a `register()` function in the target module. This is how new models add their conditions to the plugin without requiring changes to AtomWorks itself.
 
 ---
 
@@ -179,7 +202,8 @@ When inserting an expandable segment, you specify:
 
 The **Annotations** tab is where design intent is specified. Each annotation corresponds to a condition that the model reads from the CIF. Select an annotation type from the list on the left; the editor for that annotation appears on the right. Changes are written immediately to the ground truth array and saved into the CIF when you use Save Active As.
 
-Annotations available depend on which extensions are registered and more may be added in the future.
+The plugin owns its editor registrations. It does not load PyMOL editor code
+from AtomWorks, RFD4, or other model packages.
 
 **To mark residues as unindexed, simply toggle off the Index condition (everything defaults to indexed). That's it!**
 
@@ -222,11 +246,16 @@ All panel operations are also available as `aw_*` console commands for scripting
 
 ## Updating AtomWorks Studio
 
-From this package directory:
+From the repository root:
 
 ```bash
-git pull
-python -m pip install .
+git pull --ff-only
+git submodule update --init
+conda activate atomworks
+python -m pip install \
+  -e external/atomworks-dev \
+  -e packages/editing \
+  -e packages/pymol-plugin
 ```
 
 Then restart PyMOL.

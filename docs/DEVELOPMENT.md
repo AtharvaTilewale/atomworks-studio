@@ -181,15 +181,21 @@ of `cursor` when testing VS Code.
 
 ### PyMOL
 
-Create the supplied environment and install the plugin with its test extras:
+Create the supplied environment from the repository root and install the
+workspace packages into the same Python that runs PyMOL:
 
 ```bash
-cd packages/pymol-plugin
-conda env create -f pymol_env.yaml
+git submodule update --init external/atomworks-dev
+conda env create -f packages/pymol-plugin/pymol_env.yaml
 conda activate atomworks
-python -m pip install -e ".[test]"
+python -m pip install \
+  -e external/atomworks-dev \
+  -e packages/editing \
+  -e "packages/pymol-plugin[test]"
 ```
 
+Conda PyMOL 3.1 needs the minimal guarded `~/.pymolrc` shown in the
+[PyMOL setup guide](../packages/pymol-plugin/README.md#start-pymol).
 Run plugin and cross-interface conformance through `make accept-tools`.
 
 ### Patinae desktop

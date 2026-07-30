@@ -1,14 +1,13 @@
 """PyMOL plugin extension management.
 
 Extensions are Python modules with a ``register()`` function that hook
-custom annotation editors into the AtomWorks PyMOL plugin.
+custom annotation editors into the AtomWorks Studio PyMOL plugin.
 
-The list of active extensions is stored in ``~/.atomworks/pymol_extensions``,
-one module path per line.  Manage via the CLI::
-
-    atomworks pymol add proteinfoundation.pymol.editors
-    atomworks pymol remove proteinfoundation.pymol.editors
-    atomworks pymol list
+The list of active extensions is stored in
+``~/.atomworks-studio/pymol_extensions``, one module path per line. The first
+read migrates the former ``~/.atomworks/pymol_extensions`` file and known
+legacy RFD4 module names. Manage the list from the plugin's ``Extensions...``
+dialog.
 """
 
 import importlib
@@ -17,7 +16,12 @@ from pathlib import Path
 
 logger = logging.getLogger("atomworks_studio_pymol")
 
-_EXTENSIONS_FILE = Path.home() / ".atomworks" / "pymol_extensions"
+_EXTENSIONS_FILE = Path.home() / ".atomworks-studio" / "pymol_extensions"
+_LEGACY_EXTENSIONS_FILE = Path.home() / ".atomworks" / "pymol_extensions"
+_MODULE_ALIASES = {
+    "proteinfoundation.pymol.editors": "atomworks_studio_rfd4.pymol.editors",
+    "rfproteina.pymol.editors": "atomworks_studio_rfd4.pymol.editors",
+}
 
 
 def extensions_file() -> Path:
@@ -25,28 +29,60 @@ def extensions_file() -> Path:
     return _EXTENSIONS_FILE
 
 
-def read_extensions() -> list[str]:
-    """Return the list of registered extension module paths."""
-    if not _EXTENSIONS_FILE.exists():
+def _normalize_module(module: str) -> str:
+    return _MODULE_ALIASES.get(module.strip(), module.strip())
+
+
+def _read_file(path: Path) -> list[str]:
+    if not path.exists():
         return []
-    lines = _EXTENSIONS_FILE.read_text(encoding="utf-8").splitlines()
-    return [ln.strip() for ln in lines if ln.strip() and not ln.strip().startswith("#")]
+
+    modules: list[str] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        module = line.strip()
+        if not module or module.startswith("#"):
+            continue
+        module = _normalize_module(module)
+        if module not in modules:
+            modules.append(module)
+    return modules
+
+
+def _write_file(modules: list[str]) -> None:
+    _EXTENSIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    text = "".join(f"{module}\n" for module in modules)
+    _EXTENSIONS_FILE.write_text(text, encoding="utf-8")
+
+
+def _migrate_legacy_file() -> None:
+    if _EXTENSIONS_FILE.exists() or not _LEGACY_EXTENSIONS_FILE.exists():
+        return
+    _write_file(_read_file(_LEGACY_EXTENSIONS_FILE))
+
+
+def read_extensions() -> list[str]:
+    """Return normalized extension paths, migrating the legacy file if needed."""
+    _migrate_legacy_file()
+    return _read_file(_EXTENSIONS_FILE)
 
 
 def add_extension(module: str) -> bool:
     """Append *module* to the extensions file.
 
     Args:
-        module: Dotted Python module path, e.g. ``proteinfoundation.pymol.editors``.
+        module: Dotted Python module path, e.g.
+            ``atomworks_studio_rfd4.pymol.editors``.
 
     Returns:
         True if added, False if already present.
     """
-    _EXTENSIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    if module in read_extensions():
+    module = _normalize_module(module)
+    if not module:
+        raise ValueError("extension module path must not be empty")
+    modules = read_extensions()
+    if module in modules:
         return False
-    with _EXTENSIONS_FILE.open("a", encoding="utf-8") as f:
-        f.write(f"{module}\n")
+    _write_file([*modules, module])
     return True
 
 
@@ -59,16 +95,11 @@ def remove_extension(module: str) -> bool:
     Returns:
         True if removed, False if it was not present.
     """
-    if not _EXTENSIONS_FILE.exists():
+    module = _normalize_module(module)
+    modules = read_extensions()
+    if module not in modules:
         return False
-    lines = _EXTENSIONS_FILE.read_text(encoding="utf-8").splitlines()
-    new_lines = [ln for ln in lines if ln.strip() != module]
-    if len(new_lines) == len(lines):
-        return False
-    text = "\n".join(new_lines)
-    if text:
-        text += "\n"
-    _EXTENSIONS_FILE.write_text(text, encoding="utf-8")
+    _write_file([registered for registered in modules if registered != module])
     return True
 
 
