@@ -14,9 +14,10 @@ rfd4_root="${RFPROTEINA_ROOT:-${ANNOTATION_STUDIO_RFD4_ROOT:-}}"
   exit 1
 }
 rfd4_root="$(cd "${rfd4_root}" && pwd)"
-rfd4_revision="cb1fc2a4d47bdf59117fb3a4316028f830e3eae5"
-git -C "${rfd4_root}" merge-base --is-ancestor "${rfd4_revision}" HEAD || {
-  echo "RFD4 checkout must contain pinned revision ${rfd4_revision}." >&2
+minimum_rfd4_revision="$(awk -F ' = ' '$1 == "revision" { gsub(/^"|"$/, "", $2); print $2 }' \
+  "${studio_root}/providers/rfd4/UPSTREAM.toml")"
+git -C "${rfd4_root}" merge-base --is-ancestor "${minimum_rfd4_revision}" HEAD || {
+  echo "RFD4 checkout must contain revision ${minimum_rfd4_revision}." >&2
   exit 1
 }
 runtime_helper="${studio_root}/deploy/lib/inference_runtime.sh"
@@ -32,6 +33,8 @@ source "${runtime_helper}"
   exit 1
 }
 : "${DATA_PATH:?Set DATA_PATH to the persistent directory containing RFD4 checkpoints}"
+"${rfd4_root}/.venv/bin/python" "${studio_root}/scripts/check_rfd4_assets.py" \
+  --rfd4-root "${rfd4_root}" --data-path "${DATA_PATH}"
 command -v nvidia-smi >/dev/null 2>&1 || {
   echo "NVIDIA drivers are required for RFD4 generation." >&2
   exit 1

@@ -1,6 +1,25 @@
 # Authenticated Brev pilot status
 
-Last verified: 2026-07-25
+Last full GPU acceptance: 2026-07-25
+
+## Current re-verification
+
+On 2026-08-24, both inference assets selected by the pinned RFD4 config were
+anonymously readable from `rfd4-proteina-public-e04a`: the release denoiser
+(4,169,897,141 bytes) and autoencoder (4,100,184,649 bytes). The verification
+command is:
+
+```bash
+uv run python scripts/check_rfd4_assets.py \
+  --rfd4-root external/RFD4-Proteina-dev --bucket-only
+```
+
+The recorded Secure Link returned HTTP 404 on 2026-08-24, and this workstation
+does not currently have an authenticated Brev CLI. Treat the endpoint and
+instance details below as the last accepted pilot record, not evidence of a
+currently running deployment. Before inviting users, an operator must start or
+recreate the instance and rerun `make accept-brev` plus the clean-Launchable
+cycle.
 
 ## Endpoint and ownership
 
@@ -26,7 +45,7 @@ exposed as a raw TCP/UDP or cloud-firewall port.
 /home/ubuntu/workspace/rfd4-annotation-studio/
 ```
 
-The RFD4 checkout is pinned at
+The accepted RFD4 checkout was pinned at
 `0e9050ca426a74069b99b63ca4a6520b05c2f8c7`. The systemd service is
 `rfd4-annotation-studio.service`, listens on port `8000`, permits one active
 design job, and stores sessions, jobs, generated CIFs, metrics, and compilation
@@ -74,4 +93,3 @@ brev start rfd4-studio-cloud
 
 After every start, verify `/api/health`, `/api/ready`, the authenticated HTTPS
 URL, and one output-open workflow before inviting additional users.
-

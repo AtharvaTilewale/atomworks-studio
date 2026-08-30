@@ -7,8 +7,7 @@ export interface ConditionControllerOptions {
   mutate: (path: string, body?: unknown) => Promise<void>;
 }
 
-// Conditions whose kind is "operation" are applied through a dedicated endpoint (they are
-// computed from the current structure, not set from a client value). Map each to its route.
+// Conditions whose kind is "operation" use a dedicated endpoint for coupled edits.
 const OPERATION_ENDPOINTS: Record<string, string> = {
   internal_coordinate: "/internal-coords",
 };
@@ -51,6 +50,7 @@ export class ConditionController {
         void this.options.mutate(endpoint, {
           atom_indices: [...this.options.selection.values],
           scope: this.scopeSelect.value,
+          enabled: this.enabledInput.checked,
         });
         return;
       }
@@ -71,14 +71,9 @@ export class ConditionController {
     this.hasSession = hasSession;
     const definition = this.currentDefinition();
     const pair = definition?.kind === "pair";
-    const operation = definition?.kind === "operation";
     const count = this.options.selection.size;
     this.applyButton.disabled = !hasSession || !definition || (pair ? count !== 2 : count === 0);
-    this.applyButton.textContent = operation
-      ? "Apply to selection"
-      : this.enabledInput.checked
-        ? "Apply to selection"
-        : "Remove from selection";
+    this.applyButton.textContent = this.enabledInput.checked ? "Apply to selection" : "Remove from selection";
     this.feedback.textContent = !hasSession
       ? "Open a structure to edit conditions."
       : !definition
@@ -98,9 +93,6 @@ export class ConditionController {
     this.scopeSelect.value =
       definition.level === "chain" ? "chain" : definition.level === "atom" ? "atom" : "residue";
     this.scopeSelect.disabled = definition.kind === "pair";
-    // Operations are one-directional transforms; the enabled toggle does not apply to them.
-    this.enabledInput.disabled = definition.kind === "operation";
-    if (definition.kind === "operation") this.enabledInput.checked = true;
     this.renderValue();
     this.updateSelectionUi(this.hasSession);
   }
@@ -124,11 +116,11 @@ export class ConditionController {
         if (value !== definition.default) select.add(new Option(name, String(value)));
       }
       label.appendChild(select);
-    } else if (definition.kind === "integer" || definition.kind === "pair") {
+    } else if (definition.kind === "integer" || definition.kind === "scalar" || definition.kind === "pair") {
       const input = document.createElement("input");
       input.id = "condition-value-input";
       input.type = "number";
-      input.step = definition.kind === "pair" ? "0.1" : "1";
+      input.step = definition.kind === "integer" ? "1" : "0.1";
       if (definition.kind === "pair") input.min = "0.01";
       input.value =
         typeof definition.default === "number"

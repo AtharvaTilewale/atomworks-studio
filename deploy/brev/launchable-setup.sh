@@ -7,22 +7,46 @@ if [[ -n "${RFPROTEINA_ROOT:-}" && -n "${ANNOTATION_STUDIO_RFD4_ROOT:-}" ]] \
   echo "RFPROTEINA_ROOT and ANNOTATION_STUDIO_RFD4_ROOT must identify the same checkout." >&2
   exit 2
 fi
-rfd4_revision="cb1fc2a4d47bdf59117fb3a4316028f830e3eae5"
-rfd4_root="${RFPROTEINA_ROOT:-${ANNOTATION_STUDIO_RFD4_ROOT:-${studio_root}/external/RFD4-Proteina-dev}}"
-if [[ ! -d "${rfd4_root}/.git" ]]; then
-  git clone https://github.com/baker-laboratory/RFD4-Proteina-dev.git "${rfd4_root}"
-  git -C "${rfd4_root}" checkout --detach "${rfd4_revision}"
+minimum_rfd4_revision="$(awk -F ' = ' '$1 == "revision" { gsub(/^"|"$/, "", $2); print $2 }' \
+  "${studio_root}/providers/rfd4/UPSTREAM.toml")"
+bundled_rfd4_root="${studio_root}/external/RFD4-Proteina-dev"
+rfd4_root="${RFPROTEINA_ROOT:-${ANNOTATION_STUDIO_RFD4_ROOT:-${bundled_rfd4_root}}}"
+if [[ ! -e "${rfd4_root}/.git" ]]; then
+  if [[ "${rfd4_root}" == "${bundled_rfd4_root}" ]]; then
+    git -C "${studio_root}" submodule update --init --recursive external/RFD4-Proteina-dev
+  else
+    git clone --recursive https://github.com/baker-laboratory/RFD4-Proteina-dev.git "${rfd4_root}"
+  fi
 fi
 rfd4_root="$(cd "${rfd4_root}" && pwd)"
-git -C "${rfd4_root}" merge-base --is-ancestor "${rfd4_revision}" HEAD || {
-  echo "RFD4 checkout must contain pinned revision ${rfd4_revision}." >&2
+if [[ ! -f "${rfd4_root}/lib/atomworks/pyproject.toml" ]]; then
+  git -C "${rfd4_root}" submodule update --init --recursive
+fi
+git -C "${rfd4_root}" merge-base --is-ancestor "${minimum_rfd4_revision}" HEAD || {
+  echo "RFD4 checkout must contain revision ${minimum_rfd4_revision}." >&2
   exit 1
 }
-[[ -f "${rfd4_root}/setup.sh" ]] || {
-  echo "Not an RFD4 checkout (missing setup.sh): ${rfd4_root}" >&2
-  exit 1
-}
+for required_path in \
+  setup.sh \
+  configs/inference.yaml \
+  scripts/download_example_data.sh \
+  src/rfproteina/generate.py \
+  .ipd/docker/latent-dev.Dockerfile \
+  lib/atomworks/pyproject.toml; do
+  [[ -f "${rfd4_root}/${required_path}" ]] || {
+    echo "RFD4 checkout is missing ${required_path}: ${rfd4_root}" >&2
+    exit 1
+  }
+done
 cd "${studio_root}"
+
+if [[ "${ANNOTATION_STUDIO_SETUP_PREFLIGHT_ONLY:-0}" == "1" ]]; then
+  python3 "${studio_root}/scripts/check_rfd4_assets.py" \
+    --rfd4-root "${rfd4_root}" --bucket-only
+  echo "Brev source contract and public RFD4 assets are ready."
+  exit 0
+fi
+
 : "${DATA_PATH:?Create a DATA_PATH launch parameter pointing at persistent RFD4 checkpoints}"
 
 if ! command -v node >/dev/null 2>&1 || ! node -e '
@@ -47,6 +71,13 @@ command -v uv >/dev/null 2>&1 || curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Reuse the repository's only Python/model setup path; "other" avoids SLURM rc configuration.
 printf '5\n' | bash "${rfd4_root}/setup.sh"
+mkdir -p "${DATA_PATH}"
+if ! "${rfd4_root}/.venv/bin/python" "${studio_root}/scripts/check_rfd4_assets.py" \
+  --rfd4-root "${rfd4_root}" --data-path "${DATA_PATH}"; then
+  bash "${rfd4_root}/scripts/download_example_data.sh" "${DATA_PATH}"
+fi
+"${rfd4_root}/.venv/bin/python" "${studio_root}/scripts/check_rfd4_assets.py" \
+  --rfd4-root "${rfd4_root}" --data-path "${DATA_PATH}" --check-bucket
 bash "${studio_root}/scripts/build_patinae_viewer.sh"
 pnpm --dir "${studio_root}" install --frozen-lockfile
 uv sync --project "${studio_root}" --all-packages --all-extras --all-groups

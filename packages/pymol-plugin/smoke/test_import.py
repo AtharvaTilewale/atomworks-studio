@@ -61,8 +61,7 @@ def test_pymol_entry_point_targets_plugin_initializer() -> None:
     matching = [
         entry_point
         for entry_point in entry_points(group="pymol.plugins")
-        if entry_point.name == "atomworks_studio"
-        and entry_point.value == "atomworks_studio_pymol:__init_plugin__"
+        if entry_point.name == "atomworks_studio" and entry_point.value == "atomworks_studio_pymol:__init_plugin__"
     ]
     assert matching
     assert matching[0].load() is plugin.__init_plugin__

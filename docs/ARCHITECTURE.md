@@ -23,5 +23,21 @@ are implemented. GPU work is a provider subprocess; the CPU editor remains
 usable when no provider is installed.
 
 RFD4 and AF3 use an explicit external checkout selected by
-`ANNOTATION_STUDIO_RFD4_ROOT`. Local and Brev launchers share its inference
-runtime helper, persistent caches, one-job GPU ownership, and daemon socket.
+`ANNOTATION_STUDIO_RFD4_ROOT`. Local and Brev launchers share Studio's vendored
+inference runtime helper, persistent caches, one-job GPU ownership, and daemon
+socket.
+
+## Browser GPU boundary
+
+Patinae's WebGPU device is a renderer, not an inference runtime. A future local
+browser model would be a separate optional design provider with its own model
+manifest, operator implementation, memory qualification, numerical-parity
+suite, cancellation, and output import. It must not make document editing or
+rendering depend on model support.
+
+The current RFD4 runtime is not a candidate for a transparent PyTorch-to-WebGPU
+switch: its two pinned checkpoints alone exceed 8 GB, and its CUDA-oriented
+PyTorch/compiled execution stack has no browser backend. A browser port is a
+separate model-runtime project. Keep remote GPU execution as the production
+path; prototype browser inference only after selecting a smaller model and
+proving full-model parity on representative browser/GPU combinations.

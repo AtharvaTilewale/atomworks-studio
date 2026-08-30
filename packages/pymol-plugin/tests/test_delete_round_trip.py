@@ -101,9 +101,9 @@ def test_delete_preserves_remaining_annotations(loaded_cif: tuple[str, str]) -> 
     # (2) Post-delete invariants hold.
     assert_index_map_unique(new_array)
     assert_pymol_matches_array(obj_name, new_array)
-    assert len(STATE.index_maps[obj_name]) == len(
-        new_array
-    ), "post-delete index map lost atoms — duplicate keys appeared after delete"
+    assert len(STATE.index_maps[obj_name]) == len(new_array), (
+        "post-delete index map lost atoms — duplicate keys appeared after delete"
+    )
 
     # (3) A fresh round-trip selection on the new array still maps correctly.
     actual = sorted(selection_to_indices(f"{obj_name} and chain {chain}", STATE.index_maps[obj_name]))

@@ -32,16 +32,14 @@ PRs noted below. Re-verify parity when bumping the submodules.
 
 - `packages/editing/atomworks_studio_editing/{structure_mutations,mutations,validation,selection}.py`
   — from atomworks commit `8e4b2c39` (before upstream removal).
-- `providers/rfd4/atomworks_studio_rfd4/{condition_specs,interactive_validation}.py`
-  and `providers/rfd4/atomworks_studio_rfd4/pymol/` — from RFD4 commit `0e9050ca`
-  (`rfproteina.condition_specs`, `rfproteina.interactive_validation`, `rfproteina.pymol`);
-  the RFD4 PyMOL editors align with RFD4-Proteina-dev PR #107.
-- `providers/rfd4/atomworks_studio_rfd4/internal_coords.py` — lightweight
-  Studio-operation adapter for
-  `rfproteina.transforms.utils.conditioning_utils.convert_to_internal_coords`.
-  The adapter is retained because importing that upstream module pulls the
-  RFD4 training stack (`lightning_fabric`) into the CPU editor. Its behavioral
-  invariants are checked by `tests/test_rfd4_internal_coords.py`.
+- `providers/rfd4/atomworks_studio_rfd4/interactive_validation.py` and the
+  model-specific PyMOL widgets originated in RFD4 commit `0e9050ca`. Semantic
+  editor metadata is no longer vendored: Studio derives it from each
+  StandardAnnotation's shared editing contract.
+- `providers/rfd4/atomworks_studio_rfd4/internal_coordinate.py` adapts Studio
+  atom indices to RFD4's shared mask/group authoring function. Centering and
+  random rotation live exclusively in RFD4 featurization;
+  `tests/test_rfd4_internal_coords.py` guards that boundary.
 - `deploy/lib/{inference_runtime.sh,build_latent_dev_docker.sh}` — RFD4 deploy helpers
   vendored so Studio's launchers do not depend on scripts inside the RFD4 checkout.
 

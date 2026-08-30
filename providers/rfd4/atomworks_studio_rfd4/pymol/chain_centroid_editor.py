@@ -47,7 +47,7 @@ class ChainCentroidEditor(QtWidgets.QWidget, BaseAnnotationEditor):
 
     def __init__(
         self,
-        annotation_cls: StandardAnnotationBase,
+        annotation_cls: type[StandardAnnotationBase],
         state: PluginState,
         parent: QtWidgets.QWidget | None = None,
     ):
@@ -160,10 +160,10 @@ class ChainCentroidEditor(QtWidgets.QWidget, BaseAnnotationEditor):
         if active is None or chain_id is None:
             return
         _obj_name, arr = active
-        if self._annotation_cls.full_name not in arr.get_annotation_categories():
+        if not self._annotation_cls.has_annotation(arr):
             return
         chain_mask = arr.chain_iid == chain_id
-        annot = self._annotation_cls.annotation(arr, default="generate")
+        annot = self._annotation_cls.annotation(arr, default="raise")
         value = annot[chain_mask][0] if chain_mask.any() else np.full(3, np.nan)
         if np.isfinite(value).all():
             self._spin_x.setValue(float(value[0]))
@@ -234,7 +234,7 @@ class ChainCentroidEditor(QtWidgets.QWidget, BaseAnnotationEditor):
         obj_name, arr = active
 
         cmd.delete(f"{obj_name}_centroid_*")
-        if self._annotation_cls.full_name not in arr.get_annotation_categories():
+        if not self._annotation_cls.has_annotation(arr):
             return
 
         mask = self._annotation_cls.mask(arr, default="generate")
@@ -242,7 +242,7 @@ class ChainCentroidEditor(QtWidgets.QWidget, BaseAnnotationEditor):
             return
 
         _ensure_palette_registered()
-        annot = self._annotation_cls.annotation(arr, default="generate")
+        annot = self._annotation_cls.annotation(arr, default="raise")
         chains = sorted({str(c) for c in np.unique(arr.chain_iid)})
         if len(chains) > len(_PALETTE):
             _warn_too_many_chains_for_distinct_colors(len(chains), len(_PALETTE))

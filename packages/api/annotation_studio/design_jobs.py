@@ -166,9 +166,7 @@ def _validate_resolved_config(config: dict[str, Any]) -> None:
     _bounded_int(config, "num_replicates", 1, 64)
     _bounded_int(config, "batch_size", 1, 32)
     seed = config.get("seed")
-    if seed is not None and (
-        not isinstance(seed, int) or isinstance(seed, bool) or not 0 <= seed <= 2**31 - 1
-    ):
+    if seed is not None and (not isinstance(seed, int) or isinstance(seed, bool) or not 0 <= seed <= 2**31 - 1):
         raise ValueError("seed must be null or a non-negative 32-bit integer")
     generation = config.get("generation")
     if not isinstance(generation, dict) or not isinstance(generation.get("args"), dict):
@@ -195,8 +193,10 @@ def _validate_resolved_config(config: dict[str, Any]) -> None:
                 raise ValueError(f"search.strategy.{key} must be between 1 and 16")
         rewards = search["rewards"]
         reward_tags = rewards.get("reward_metrics_tags", [])
-        if not isinstance(reward_tags, list) or len(reward_tags) > 32 or any(
-            not isinstance(tag, str) or SAFE_NAME.fullmatch(tag) is None for tag in reward_tags
+        if (
+            not isinstance(reward_tags, list)
+            or len(reward_tags) > 32
+            or any(not isinstance(tag, str) or SAFE_NAME.fullmatch(tag) is None for tag in reward_tags)
         ):
             raise ValueError("search reward_metrics_tags must be a list of safe tag names")
         weights = rewards.get("weights")
@@ -630,9 +630,7 @@ class ProcessDesignProvider:
             record = copy.deepcopy(self._jobs[job_id])
         log_path = self.root / job_id / "job.log" if self.root is not None else None
         raw_log = (
-            log_path.read_text(encoding="utf-8", errors="replace")[-4000:]
-            if log_path and log_path.is_file()
-            else ""
+            log_path.read_text(encoding="utf-8", errors="replace")[-4000:] if log_path and log_path.is_file() else ""
         )
         record["log_tail"] = ANSI_ESCAPE.sub("", raw_log)
         record["progress"] = _job_progress(record, log_path, record["log_tail"])

@@ -41,12 +41,14 @@ export PYTHONPATH="$PWD/packages/api:$ANNOTATION_STUDIO_RFD4_ROOT/src"
 uv run python scripts/build_examples.py
 ```
 
-Local generation requires the two checkpoints checked by
-`deploy/local/start.sh`:
+Local generation requires the release denoiser and autoencoder selected by the
+pinned RFD4 `configs/inference.yaml`. Download and verify them without copying
+release-specific filenames into Studio documentation:
 
-```text
-$DATA_PATH/latent_checkpoints/ldm_checkpoints/arch_sweep_2026_07_03_pair_trimult_every2_720k-ema.ckpt
-$DATA_PATH/latent_checkpoints/ae_checkpoints/AE_ucond_512.ckpt
+```bash
+bash "$ANNOTATION_STUDIO_RFD4_ROOT/scripts/download_example_data.sh" "$DATA_PATH"
+uv run python scripts/check_rfd4_assets.py \
+  --rfd4-root "$ANNOTATION_STUDIO_RFD4_ROOT" --check-bucket
 ```
 
 AF3-backed PPI, MCSA, and DISCO refolding metrics additionally require a

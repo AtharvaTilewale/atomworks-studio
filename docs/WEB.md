@@ -93,7 +93,7 @@ viewer commands.
 
 ## Save and round-trip
 
-Choose **Download annotated CIF** to export the authoritative document. Unknown
+Choose **Download CIF** to export the authoritative document. Unknown
 CIF categories are preserved by the lossless WASM inspector, so a document can
 be opened, inspected, edited, and downloaded without reducing it to the subset
 understood by the renderer.

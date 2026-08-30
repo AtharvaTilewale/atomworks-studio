@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build:core": "wasm-pack build ../core --target web --out-dir ../web/src/wasm",
+    "build:core": "wasm-pack build ../core --target web --out-dir ../web/src/wasm -- --locked",
     "dev": "pnpm build:core && vite",
     "build": "pnpm build:core && tsc --noEmit && vite build",
     "preview": "vite preview",

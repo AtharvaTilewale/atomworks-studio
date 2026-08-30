@@ -6,15 +6,33 @@ import numpy as np
 import pytest
 from annotation_studio.core import StudioDocument
 from annotation_studio.rfd4_provider import CONDITION_PROVIDER, VALIDATION_PROVIDER
-from atomworks.ml.conditions import C_DIS
+from atomworks.io.utils.standard_annotations.base import STANDARD_ANNOTATIONS, StandardAnnotationBase
+from atomworks.ml.conditions import C_CHA, C_CRD, C_DIS, C_SEQ
 from atomworks_studio_editing.mutations import edit_distance_restraint
 from atomworks_studio_editing.validation import validate_atom_array
-from atomworks_studio_rfd4.condition_specs import INTERACTIVE_CONDITION_SPECS
+from atomworks_studio_rfd4.condition_contract import editable_condition_classes
+from rfproteina.conditions import C_BP, C_CATH, C_PICATION, C_RAS
 
 FIXTURE = Path(__file__).parent / "fixtures" / "SAM_hbonds.cif"
-CONDITIONS = {
-    definition.key: definition.condition for definition in CONDITION_PROVIDER.definitions
-}
+CONDITIONS = {definition.key: definition.condition for definition in CONDITION_PROVIDER.definitions}
+
+
+def _condition_roundtrip_cases():
+    for definition in CONDITION_PROVIDER.definitions:
+        if definition.kind in {"pair", "operation"}:
+            continue
+        if definition.kind == "enum":
+            value = next(member.value for member in definition.enum_values if member.value != definition.default)
+        elif definition.kind == "integer":
+            value = 7
+        elif definition.kind == "vector3":
+            value = [1.25, -2.5, 3.75]
+        else:
+            value = None
+        scope = (
+            "chain" if definition.level.value == "chain" else "atom" if definition.level.value == "atom" else "residue"
+        )
+        yield pytest.param(definition.key, value, scope, id=definition.key)
 
 
 def _rfd4_document(cif: str, name: str = "structure") -> StudioDocument:
@@ -33,17 +51,7 @@ def document() -> StudioDocument:
 
 @pytest.mark.parametrize(
     ("name", "value", "scope"),
-    [
-        ("sequence", None, "residue"),
-        ("coordinate", None, "atom"),
-        ("index", None, "residue"),
-        ("hotspot", None, "atom"),
-        ("rasa", 3, "atom"),
-        ("hbond", 1, "atom"),
-        ("index_group", 7, "residue"),
-        ("coordinate_group", 2, "atom"),
-        ("chain_centroid", [1.25, -2.5, 3.75], "chain"),
-    ],
+    _condition_roundtrip_cases(),
 )
 def test_every_plugin_condition_survives_cif_roundtrip(
     document: StudioDocument,
@@ -59,10 +67,10 @@ def test_every_plugin_condition_survives_cif_roundtrip(
     actual_mask = condition.mask(reparsed.array, default="generate")
     assert np.array_equal(actual_mask, expected_mask)
 
-    if name not in {"sequence", "coordinate", "index", "hotspot"}:
+    if condition.has_annotation(document.array):
         expected = condition.annotation(document.array, default="generate")
         actual = condition.annotation(reparsed.array, default="generate")
-        assert np.allclose(actual, expected, equal_nan=True)
+        np.testing.assert_equal(actual, expected)
 
 
 def test_export_is_semantically_idempotent(document: StudioDocument) -> None:
@@ -72,6 +80,27 @@ def test_export_is_semantically_idempotent(document: StudioDocument) -> None:
     assert len(first.array) == len(second.array)
     assert np.allclose(first.array.coord, second.array.coord, equal_nan=True)
     assert first.summary()["condition_counts"] == second.summary()["condition_counts"]
+
+
+def test_rfd4_alias_input_is_exported_canonically() -> None:
+    alias_cif = FIXTURE.read_text().replace(f"_atom_site.{C_RAS.full_name}", "_atom_site.C_RAS")
+    document = _rfd4_document(alias_cif)
+
+    assert "C_RAS" not in document.array.get_annotation_categories()
+    assert C_RAS.full_name in document.array.get_annotation_categories()
+    assert f"_atom_site.{C_RAS.full_name}" in document.to_cif()
+
+
+def test_rfd4_provider_registers_and_preserves_project_annotations(document: StudioDocument) -> None:
+    assert "src-component" in STANDARD_ANNOTATIONS.list()
+    from rfproteina.utils.standard_annotations import SA_SRC
+
+    expected = np.full(len(document.array), "component-x", dtype="<U10")
+    SA_SRC.set_annotation(document.array, expected)
+
+    reparsed = _rfd4_document(document.to_cif())
+
+    np.testing.assert_array_equal(SA_SRC.annotation(reparsed.array, default="raise"), expected)
 
 
 def test_align_to_restores_common_backbone_coordinates(document: StudioDocument) -> None:
@@ -111,6 +140,55 @@ def test_add_modify_delete_annotations_survive_each_export(document: StudioDocum
     assert cleared.annotation_details("rasa") == []
 
 
+def test_condition_aliases_resolve_to_the_stable_ui_definition(document: StudioDocument) -> None:
+    for name in ("rasa", C_RAS.name, C_RAS.full_name, *C_RAS.aliases):
+        assert CONDITION_PROVIDER.definitions_by_name[name].condition is C_RAS
+
+    document.set_condition("C_RAS", [0], enabled=True, value=3)
+
+    assert document.annotation_details(C_RAS.full_name)[0]["name"] == "rasa"
+
+
+@pytest.mark.parametrize(
+    ("name", "condition", "source", "scope"),
+    [("sequence", C_SEQ, "res_name", "residue"), ("coordinate", C_CRD, "coord", "atom")],
+)
+def test_mask_authored_conditions_materialize_declared_ground_truth(
+    document: StudioDocument,
+    name: str,
+    condition: type[StandardAnnotationBase],
+    source: str,
+    scope: str,
+) -> None:
+    selected = document.resolve_indices([0], scope)
+    document.set_condition(name, [0], enabled=True, scope=scope)
+
+    np.testing.assert_array_equal(
+        condition.annotation(document.array, default="raise")[selected],
+        getattr(document.array, source)[selected],
+    )
+
+
+def test_removing_integer_condition_restores_its_structure_default(document: StudioDocument) -> None:
+    condition = CONDITIONS["index_group"]
+    selected = document.resolve_indices([0], "residue")
+    expected = condition.default_annotation(document.array)[selected].copy()
+
+    document.set_condition("index_group", [0], enabled=True, value=7, scope="residue")
+    document.set_condition("index_group", [0], enabled=False, scope="residue")
+
+    np.testing.assert_array_equal(condition.annotation(document.array)[selected], expected)
+
+
+def test_residue_enum_summary_counts_residues_not_atoms(document: StudioDocument) -> None:
+    selected = document.resolve_indices([0], "residue")
+    document.set_condition("secondary_structure", [0], enabled=True, value=1, scope="residue")
+
+    details = document.annotation_details("secondary_structure")[0]
+    assert details["count"] == 1
+    assert details["values"][0]["count"] == len(selected) > 1
+
+
 def test_atom_annotation_details_match_condition_membership(document: StudioDocument) -> None:
     document.set_condition("hotspot", [0], enabled=True)
     details = document.atom_annotation_details(0)
@@ -119,8 +197,16 @@ def test_atom_annotation_details_match_condition_membership(document: StudioDocu
     assert not any(annotation["name"] == "hotspot" for annotation in document.atom_annotation_details(1)["annotations"])
 
 
-def test_shared_registry_drives_studio_and_all_stored_fields_are_visible(document: StudioDocument) -> None:
-    assert list(CONDITIONS) == [spec.key for spec in INTERACTIVE_CONDITION_SPECS]
+def test_shared_contract_drives_studio_and_all_stored_fields_are_visible(document: StudioDocument) -> None:
+    assert set(CONDITIONS.values()) == set(editable_condition_classes())
+    assert C_PICATION in CONDITIONS.values()
+    assert not {C_CHA, C_BP, C_CATH} & set(CONDITIONS.values())
+    for definition in CONDITION_PROVIDER.definitions:
+        condition = definition.condition
+        assert condition.editing_type is not None
+        assert STANDARD_ANNOTATIONS.get(condition.aliases[0]) is condition
+        if condition.editing_is_mask_only:
+            assert definition.kind in {"mask", "operation"}
     fields = {field["name"] for field in document.stored_annotation_fields()}
     expected = {
         category
@@ -164,9 +250,7 @@ def test_document_uses_shared_atomworks_validation(document: StudioDocument) -> 
     document.array.coord[0, 0] = np.inf
     shared = validate_atom_array(document.array)
 
-    assert shared == [
-        {"severity": "error", "check": "coordinates", "message": "coordinates contain infinity"}
-    ]
+    assert shared == [{"severity": "error", "check": "coordinates", "message": "coordinates contain infinity"}]
     assert document.validate()[: len(shared)] == shared
 
 

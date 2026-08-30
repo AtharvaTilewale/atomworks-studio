@@ -16,6 +16,8 @@ export interface SessionFileControllerOptions {
 export class SessionFileController {
   private readonly fileInput = element<HTMLInputElement>("file-input");
   private readonly combineInput = element<HTMLInputElement>("combine-input");
+  private openGeneration = 0;
+  private openQueue: Promise<void> = Promise.resolve();
 
   constructor(private readonly options: SessionFileControllerOptions) {}
 
@@ -42,7 +44,15 @@ export class SessionFileController {
     if (example && button) await this.loadExample(example, button);
   }
 
-  private async openFile(file: File): Promise<boolean> {
+  private openFile(file: File): Promise<boolean> {
+    const generation = ++this.openGeneration;
+    const request = this.openQueue.then(() => this.performOpen(file, generation));
+    this.openQueue = request.then(() => undefined, () => undefined);
+    return request;
+  }
+
+  private async performOpen(file: File, generation: number): Promise<boolean> {
+    if (generation !== this.openGeneration) return false;
     try {
       const cif = await file.text();
       inspect_cif(cif);
@@ -50,11 +60,12 @@ export class SessionFileController {
       form.append("file", file);
       this.appendParseOptions(form);
       const response = await api<SessionResponse>("/api/sessions", { method: "POST", body: form });
+      if (generation !== this.openGeneration) return false;
       await this.options.onOpened(response);
       this.options.log("Native AtomWorks session ready.");
       return true;
     } catch (error) {
-      this.options.log(`Open failed: ${String(error)}`);
+      if (generation === this.openGeneration) this.options.log(`Open failed: ${String(error)}`);
       return false;
     }
   }

@@ -23,7 +23,7 @@ from atomworks_studio_pymol.editors.widgets import PairValueEditor  # noqa: E402
 from atomworks_studio_pymol.state import STATE  # noqa: E402
 from atomworks.ml.conditions import C_DIS  # noqa: E402
 from rfproteina.conditions import C_HOT, C_RAS  # noqa: E402
-from atomworks_studio_rfd4.condition_specs import INTERACTIVE_CONDITION_SPECS  # noqa: E402
+from atomworks_studio_rfd4.condition_contract import CONDITION_DEFINITIONS  # noqa: E402
 from atomworks_studio_rfd4.pymol.editors import _run_pipeline_validation  # noqa: E402
 
 from annotation_studio.core import StudioDocument  # noqa: E402
@@ -121,9 +121,9 @@ def test_every_shared_condition_roundtrips_into_pymol(tmp_path: Path) -> None:
     plugin_array = STATE.arrays[name]
     assert len(plugin_array) == len(document.array)
 
-    for spec in INTERACTIVE_CONDITION_SPECS:
-        condition = spec.condition
-        if spec.kind == "pair":
+    for definition in CONDITION_DEFINITIONS:
+        condition = definition.condition
+        if definition.kind == "pair":
             plugin_annotation = condition.annotation(plugin_array, default="raise")
             document_annotation = condition.annotation(document.array, default="raise")
             assert plugin_annotation.pairs.tolist() == document_annotation.pairs.tolist()
@@ -132,13 +132,13 @@ def test_every_shared_condition_roundtrips_into_pymol(tmp_path: Path) -> None:
         assert np.array_equal(
             condition.mask(plugin_array, default="generate"),
             condition.mask(document.array, default="generate"),
-        ), spec.key
+        ), definition.key
         if condition.full_name in document.array.get_annotation_categories():
             np.testing.assert_allclose(
                 condition.annotation(plugin_array, default="raise"),
                 condition.annotation(document.array, default="raise"),
                 equal_nan=True,
-                err_msg=spec.key,
+                err_msg=definition.key,
             )
 
 
@@ -147,8 +147,6 @@ def test_distance_condition_uses_existing_pair_editor() -> None:
 
     condition_registry.apply()
 
-    distance_spec = next(spec for spec in condition_registry.SUPPORTED_CONDITIONS if spec.condition is C_DIS)
-    assert distance_spec.editor is PairValueEditor
     assert editor_for(C_DIS) is PairValueEditor
 
 

@@ -3,8 +3,9 @@
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+import pytest
 from annotation_studio.core import StudioDocument
-from annotation_studio.main import DocumentStore, app
+from annotation_studio.main import DocumentStore, SessionNotFoundError, app
 from annotation_studio.rfd4_provider import CONDITION_PROVIDER, VALIDATION_PROVIDER
 from fastapi.testclient import TestClient
 from pytest import MonkeyPatch
@@ -99,6 +100,16 @@ def test_persistent_store_restores_mutations_after_restart(tmp_path: Path) -> No
     assert len(list(tmp_path.glob("*.session"))) == 1
 
 
+def test_document_store_distinguishes_missing_sessions_from_operation_key_errors(tmp_path: Path) -> None:
+    store = DocumentStore(tmp_path)
+    session_id = store.add(StudioDocument.from_cif(FIXTURE.read_text()))
+
+    with pytest.raises(KeyError, match="domain failure"):
+        store.call(session_id, lambda _document: {}["domain failure"])
+    with pytest.raises(SessionNotFoundError):
+        store.call("missing", lambda _document: None)
+
+
 def test_readiness_endpoint() -> None:
     response = client.get("/api/ready")
     assert response.status_code == 200
@@ -112,7 +123,7 @@ def test_full_condition_api_and_download_roundtrip() -> None:
         {"condition": "coordinate", "atom_indices": [0]},
         {"condition": "index", "atom_indices": [0], "enabled": True, "scope": "residue"},
         {"condition": "hotspot", "atom_indices": [0]},
-        {"condition": "rasa", "atom_indices": [0], "value": 3},
+        {"condition": "C_RAS", "atom_indices": [0], "value": 3},
         {"condition": "hbond", "atom_indices": [1], "value": 1},
         {"condition": "index_group", "atom_indices": [0], "value": 7, "scope": "residue"},
         {"condition": "coordinate_group", "atom_indices": [0], "value": 2},
@@ -165,7 +176,7 @@ def test_full_condition_api_and_download_roundtrip() -> None:
 
 def test_internal_coordinate_operation_clears_absolute_coords() -> None:
     session_id = _session()
-    # Absolute coordinate conditioning on the first residue, then convert it to internal coords.
+    # Absolute coordinate conditioning on the first residue, then mark it as internal coords.
     assert (
         client.post(
             f"/api/sessions/{session_id}/conditions",
@@ -179,15 +190,15 @@ def test_internal_coordinate_operation_clears_absolute_coords() -> None:
     )
     assert response.status_code == 200, response.text
     counts = response.json()["structure"]["condition_counts"]
-    # The operation turns absolute coordinate conditioning into internal-coordinate conditioning.
+    # The operation swaps the masks and assigns a coordinate group.
     assert counts.get("internal_coordinate", 0) > 0
     assert "coordinate" not in counts
 
     download = client.get(f"/api/sessions/{session_id}/cif")
     assert download.status_code == 200
-    # The centered/rotated internal coordinates (not just the mask) must serialize so the model
-    # actually receives them; they are written as a dedicated sparse category with xyz columns.
-    assert "_condition_InternalCoordinate_1_atom.val0" in download.text
+    # Editors serialize the mask/group contract only. RFD4 writes values during featurization.
+    assert "_atom_site.mask_InternalCoordinate_1_atom" in download.text
+    assert "_condition_InternalCoordinate_1_atom.val0" not in download.text
 
     reupload = client.post(
         "/api/sessions",
@@ -196,12 +207,17 @@ def test_internal_coordinate_operation_clears_absolute_coords() -> None:
     assert reupload.status_code == 200, reupload.text
     assert reupload.json()["structure"]["condition_counts"].get("internal_coordinate", 0) > 0
 
+    removed = client.post(
+        f"/api/sessions/{session_id}/internal-coords",
+        json={"atom_indices": [0], "scope": "residue", "enabled": False},
+    )
+    assert removed.status_code == 200, removed.text
+    assert "internal_coordinate" not in removed.json()["structure"]["condition_counts"]
+
 
 def test_internal_coordinate_endpoint_rejects_empty_selection() -> None:
     session_id = _session()
-    assert (
-        client.post(f"/api/sessions/{session_id}/internal-coords", json={"atom_indices": []}).status_code == 422
-    )
+    assert client.post(f"/api/sessions/{session_id}/internal-coords", json={"atom_indices": []}).status_code == 422
 
 
 def test_upload_defenses_and_unknown_session() -> None:
@@ -217,6 +233,12 @@ def test_upload_defenses_and_unknown_session() -> None:
         json={"condition": "rasa", "atom_indices": [0], "value": 999},
     )
     assert invalid_enum.status_code == 422
+    for invalid_value in (True, "1", [True, 2, 3]):
+        response = client.post(
+            f"/api/sessions/{session_id}/conditions",
+            json={"condition": "rasa", "atom_indices": [0], "value": invalid_value},
+        )
+        assert response.status_code == 422
 
 
 def test_selection_scope_and_atomworks_query_api() -> None:
@@ -231,10 +253,7 @@ def test_selection_scope_and_atomworks_query_api() -> None:
     assert 0 in residue.json()["atom_indices"]
     assert residue.json()["count"] > 1
 
-    expression = (
-        f"(chain_iid == {atom['chain']!r}) & "
-        f"(res_id == {atom['residue_id']})"
-    )
+    expression = f"(chain_iid == {atom['chain']!r}) & (res_id == {atom['residue_id']})"
     queried = client.post(
         f"/api/sessions/{session_id}/selections/query",
         json={"expression": expression, "syntax": "expression"},

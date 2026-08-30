@@ -1,20 +1,20 @@
 # atomworks and RFD4 are vendored as git submodules under external/ (see .gitmodules).
 # A fresh `git clone --recursive` checks out these exact commits; keep the revisions here
-# in sync with the submodule gitlinks. Both track their default branches: atomworks `dev`,
-# RFD4 `main`.
+# in sync with the submodule gitlinks. Reviewed updates are sourced from atomworks `dev`
+# and RFD4 `main`.
 
 [atomworks]
 package = "atomworks"
 version = "2.1.1"
 repository = "https://github.com/baker-laboratory/atomworks-dev.git"
 branch = "dev"
-revision = "2946d4d0d19eb13ff3bb6fcffdb931965d08e4ff"
+revision = "82fd08ae51688f48ff2949ae16ee320d87d434a1"
 submodule = "external/atomworks-dev"
 
 [rfd4]
 repository = "https://github.com/baker-laboratory/RFD4-Proteina-dev.git"
 branch = "main"
-revision = "cb1fc2a4d47bdf59117fb3a4316028f830e3eae5"
+revision = "26094e08e6f979ee6da53d51bc34357ffc062025"
 submodule = "external/RFD4-Proteina-dev"
 runtime_variable = "ANNOTATION_STUDIO_RFD4_ROOT"
 

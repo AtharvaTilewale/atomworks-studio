@@ -21,7 +21,7 @@ from rfproteina.conditions import C_CRDGRP, CoordinateGroup
 logger = logging.getLogger("atomworks_studio_pymol")
 
 
-def _defaults_for(annotation_cls: StandardAnnotationBase) -> tuple[int, dict[int, str]]:
+def _defaults_for(annotation_cls: type[StandardAnnotationBase]) -> tuple[int, dict[int, str]]:
     """Return ``(unassigned_value, reserved_values)`` for a group condition."""
     if annotation_cls is C_CRDGRP:
         return (
@@ -44,7 +44,7 @@ class GroupEditor(QtWidgets.QWidget, BaseAnnotationEditor):
 
     def __init__(
         self,
-        annotation_cls: StandardAnnotationBase,
+        annotation_cls: type[StandardAnnotationBase],
         state: PluginState,
         parent: QtWidgets.QWidget | None = None,
     ):

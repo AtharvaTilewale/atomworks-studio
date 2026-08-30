@@ -8,7 +8,7 @@ import os
 import re
 import secrets
 import time
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from contextlib import asynccontextmanager
 from importlib.metadata import entry_points
 from importlib.resources import files
@@ -26,6 +26,7 @@ from pydantic import BaseModel, Field, field_validator
 from .contracts import (
     NEUTRAL_CONDITION_PROVIDER,
     NEUTRAL_VALIDATION_PROVIDER,
+    ConditionOperation,
     ConditionProvider,
     ValidationProvider,
 )
@@ -39,6 +40,10 @@ MAX_UPLOAD_BYTES = 32 * 1024 * 1024
 MAX_SESSIONS = 64
 SESSION_TTL_SECONDS = 2 * 60 * 60
 SESSION_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{20,64}$")
+
+
+class SessionNotFoundError(KeyError):
+    """Raised when a document-store lookup cannot resolve a session."""
 
 
 class DocumentStore:
@@ -166,7 +171,10 @@ class DocumentStore:
         persist: bool = False,
     ) -> T:
         with self._lock:
-            document = self.get(session_id)
+            try:
+                document = self.get(session_id)
+            except KeyError:
+                raise SessionNotFoundError(session_id) from None
             document_lock = self._document_locks[session_id]
         with document_lock:
             result = operation(document)
@@ -175,7 +183,7 @@ class DocumentStore:
             return result
 
 
-def _load_optional_providers() -> tuple[ConditionProvider, ValidationProvider, dict[str, Any]]:
+def _load_optional_providers() -> tuple[ConditionProvider, ValidationProvider, Mapping[str, ConditionOperation]]:
     """Load one installed provider without making it an API import dependency."""
 
     failures: list[str] = []
@@ -314,9 +322,7 @@ def _design_job_response(record: dict[str, Any]) -> dict[str, Any]:
         )
     return {
         **{
-            key: value
-            for key, value in record.items()
-            if key not in {"metric_summary", "outputs", "source_session_id"}
+            key: value for key, value in record.items() if key not in {"metric_summary", "outputs", "source_session_id"}
         },
         "metric_summary": {
             key: value
@@ -328,38 +334,48 @@ def _design_job_response(record: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-class ConditionMutation(BaseModel):
-    condition: str
+class SelectionRequest(BaseModel):
     atom_indices: list[int] = Field(min_length=1, max_length=100_000)
+
+    @field_validator("atom_indices")
+    @classmethod
+    def unique_indices(cls, value: list[int]) -> list[int]:
+        if any(index < 0 for index in value):
+            raise ValueError("atom indices must be non-negative")
+        return sorted(set(value))
+
+
+class ScopedSelectionRequest(SelectionRequest):
+    scope: Literal["atom", "residue", "chain"] = "atom"
+
+
+class ConditionMutation(ScopedSelectionRequest):
+    condition: str
     enabled: bool = True
     value: int | float | list[float] | None = None
-    scope: Literal["atom", "residue", "chain"] = "atom"
 
     @field_validator("condition")
     @classmethod
     def valid_condition(cls, value: str) -> str:
-        if value not in condition_provider.definitions_by_key:
+        if value not in condition_provider.definitions_by_name:
             raise ValueError(f"unsupported condition: {value}")
         return value
 
-    @field_validator("atom_indices")
+    @field_validator("value", mode="before")
     @classmethod
-    def unique_indices(cls, value: list[int]) -> list[int]:
-        if any(index < 0 for index in value):
-            raise ValueError("atom indices must be non-negative")
-        return sorted(set(value))
+    def strict_numeric_value(cls, value: object) -> object:
+        values = value if isinstance(value, list) else [value]
+        if value is not None and any(isinstance(item, bool) or not isinstance(item, int | float) for item in values):
+            raise ValueError("condition value must contain only JSON numbers")
+        return value
 
 
-class SelectionResolve(BaseModel):
-    atom_indices: list[int] = Field(min_length=1, max_length=100_000)
-    scope: Literal["atom", "residue", "chain"] = "atom"
+class SelectionResolve(ScopedSelectionRequest):
+    pass
 
-    @field_validator("atom_indices")
-    @classmethod
-    def unique_indices(cls, value: list[int]) -> list[int]:
-        if any(index < 0 for index in value):
-            raise ValueError("atom indices must be non-negative")
-        return sorted(set(value))
+
+class ConditionOperationMutation(ScopedSelectionRequest):
+    enabled: bool = True
 
 
 class SelectionQuery(BaseModel):
@@ -368,14 +384,12 @@ class SelectionQuery(BaseModel):
     scope: Literal["atom", "residue", "chain"] = "atom"
 
 
-class ChargeMutation(BaseModel):
-    atom_indices: list[int] = Field(min_length=1, max_length=100_000)
+class ChargeMutation(SelectionRequest):
     value: int | None = Field(default=None, ge=-10, le=10)
     delta: int | None = Field(default=None, ge=-10, le=10)
 
 
-class ChainMutation(BaseModel):
-    atom_indices: list[int] = Field(min_length=1, max_length=100_000)
+class ChainMutation(SelectionRequest):
     chain_id: str = Field(min_length=1, max_length=8)
 
 
@@ -446,8 +460,7 @@ class InteractionAnalysisRequest(BaseModel):
         return sorted(set(value))
 
 
-class DeleteMutation(BaseModel):
-    atom_indices: list[int] = Field(min_length=1, max_length=100_000)
+class DeleteMutation(SelectionRequest):
     close_residue_gaps: bool = False
 
 
@@ -477,7 +490,7 @@ def _call[T](
 ) -> T:
     try:
         return store.call(session_id, operation, persist=persist)
-    except KeyError:
+    except SessionNotFoundError:
         raise HTTPException(status_code=404, detail="session not found or expired") from None
 
 
@@ -801,13 +814,18 @@ def infer_bonds_from_ccd(session_id: str) -> dict:
 
 
 @app.post("/api/sessions/{session_id}/internal-coords")
-def convert_internal_coords(session_id: str, selection: SelectionResolve) -> dict:
+def set_internal_coordinates(session_id: str, mutation: ConditionOperationMutation) -> dict:
     transform = condition_operations.get("internal_coordinate")
     if transform is None:
         raise HTTPException(status_code=422, detail="internal-coordinate conditioning is not available")
     return _apply(
         session_id,
-        lambda document: document.apply_selection_transform(selection.atom_indices, selection.scope, transform),
+        lambda document: document.apply_selection_transform(
+            mutation.atom_indices,
+            mutation.scope,
+            transform,
+            mutation.enabled,
+        ),
     )
 
 

@@ -14,18 +14,15 @@ The dependency direction is intentionally one-way::
 """
 
 from collections.abc import Callable
-from typing import TypeVar
 
 from atomworks.io.utils.standard_annotations.base import StandardAnnotationBase
-from atomworks_studio_pymol.editors.widgets import MaskEditor, PairValueEditor, ScalarEditor
+from atomworks_studio_pymol.editors.widgets import BaseAnnotationEditor, MaskEditor, PairValueEditor, ScalarEditor
 
-_EditorT = TypeVar("_EditorT", bound=type)
-
-_editor_registry: dict = {}
-_excluded_annotations: set = set()
+_editor_registry: dict[type[StandardAnnotationBase], Callable[..., BaseAnnotationEditor]] = {}
+_excluded_annotations: set[type[StandardAnnotationBase]] = set()
 
 
-def exclude_annotation(annotation_cls: StandardAnnotationBase) -> None:
+def exclude_annotation(annotation_cls: type[StandardAnnotationBase]) -> None:
     """Exclude an annotation class from the Annotation Wizard entirely.
 
     Excluded annotations are not shown in the wizard list and cannot be
@@ -39,12 +36,14 @@ def exclude_annotation(annotation_cls: StandardAnnotationBase) -> None:
     _excluded_annotations.add(annotation_cls)
 
 
-def is_excluded(annotation_cls: StandardAnnotationBase) -> bool:
+def is_excluded(annotation_cls: type[StandardAnnotationBase]) -> bool:
     """Return True if *annotation_cls* has been excluded from the wizard."""
     return annotation_cls in _excluded_annotations
 
 
-def register_editor(annotation_cls: StandardAnnotationBase) -> Callable[[_EditorT], _EditorT]:
+def register_editor[EditorT: Callable[..., BaseAnnotationEditor]](
+    annotation_cls: type[StandardAnnotationBase],
+) -> Callable[[EditorT], EditorT]:
     """Decorator that registers a custom editor for a specific annotation class.
 
     Args:
@@ -58,14 +57,14 @@ def register_editor(annotation_cls: StandardAnnotationBase) -> Callable[[_Editor
         ... class SequenceEditor(BaseAnnotationEditor): ...
     """
 
-    def decorator(editor_cls: _EditorT) -> _EditorT:
+    def decorator(editor_cls: EditorT) -> EditorT:
         _editor_registry[annotation_cls] = editor_cls
         return editor_cls
 
     return decorator
 
 
-def editor_for(annotation_cls: StandardAnnotationBase) -> type:
+def editor_for(annotation_cls: type[StandardAnnotationBase]) -> Callable[..., BaseAnnotationEditor]:
     """Return the appropriate editor class for *annotation_cls*.
 
     Checks the custom registry first; falls back to auto-detection.
@@ -81,7 +80,7 @@ def editor_for(annotation_cls: StandardAnnotationBase) -> type:
     return _auto_editor_for(annotation_cls)
 
 
-def _auto_editor_for(annotation_cls: StandardAnnotationBase) -> type:
+def _auto_editor_for(annotation_cls: type[StandardAnnotationBase]) -> Callable[..., BaseAnnotationEditor]:
     """Infer an appropriate editor from annotation metadata.
 
     Args:
@@ -91,9 +90,14 @@ def _auto_editor_for(annotation_cls: StandardAnnotationBase) -> type:
         One of the standard editor classes.
     """
 
-    if annotation_cls.n_body == 2:
-        return PairValueEditor
-    if annotation_cls.is_mask:
+    if annotation_cls.editing_type is None:
+        raise TypeError(f"{annotation_cls.name} does not declare an editing_type")
+    if annotation_cls.n_body != 1:
+        if annotation_cls.n_body == 2 and annotation_cls.editing_type is float and not annotation_cls.is_mask:
+            return PairValueEditor
+        raise TypeError(f"{annotation_cls.name} requires a custom {annotation_cls.n_body}-body editor")
+    if annotation_cls.is_mask or annotation_cls.editing_is_mask_only:
         return MaskEditor
-    # Scalar types
-    return ScalarEditor
+    if annotation_cls.editing_type in {int, float}:
+        return ScalarEditor
+    raise TypeError(f"{annotation_cls.name} requires a custom editor for {annotation_cls.editing_type!r}")

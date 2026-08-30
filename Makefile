@@ -4,7 +4,7 @@ SHELL := /usr/bin/env bash
 .PHONY: bootstrap format lint typecheck test build run accept-local accept-tools accept-brev
 
 bootstrap:
-	git submodule update --init external/RFD4-Proteina-dev external/atomworks-dev
+	git submodule update --init --recursive external/RFD4-Proteina-dev external/atomworks-dev
 	bash scripts/build_patinae_viewer.sh
 	corepack enable
 	pnpm install --frozen-lockfile
@@ -12,12 +12,12 @@ bootstrap:
 	rustup target add wasm32-unknown-unknown
 
 format:
-	uv run ruff format packages providers tests
+	uv run ruff format packages providers scripts tests
 	cargo fmt --all
 	pnpm --dir packages/web exec tsc --noEmit
 
 lint:
-	uv run ruff check packages providers tests
+	uv run ruff check packages providers scripts tests
 	cargo clippy --workspace --all-targets -- -D warnings
 	bash -n run.sh deploy/brev/*.sh deploy/local/*.sh deploy/lib/*.sh scripts/*.sh
 

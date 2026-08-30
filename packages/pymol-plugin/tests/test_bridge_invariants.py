@@ -108,9 +108,9 @@ def test_translate_is_invisible_to_the_array_until_refreshed(loaded_cif: tuple[s
     cmd.translate(list(shift), selection=obj_name, camera=0)
 
     # Cache is untouched by the raw PyMOL mutation.
-    assert np.allclose(
-        array.coord, coord_before, equal_nan=True
-    ), "array coordinates changed without a call to refresh_coords_from_pymol"
+    assert np.allclose(array.coord, coord_before, equal_nan=True), (
+        "array coordinates changed without a call to refresh_coords_from_pymol"
+    )
 
     refresh_coords_from_pymol(obj_name)
 
@@ -149,6 +149,6 @@ def test_chain_rename_refreshes_label_entity_id(loaded_cif: tuple[str, str]) -> 
     refresh_chain_derived_annotations(array)
 
     expected = (array.chain_entity + 1).astype(array.label_entity_id.dtype)
-    assert np.array_equal(
-        array.label_entity_id, expected
-    ), "label_entity_id was not refreshed to match the renamed chain_entity grouping"
+    assert np.array_equal(array.label_entity_id, expected), (
+        "label_entity_id was not refreshed to match the renamed chain_entity grouping"
+    )

@@ -44,7 +44,7 @@
             Combine CIF
             <input id="combine-input" type="file" accept=".cif,.mmcif,chemical/x-mmcif" disabled />
           </label>
-          <button id="download" disabled>Download annotated CIF</button>
+          <button id="download" aria-label="Download annotated CIF" disabled>Download CIF</button>
         </div>
       </header>
 
@@ -465,7 +465,7 @@
 
           <section class="card log-card" data-studio-panel="atomworks">
             <h2>Status</h2>
-            <pre id="status">Initializing molecular viewer and CIF WASM…</pre>
+            <pre id="status" tabindex="0">Initializing molecular viewer and CIF WASM…</pre>
           </section>
         </aside>
       </section>

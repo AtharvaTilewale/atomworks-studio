@@ -108,8 +108,7 @@ def deletion_would_create_res_id_gap(array: AtomArrayPlus, keep: np.ndarray) -> 
     bounds = struc.get_residue_starts(array, add_exclusive_stop=True)
     last_kept = _last_kept_residue_start_by_chain(array, keep, bounds)
     return any(
-        not keep[start:stop].any()
-        and start < last_kept.get(str(array.chain_iid[start]), -1)
+        not keep[start:stop].any() and start < last_kept.get(str(array.chain_iid[start]), -1)
         for start, stop in itertools.pairwise(bounds)
     )
 

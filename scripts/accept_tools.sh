@@ -30,6 +30,6 @@ uv run --project "${root}" --all-extras python "${root}/scripts/run_pytest.py" -
   "${root}/tests/test_pymol_conformance.py" \
   | tee "${artifact_dir}/pymol.log"
 
-python "${root}/scripts/verify_distribution.py"
+uv run --project "${root}" python "${root}/scripts/verify_distribution.py"
 tar -tf "${root}/packages/web/vendor/"patinae-viewer-*.tgz \
   >"${artifact_dir}/patinae-package.txt"

@@ -11,11 +11,7 @@ from atomworks.io.utils.atom_array_plus import AtomArrayPlus
 def validate_atom_array(array: AtomArrayPlus) -> list[dict[str, str]]:
     """Return structural issues required by all interactive editors."""
     issues: list[dict[str, str]] = []
-    ins_code = (
-        array.ins_code
-        if "ins_code" in array.get_annotation_categories()
-        else np.full(len(array), "")
-    )
+    ins_code = array.ins_code if "ins_code" in array.get_annotation_categories() else np.full(len(array), "")
     chain_key = "chain_iid" if "chain_iid" in array.get_annotation_categories() else "chain_id"
     keys = [
         (
@@ -27,9 +23,7 @@ def validate_atom_array(array: AtomArrayPlus) -> list[dict[str, str]]:
         for index in range(len(array))
     ]
     if len(set(keys)) != len(keys):
-        issues.append(
-            {"severity": "error", "check": "atom_identity", "message": "atom identity keys are not unique"}
-        )
+        issues.append({"severity": "error", "check": "atom_identity", "message": "atom identity keys are not unique"})
     if np.isinf(array.coord).any():
         issues.append({"severity": "error", "check": "coordinates", "message": "coordinates contain infinity"})
     return issues

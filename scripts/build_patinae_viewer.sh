@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 022
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 metadata="${root}/vendor/patinae/UPSTREAM.toml"
+rust_toolchain="$(awk -F ' = ' '$1 == "channel" { gsub(/^"|"$/, "", $2); print $2 }' "${root}/rust-toolchain.toml")"
 cache_root="${ATOMWORKS_STUDIO_CACHE_DIR:-${HOME}/.cache/atomworks-studio}"
 source_dir="${cache_root}/patinae"
 artifact_dir="${root}/packages/web/vendor"
@@ -22,15 +24,25 @@ if command -v pnpm >/dev/null 2>&1; then
 else
   package_manager=(corepack pnpm)
 fi
-wasm_pack="${WASM_PACK:-$(command -v wasm-pack || true)}"
-[[ -n "${wasm_pack}" ]] || {
-  echo "Install wasm-pack 0.13+ before building Patinae." >&2
-  exit 1
-}
-
 if [[ -f "${artifact}" && "${ATOMWORKS_STUDIO_REBUILD_PATINAE:-0}" != "1" ]]; then
   printf '%s  %s\n' "${artifact_sha256}" "${artifact}" | sha256sum --check --status
   exit 0
+fi
+
+wasm_pack="${WASM_PACK:-$(command -v wasm-pack || true)}"
+[[ -n "${wasm_pack}" ]] || {
+  echo "Install wasm-pack 0.13.1 before rebuilding Patinae." >&2
+  exit 1
+}
+[[ "$("${wasm_pack}" --version)" == "wasm-pack 0.13.1" ]] || {
+  echo "Patinae requires wasm-pack 0.13.1 for reproducible output." >&2
+  exit 1
+}
+if command -v wasm-opt >/dev/null 2>&1; then
+  [[ "$(wasm-opt --version)" == "wasm-opt version 117 (version_117)" ]] || {
+    echo "Remove wasm-opt from PATH or use Binaryen version 117 when rebuilding Patinae." >&2
+    exit 1
+  }
 fi
 
 mkdir -p "${cache_root}" "${artifact_dir}"
@@ -71,11 +83,12 @@ TOML
 (
   cd "${source_dir}/web"
   "${package_manager[@]}" install --no-frozen-lockfile
-  SOURCE_DATE_EPOCH=0 CARGO_BUILD_JOBS=1 \
+  RUSTUP_TOOLCHAIN="${rust_toolchain}" SOURCE_DATE_EPOCH=0 CARGO_BUILD_JOBS=1 \
   RUSTFLAGS="-C codegen-units=1 --remap-path-prefix=${source_dir}=/src/patinae --remap-path-prefix=${CARGO_HOME:-${HOME}/.cargo}=/cargo" \
     "${wasm_pack}" build --target web --out-dir pkg
   "${package_manager[@]}" exec vite build
   "${package_manager[@]}" exec tsc --emitDeclarationOnly
+  chmod -R u=rwX,go=rX LICENSE package.json dist
   pack_dir="$(mktemp -d)"
   npm pack --ignore-scripts --pack-destination "${pack_dir}" >/dev/null
   packed=("${pack_dir}"/*.tgz)

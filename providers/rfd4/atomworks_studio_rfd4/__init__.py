@@ -5,7 +5,6 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-import numpy as np
 from atomworks.io.utils.atom_array_plus import AtomArrayPlus
 
 from atomworks_studio_rfd4._bootstrap import install_lightweight_rfproteina_stub
@@ -19,56 +18,28 @@ install_lightweight_rfproteina_stub()
 # Imports below intentionally follow the runtime setup above (env + rfproteina stub).
 from annotation_studio.contracts import (  # noqa: E402
     ConditionDefinition,
+    ConditionOperation,
     ConditionProvider,
-    ConditionValue,
     ValidationProvider,
 )
 from annotation_studio.design_jobs import ProcessDesignProvider  # noqa: E402
-from rfproteina.conditions import C_IDXGRP  # noqa: E402
+from rfproteina.conditions_reporting import sync_index_groups  # noqa: E402
+from rfproteina.utils import standard_annotations as _rfd4_standard_annotations  # noqa: E402, F401
 
-from .condition_specs import INTERACTIVE_CONDITION_SPECS  # noqa: E402
+from .condition_contract import CONDITION_DEFINITIONS, CONDITION_DEFINITIONS_BY_NAME  # noqa: E402
 from .interactive_validation import validate_rfd4  # noqa: E402
-from .internal_coords import convert_to_internal_coordinates  # noqa: E402
+from .internal_coordinate import set_internal_coordinate_conditioning  # noqa: E402
 
 
 class RFD4ConditionProvider(ConditionProvider):
-    """Expose the canonical RFD4 condition registry through Studio contracts."""
+    """Expose RFD4's shared annotation editing contract to Studio."""
 
-    def __init__(self) -> None:
-        self._definitions = tuple(
-            ConditionDefinition(
-                key=spec.key,
-                label=spec.label,
-                kind=spec.kind,
-                count_unit=spec.count_unit,
-                default=spec.default,
-                invert_mask=spec.invert_mask,
-                condition=spec.condition,
-                schema=spec.schema(),
-                enum_values=tuple(
-                    ConditionValue(name=member.name, value=int(member.value)) for member in (spec.enum_cls or ())
-                ),
-            )
-            for spec in INTERACTIVE_CONDITION_SPECS
-        )
-        self._definitions_by_key = {definition.key: definition for definition in self._definitions}
-
-    @property
-    def definitions(self) -> tuple[ConditionDefinition, ...]:
-        return self._definitions
-
-    @property
-    def definitions_by_key(self) -> dict[str, ConditionDefinition]:
-        return self._definitions_by_key
+    definitions: tuple[ConditionDefinition, ...] = CONDITION_DEFINITIONS
+    definitions_by_name = CONDITION_DEFINITIONS_BY_NAME
 
     def after_condition_update(self, name: str, array: AtomArrayPlus) -> None:
-        if name != "index":
-            return
-        default_groups = C_IDXGRP.default_annotation(array)
-        current_groups = C_IDXGRP.annotation(array, default="generate")
-        combined = np.stack([default_groups, current_groups], axis=1)
-        _, new_groups = np.unique(combined, axis=0, return_inverse=True)
-        C_IDXGRP.set_annotation(array, new_groups)
+        if name == "index":
+            sync_index_groups(array)
 
 
 class RFD4ValidationProvider(ValidationProvider):
@@ -81,10 +52,9 @@ class RFD4ValidationProvider(ValidationProvider):
 CONDITION_PROVIDER = RFD4ConditionProvider()
 VALIDATION_PROVIDER = RFD4ValidationProvider()
 
-# Named in-place operations the API can apply to a document's array. internal-coordinate
-# conditioning is computed from the current structure (centered + randomly rotated), so it
-# is exposed as an operation rather than a value the client sets directly.
-CONDITION_OPERATIONS = {"internal_coordinate": convert_to_internal_coordinates}
+# Named coupled operations exposed by the API. Internal-coordinate values are
+# deliberately left for RFD4 featurization to materialize.
+CONDITION_OPERATIONS: dict[str, ConditionOperation] = {"internal_coordinate": set_internal_coordinate_conditioning}
 
 
 def create_design_provider(project_root: Path) -> ProcessDesignProvider:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 import tomllib
 from pathlib import Path
 
@@ -39,7 +40,14 @@ def main() -> None:
         entry = manifest[name]
         assert re.fullmatch(r"[0-9a-f]{40}", entry["revision"]), f"{name} revision must be a 40-hex commit"
         assert entry["submodule"].startswith("external/"), f"{name} must be an external/ submodule"
+        gitlink = subprocess.check_output(("git", "rev-parse", f":{entry['submodule']}"), cwd=ROOT, text=True).strip()
+        assert entry["revision"] == gitlink, f"{name} manifest revision does not match its submodule gitlink"
         revisions[f"{name}_revision"] = entry["revision"]
+
+    rfd4_atomworks = subprocess.check_output(
+        ("git", "-C", manifest["rfd4"]["submodule"], "rev-parse", ":lib/atomworks"), cwd=ROOT, text=True
+    ).strip()
+    assert rfd4_atomworks == revisions["atomworks_revision"], "RFD4 and Studio must pin the same AtomWorks revision"
 
     print(
         json.dumps(

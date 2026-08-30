@@ -50,19 +50,17 @@ RFPROTEINA_LIGHTWEIGHT_IMPORT=1 bash run.sh
 To test the exact production container:
 
 ```bash
-export GH_TOKEN="$(gh auth token)"
-docker build --secret id=github_token,env=GH_TOKEN \
-  --file deploy/Dockerfile \
+docker build --file deploy/Dockerfile \
   --tag atomworks-studio:local \
   .
 docker run --rm --publish 8000:8000 atomworks-studio:local
 ```
 
-The CPU image installs the published `atomworks[ml]` distribution and does not
-copy an RFD4 source tree. The standalone provider package can be added with
-`--build-arg ANNOTATION_STUDIO_INSTALL_RFD4_PROVIDER=true`; its `rfproteina`
-dependency is resolved as a package, not copied from another checkout. Local editor mode
-intentionally has GPU design disabled unless
+The CPU image installs the vendored AtomWorks checkout and does not retain an
+RFD4 source tree. The standalone provider package can be added with
+`--build-arg ANNOTATION_STUDIO_INSTALL_RFD4_PROVIDER=true`; it activates only
+when a compatible RFD4 checkout is supplied and configured at runtime. Local
+editor mode intentionally has GPU design disabled unless
 `ANNOTATION_STUDIO_JOB_DIR`, `ANNOTATION_STUDIO_RFD4_ROOT`, and
 `ANNOTATION_STUDIO_RFD4_COMMAND` are configured.
 

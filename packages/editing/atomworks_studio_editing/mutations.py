@@ -8,7 +8,33 @@ from typing import Literal
 
 import numpy as np
 from atomworks.io.utils.atom_array_plus import AnnotationList2D, AtomArrayPlus
+from atomworks.io.utils.standard_annotations.base import StandardAnnotationBase
 from atomworks.ml.conditions.definitions import Distance
+
+
+def set_condition_mask(
+    atom_array: AtomArrayPlus,
+    condition: type[StandardAnnotationBase],
+    indices: np.ndarray,
+    enabled: bool,
+    *,
+    invert: bool = False,
+) -> None:
+    """Set a condition mask and materialize any declared structure-derived value."""
+    mask_value = not enabled if invert else enabled
+    mask = np.asarray(condition.mask(atom_array, default="generate")).copy()
+    mask[indices] = mask_value
+    condition.set_mask(atom_array, mask)
+
+    if not mask_value or not condition.editing_is_mask_only:
+        return
+    ground_truth_value = getattr(condition, "ground_truth_value", None)
+    source = ground_truth_value(atom_array) if ground_truth_value is not None else None
+    if source is None:
+        return
+    annotation = np.asarray(condition.annotation(atom_array, default="generate")).copy()
+    annotation[indices] = source[indices]
+    condition.set_annotation(atom_array, annotation)
 
 
 def replace_distance_restraints(

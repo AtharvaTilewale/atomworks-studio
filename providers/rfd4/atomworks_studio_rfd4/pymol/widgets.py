@@ -37,7 +37,7 @@ class ValueButtonEditor(QtWidgets.QWidget, BaseAnnotationEditor):
 
     def __init__(
         self,
-        annotation_cls: StandardAnnotationBase,
+        annotation_cls: type[StandardAnnotationBase],
         state: PluginState,
         named_values: list[tuple[str, int]],
         null_value: int | None = None,
@@ -143,7 +143,7 @@ class CoordinateGroupEditor(ValueButtonEditor):
 
     def __init__(
         self,
-        annotation_cls: StandardAnnotationBase,
+        annotation_cls: type[StandardAnnotationBase],
         state: PluginState,
         parent: QtWidgets.QWidget | None = None,
     ) -> None:

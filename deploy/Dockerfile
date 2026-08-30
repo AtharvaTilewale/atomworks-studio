@@ -5,7 +5,8 @@ RUN rustup target add wasm32-unknown-unknown \
     && cargo install wasm-pack --locked --version 0.13.1
 WORKDIR /build
 COPY packages/core ./packages/core
-RUN wasm-pack build ./packages/core --target web --out-dir /wasm
+COPY Cargo.lock ./packages/core/Cargo.lock
+RUN wasm-pack build ./packages/core --target web --out-dir /wasm -- --locked
 
 
 FROM node:22-bookworm-slim@sha256:6c74791e557ce11fc957704f6d4fe134a7bc8d6f5ca4403205b2966bd488f6b3 AS web-builder
@@ -41,7 +42,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     ANNOTATION_STUDIO_REVISION=${ANNOTATION_STUDIO_REVISION}
 
 RUN apt-get update \
-    && apt-get install --yes --no-install-recommends git libgomp1 \
+    && apt-get install --yes --no-install-recommends libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -51,31 +52,21 @@ COPY packages/api ./packages/api
 COPY providers/rfd4 ./providers/rfd4
 COPY --from=web-builder /build/packages/web/dist ./packages/web/dist
 # atomworks (git submodule) and the shared editing package (workspace member) are vendored
-# locally, so install them from the build context in dependency order before the API,
-# instead of resolving atomworks from a git URL. A pip constraints file pins biotite to the
-# version atomworks asserts at import (its dependency bound is looser, `biotite>=1.6.0`), so
-# an unlocked pip install cannot pull a newer biotite than atomworks accepts.
-RUN --mount=type=secret,id=github_token,required=true \
-    github_token="$(cat /run/secrets/github_token)" \
-    && export GIT_CONFIG_COUNT=1 \
-       GIT_CONFIG_KEY_0="url.https://x-access-token:${github_token}@github.com/.insteadOf" \
-       GIT_CONFIG_VALUE_0="https://github.com/" \
-    && printf 'biotite==1.6.0\n' > /tmp/pip-constraints.txt \
-    && python -m pip install --no-cache-dir \
+# locally, so install them from the build context in dependency order before the API
+# instead of resolving atomworks from a git URL.
+RUN python -m pip install --no-cache-dir \
       --index-url https://download.pytorch.org/whl/cpu \
       torch==2.7.1 \
-    && python -m pip install --no-cache-dir -c /tmp/pip-constraints.txt "./external/atomworks-dev[ml]" \
-    && python -m pip install --no-cache-dir -c /tmp/pip-constraints.txt ./packages/editing \
-    && python -m pip install --no-cache-dir -c /tmp/pip-constraints.txt ./packages/api \
+    && python -m pip install --no-cache-dir "./external/atomworks-dev[ml]" \
+    && python -m pip install --no-cache-dir ./packages/editing \
+    && python -m pip install --no-cache-dir ./packages/api \
     && if [ "${ANNOTATION_STUDIO_INSTALL_RFD4_PROVIDER}" = "true" ]; then \
-         python -m pip install --no-cache-dir -c /tmp/pip-constraints.txt ./providers/rfd4; \
+         python -m pip install --no-cache-dir ./providers/rfd4; \
        elif [ "${ANNOTATION_STUDIO_INSTALL_RFD4_PROVIDER}" != "false" ]; then \
          echo "ANNOTATION_STUDIO_INSTALL_RFD4_PROVIDER must be true or false" >&2; \
          exit 2; \
        fi \
-    && rm -rf ./packages ./providers ./external \
-    && apt-get purge --yes --auto-remove git \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf ./packages ./providers ./external
 
 RUN useradd --create-home --uid 10001 studio
 USER 10001

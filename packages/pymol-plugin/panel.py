@@ -1266,7 +1266,7 @@ class AnnotationWizard:
         self._annotation_classes.append(None)
 
         for cls in CONDITIONS:
-            if is_excluded(cls):
+            if cls.editing_type is None or is_excluded(cls):
                 continue
             self._list.addItem(cls.name)
             self._annotation_classes.append(cls)
@@ -1280,7 +1280,7 @@ class AnnotationWizard:
         for cls in STANDARD_ANNOTATIONS:
             if issubclass(cls, ConditionBase):
                 continue  # already listed under Conditions
-            if is_excluded(cls):
+            if cls.editing_type is None or is_excluded(cls):
                 continue
             self._list.addItem(cls.name)
             self._annotation_classes.append(cls)
@@ -1359,9 +1359,7 @@ class ExtensionsDialog:
 
         self._btn_add.clicked.connect(self._add)
         self._btn_remove.clicked.connect(self._remove)
-        self._list.itemSelectionChanged.connect(
-            lambda: self._btn_remove.setEnabled(bool(self._list.selectedItems()))
-        )
+        self._list.itemSelectionChanged.connect(lambda: self._btn_remove.setEnabled(bool(self._list.selectedItems())))
         self._refresh()
 
     def show(self) -> None:

@@ -14,7 +14,7 @@ def install_lightweight_rfproteina_stub() -> None:
     and the datapipes stack) unconditionally, but Studio only needs ``rfproteina.conditions``.
     Registering a lightweight package stub (pointing at the real source tree) makes
     ``rfproteina.*`` submodule imports resolve while skipping that package init, so Studio
-    stays self-contained against RFD4 ``main`` with no RFD4-side change. (``torch`` still
+    can consume the pinned RFD4 modules without running its package initializer. (``torch`` still
     loads transitively via ``atomworks.ml`` — the stub only avoids the RFD4-specific init.)
     No-op if ``rfproteina`` was already imported or is not on the path.
     """

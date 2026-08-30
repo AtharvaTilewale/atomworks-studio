@@ -15,9 +15,10 @@ rfd4_root="${RFPROTEINA_ROOT:-${ANNOTATION_STUDIO_RFD4_ROOT:-${studio_root}/exte
   exit 1
 }
 rfd4_root="$(cd "${rfd4_root}" && pwd)"
-rfd4_revision="cb1fc2a4d47bdf59117fb3a4316028f830e3eae5"
-git -C "${rfd4_root}" merge-base --is-ancestor "${rfd4_revision}" HEAD || {
-  echo "RFD4 checkout must contain pinned revision ${rfd4_revision}." >&2
+minimum_rfd4_revision="$(awk -F ' = ' '$1 == "revision" { gsub(/^"|"$/, "", $2); print $2 }' \
+  "${studio_root}/providers/rfd4/UPSTREAM.toml")"
+git -C "${rfd4_root}" merge-base --is-ancestor "${minimum_rfd4_revision}" HEAD || {
+  echo "RFD4 checkout must contain revision ${minimum_rfd4_revision}." >&2
   exit 1
 }
 runtime_helper="${studio_root}/deploy/lib/inference_runtime.sh"
@@ -48,17 +49,12 @@ if ! command -v node >/dev/null 2>&1 || ! node -e '
 fi
 
 : "${DATA_PATH:?Set DATA_PATH or configure it in ${rfd4_root}/.ipd/.env.local}"
-checkpoints=(
-  "${DATA_PATH}/latent_checkpoints/ldm_checkpoints/arch_sweep_2026_07_03_pair_trimult_every2_720k-ema.ckpt"
-  "${DATA_PATH}/latent_checkpoints/ae_checkpoints/AE_ucond_512.ckpt"
-)
-for checkpoint in "${checkpoints[@]}"; do
-  [[ -f "${checkpoint}" ]] || {
-    echo "Missing checkpoint: ${checkpoint}" >&2
-    echo "Run: bash \"${rfd4_root}/scripts/download_example_data.sh\" \"${DATA_PATH}\"" >&2
-    exit 1
-  }
-done
+[[ -x "${rfd4_root}/.venv/bin/python" ]] || {
+  echo "Run ${rfd4_root}/setup.sh before starting local RFD4 Studio." >&2
+  exit 1
+}
+"${rfd4_root}/.venv/bin/python" "${studio_root}/scripts/check_rfd4_assets.py" \
+  --rfd4-root "${rfd4_root}" --data-path "${DATA_PATH}"
 command -v nvidia-smi >/dev/null 2>&1 || {
   echo "An NVIDIA GPU and driver are required for local RFD4 generation." >&2
   exit 1

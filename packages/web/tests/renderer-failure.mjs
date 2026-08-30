@@ -2,11 +2,13 @@ import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
 
+import { chromiumArgs, chromiumExecutable } from "../../../scripts/browser.mjs";
+
 const baseUrl = process.env.ANNOTATION_STUDIO_URL ?? "http://127.0.0.1:8000/";
 const browser = await chromium.launch({
-  executablePath: "/usr/bin/google-chrome",
+  executablePath: chromiumExecutable(),
   headless: true,
-  args: ["--no-sandbox", "--disable-gpu-sandbox", "--enable-unsafe-webgpu"],
+  args: chromiumArgs,
 });
 
 try {

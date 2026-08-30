@@ -19,13 +19,21 @@ env:
 jobs:
   policy:
     runs-on: ubuntu-latest
+    env:
+      GIT_CONFIG_COUNT: "1"
+      GIT_CONFIG_KEY_0: url.https://x-access-token:${{ secrets.BAKER_LAB_READ_TOKEN }}@github.com/.insteadOf
+      GIT_CONFIG_VALUE_0: https://github.com/
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: true
+          token: ${{ secrets.BAKER_LAB_READ_TOKEN }}
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with: { enable-cache: true }
       - run: python scripts/verify_distribution.py
       - run: uv run --no-project --python 3.12 python scripts/pin_deps.py
       - run: test -f LICENSE.md && test -f docs/PROVENANCE.md && test -f vendor/patinae/UPSTREAM.toml
+      - run: git submodule deinit --force --all
       - run: docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.24.2 detect --source=/repo --no-git
 
   static:
@@ -52,7 +60,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: bash scripts/generate_api_types.sh
       - run: git diff --exit-code -- packages/web/src/generated/api.d.ts
-      - run: uv run ruff check packages providers tests
+      - run: uv run ruff check packages providers scripts tests
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: pnpm typecheck
@@ -182,6 +190,4 @@ jobs:
           tags: atomworks-studio:test
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          secrets: |
-            github_token=${{ secrets.BAKER_LAB_READ_TOKEN }}
       - run: bash scripts/accept_container.sh atomworks-studio:test

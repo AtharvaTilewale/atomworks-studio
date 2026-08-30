@@ -119,6 +119,7 @@ function updateSelectionUi(): void {
 function renderSummary(summary: StructureSummary): void {
   lastSummary = summary;
   const active = Object.entries(summary.condition_counts).filter(([, count]) => count > 0);
+  summaryElement.classList.remove("muted");
   summaryElement.innerHTML = `
     <dl class="summary-grid">
       <dt>Name</dt><dd>${escapeHtml(summary.name)}</dd>
@@ -211,12 +212,14 @@ async function refreshFromServer(summary?: StructureSummary, preserveSelection =
 
 async function mutate(path: string, body?: unknown): Promise<void> {
   if (!sessionId) return;
+  const targetSession = sessionId;
   try {
-    const response = await api<SessionResponse>(`/api/sessions/${sessionId}${path}`, {
+    const response = await api<SessionResponse>(`/api/sessions/${targetSession}${path}`, {
       method: "POST",
       headers: body === undefined ? undefined : { "Content-Type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
+    if (sessionId !== targetSession) return;
     persistSession(response);
     const structural = /^\/(?:delete|segments|reset-residue-ids)/.test(path);
     if (structural) await molecularViewer.clearAllVisuals();
@@ -224,7 +227,7 @@ async function mutate(path: string, body?: unknown): Promise<void> {
     log("Annotation Studio state updated.");
     notifyHost("changed");
   } catch (error) {
-    log(`Error: ${String(error)}`);
+    if (sessionId === targetSession) log(`Error: ${String(error)}`);
   }
 }
 
@@ -383,11 +386,11 @@ async function initialize(): Promise<void> {
       persistSession({
         session_id: designDocument.session_id,
         editor_path: designDocument.editor_path,
-        structure: designDocument.structure as StructureSummary,
+        structure: designDocument.structure,
       });
-      await refreshFromServer(designDocument.structure as StructureSummary, false);
+      await refreshFromServer(designDocument.structure, false);
       if (designDocument.kind === "refolded") {
-        const confidence = (designDocument.structure as StructureSummary).scalar_fields.find(
+        const confidence = designDocument.structure.scalar_fields.find(
           (field) => field.name === "b_factor" || /plddt|confidence/i.test(field.name),
         );
         if (confidence) {

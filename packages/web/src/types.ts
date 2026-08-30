@@ -1,6 +1,6 @@
 export type ConditionDefinition = {
   label: string;
-  kind: "mask" | "enum" | "integer" | "vector3" | "pair" | "operation";
+  kind: "mask" | "enum" | "integer" | "scalar" | "vector3" | "pair" | "operation";
   level: string;
   default: number | boolean | null;
   values?: Record<string, number>;

@@ -2,10 +2,19 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
-from typing import Any, ClassVar, Protocol
+from types import MappingProxyType
+from typing import Any, Literal, Protocol
 
 from atomworks.io.utils.atom_array_plus import AtomArrayPlus
+from atomworks.io.utils.standard_annotations.base import Level
+from atomworks.ml.conditions.base import ConditionBase
+
+ConditionKind = Literal["mask", "enum", "integer", "scalar", "vector3", "pair", "operation"]
+CountUnit = Literal["atoms", "residues", "chains", "groups", "pairs"]
+ConditionDefault = bool | int | float | None
+ConditionOperation = Callable[[AtomArrayPlus, Iterable[int], bool], None]
 
 
 @dataclass(frozen=True, slots=True)
@@ -22,13 +31,26 @@ class ConditionDefinition:
 
     key: str
     label: str
-    kind: str
-    count_unit: str
-    default: Any
+    kind: ConditionKind
+    level: Level
+    count_unit: CountUnit
+    default: ConditionDefault
     invert_mask: bool
-    condition: Any
-    schema: dict[str, Any]
+    condition: type[ConditionBase]
     enum_values: tuple[ConditionValue, ...] = ()
+
+    @property
+    def schema(self) -> dict[str, object]:
+        """Return the JSON-facing editor schema without duplicated stored state."""
+        schema: dict[str, object] = {
+            "kind": self.kind,
+            "level": self.level.value,
+            "default": self.default,
+            "label": self.label,
+        }
+        if self.enum_values:
+            schema["values"] = {member.name: member.value for member in self.enum_values}
+        return schema
 
 
 class ConditionProvider(Protocol):
@@ -38,7 +60,7 @@ class ConditionProvider(Protocol):
     def definitions(self) -> tuple[ConditionDefinition, ...]: ...
 
     @property
-    def definitions_by_key(self) -> dict[str, ConditionDefinition]: ...
+    def definitions_by_name(self) -> Mapping[str, ConditionDefinition]: ...
 
     def after_condition_update(self, name: str, array: AtomArrayPlus) -> None: ...
 
@@ -53,7 +75,7 @@ class NeutralConditionProvider:
     """Condition provider for model-neutral document operations."""
 
     definitions: tuple[ConditionDefinition, ...] = ()
-    definitions_by_key: ClassVar[dict[str, ConditionDefinition]] = {}
+    definitions_by_name: Mapping[str, ConditionDefinition] = MappingProxyType({})
 
     def after_condition_update(self, name: str, array: AtomArrayPlus) -> None:
         del name, array

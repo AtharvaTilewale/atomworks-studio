@@ -88,5 +88,3 @@ jobs:
             ghcr.io/baker-laboratory/atomworks-studio:${{ github.sha }}
           sbom: true
           provenance: mode=max
-          secrets: |
-            github_token=${{ secrets.BAKER_LAB_READ_TOKEN }}

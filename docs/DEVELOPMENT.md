@@ -17,10 +17,11 @@ Studio pins its development toolchain:
 - `git` with access to the private `baker-laboratory` repositories
 
 AtomWorks and RFD4-Proteina are vendored as git submodules under `external/`,
-pinned to their default branches (atomworks `dev`, RFD4 `main`). Clone with
-`git clone --recursive`, or run `git submodule update --init` before the first
-bootstrap. The patched Patinae viewer is a committed tarball. Configure Git
-authentication first if the submodule repositories are private to your account.
+pinned to reviewed commits sourced from atomworks `dev` and RFD4 `main`. Clone
+with `git clone --recursive`, or run `git submodule update --init --recursive`
+before the first bootstrap. The patched Patinae viewer is a committed tarball.
+Configure Git authentication first if the submodule repositories are private
+to your account.
 
 ## Repository layout
 
@@ -100,6 +101,15 @@ Additional release gates and artifact locations are listed in
 [Acceptance](ACCEPTANCE.md). The behavioral matrix across clients is in
 [Desktop parity](PARITY.md).
 
+RFD4 model assets are not vendored. Verify the exact files selected by the
+pinned RFD4 config, plus their anonymous public-bucket copies, with:
+
+```bash
+DATA_PATH=/persistent/rfd4-data \
+uv run python scripts/check_rfd4_assets.py \
+  --rfd4-root external/RFD4-Proteina-dev --check-bucket
+```
+
 ## Build outputs
 
 | Artifact | Command | Output |
@@ -111,16 +121,11 @@ Additional release gates and artifact locations are listed in
 | Full local build | `make build` | all of the above except VSIX packaging |
 | CPU container | Docker command below | local image |
 
-Build the production CPU image with a GitHub token available only as a BuildKit
-secret:
+Build the production CPU image directly from the recursive checkout:
 
 ```bash
-export GH_TOKEN="$(gh auth token)"
-docker build --secret id=github_token,env=GH_TOKEN \
-  -f deploy/Dockerfile -t atomworks-studio:local .
+docker build -f deploy/Dockerfile -t atomworks-studio:local .
 ```
-
-Do not pass the token as a build argument or persist it in an image layer.
 
 ## Provider development
 
@@ -129,6 +134,29 @@ Provider-neutral protocols live in `annotation_studio.contracts`:
 - `ConditionProvider` describes editable conditions and their value schemas.
 - `ValidationProvider` validates a document against model-specific rules.
 - `DesignProvider` submits, polls, and cancels generation jobs.
+
+### StandardAnnotation editing contract
+
+Semantic authoring metadata belongs on the upstream StandardAnnotation class,
+not in a Studio-, PyMOL-, or YAML-specific registry:
+
+- `editing_type` declares the writable value type; fixed-width vectors use a
+  NumPy subarray dtype such as `np.dtype((np.float32, (3,)))`.
+- `editing_is_mask_only` means readers may consume stored values but editors
+  only change the mask. Sequence, coordinate, index, and internal-coordinate
+  conditioning use this mode.
+- `aliases` are accepted only when reading or resolving names. AtomWorks
+  setters and CIF serialization write the canonical `full_name`/`mask_name`.
+
+The RFD4 provider derives browser and PyMOL schemas from those fields. Studio
+currently supports one-body masks, enums, integers, finite numeric scalars,
+three-vectors, and the `C_DIS` distance-pair editor. Other pair types and
+writable strings remain visible through stored-field inspection but are not
+offered by an incompatible generic widget.
+
+Internal-coordinate authoring stores only `C_INTCRD`/`C_CRD` masks and
+`C_CRDGRP`; RFD4 featurization is the sole production path that centers,
+randomly rotates, and writes `C_INTCRD` values.
 
 The API imports no model implementation in its document core. Optional provider
 packages register through the `atomworks_studio.providers` Python entry-point
@@ -162,7 +190,11 @@ pnpm --dir packages/web test:unit
 The two renderers implement one adapter contract but never silently fall back
 to each other. Test both modes through `packages/web/tests/smoke.mjs`.
 
-Documentation screenshots are reproducible against a running service:
+Documentation screenshots are reproducible against a running service. Set
+`CHROME_PATH` only when Chrome or Chromium is not installed in a standard
+location. The checked-in documentation uses Mol*/WebGL because it renders
+deterministically in headless CI; Patinae/WebGPU remains covered by its own
+browser E2E path:
 
 ```bash
 ANNOTATION_STUDIO_URL=http://127.0.0.1:8000 \

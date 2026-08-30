@@ -3,6 +3,8 @@ import { resolve } from "node:path";
 import AxeBuilder from "@axe-core/playwright";
 import { chromium } from "playwright-core";
 
+import { chromiumArgs, chromiumExecutable } from "../../../scripts/browser.mjs";
+
 const baseUrl = process.env.ANNOTATION_STUDIO_URL ?? "http://127.0.0.1:8000/";
 const viewerMode = process.env.VIEWER_MODE;
 if (viewerMode !== "patinae" && viewerMode !== "molstar") {
@@ -10,13 +12,27 @@ if (viewerMode !== "patinae" && viewerMode !== "molstar") {
 }
 const expectDesignEnabled = process.env.EXPECT_DESIGN_ENABLED === "1";
 const runDesignJob = expectDesignEnabled && process.env.RUN_DESIGN_JOB !== "0";
-const browserArgs = ["--no-sandbox", "--disable-gpu-sandbox", "--enable-unsafe-webgpu"];
-
 const browser = await chromium.launch({
-  executablePath: "/usr/bin/google-chrome",
+  executablePath: chromiumExecutable(),
   headless: true,
-  args: browserArgs,
+  args: chromiumArgs,
 });
+
+async function assertNoSevereAccessibilityIssues(page, context) {
+  const accessibility = await new AxeBuilder({ page }).analyze();
+  const severeIssues = accessibility.violations.filter(
+    (violation) => violation.impact === "serious" || violation.impact === "critical",
+  );
+  assert.deepEqual(
+    severeIssues.map(({ id, impact, nodes }) => ({
+      id,
+      impact,
+      targets: nodes.map((node) => node.target),
+    })),
+    [],
+    `${context} has no serious or critical accessibility violations`,
+  );
+}
 
 try {
   const context = await browser.newContext({ viewport: { width: 1400, height: 900 } });
@@ -36,19 +52,6 @@ try {
     expectDesignEnabled ? /ready/ : /not configured/,
   );
   assert.ok(await page.locator("#viewer canvas").isVisible(), "molecular viewer canvas is visible");
-  const accessibility = await new AxeBuilder({ page }).analyze();
-  const severeAccessibilityIssues = accessibility.violations.filter(
-    (violation) => violation.impact === "serious" || violation.impact === "critical",
-  );
-  assert.deepEqual(
-    severeAccessibilityIssues.map(({ id, impact, nodes }) => ({
-      id,
-      impact,
-      targets: nodes.map((node) => node.target),
-    })),
-    [],
-    "no serious or critical accessibility violations",
-  );
   assert.equal(
     await page.locator("#viewer").getAttribute("data-backend"),
     viewerMode,
@@ -194,6 +197,7 @@ try {
   );
   assert.equal(await page.locator("#atomworks-studio-menu").getAttribute("open"), "");
   assert.ok(await page.locator("#annotation-list").isVisible(), "AtomWorks annotations are in the Studio menu");
+  await assertNoSevereAccessibilityIssues(page, "the loaded editor");
   assert.equal(await page.locator("#design-card").isHidden(), true, "RFD4 controls are separate from AtomWorks");
   assert.equal(await page.locator("#workspace").getAttribute("data-studio-tab"), "atomworks");
   const studioCards = page.locator('#atomworks-studio-popover > [data-studio-panel="atomworks"]');
@@ -327,7 +331,9 @@ try {
     true,
     "view controls remain open after camera actions",
   );
-  await page.locator("#viewer canvas").first().click({ position: { x: 400, y: 300 } });
+  const canvasBounds = await page.locator("#viewer canvas").first().boundingBox();
+  assert.ok(canvasBounds, "viewer canvas has a clickable layout box");
+  await page.mouse.click(canvasBounds.x + 400, canvasBounds.y + 300);
   assert.equal(await page.locator("#viewer-toolbar").isVisible(), true);
   assert.equal(
     await page.locator('[data-menu="view"]').evaluate((menu) => menu.hasAttribute("open")),
@@ -364,19 +370,24 @@ try {
     assert.equal(await page.locator("#selection-syntax option").first().isDisabled(), true);
     assert.equal(await page.locator("#viewer-command").isEnabled(), true);
   }
-  await page.setViewportSize({ width: 760, height: 620 });
-  await page.locator("body").evaluate((body) => {
-    body.style.zoom = "125%";
-  });
+  // 760 physical pixels at 125% browser zoom yields a 608 CSS-pixel viewport.
+  await page.setViewportSize({ width: 608, height: 620 });
   assert.equal(await page.locator("#viewer-toolbar").isVisible(), true);
   assert.equal(await page.locator('[data-menu="studio"] > summary').isVisible(), true);
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
   assert.equal(await page.evaluate(() => window.scrollY), 0, "application shell remains viewport-locked");
-  const toolbarBox = await page.locator("#viewer-toolbar").boundingBox();
-  assert.ok(toolbarBox && toolbarBox.y >= 0, "toolbar stays inside the viewport at browser zoom");
-  await page.locator("body").evaluate((body) => {
-    body.style.zoom = "";
-  });
+  const headerBox = await page.locator("header").boundingBox();
+  assert.ok(headerBox && headerBox.height <= 150, "header remains compact at the responsive baseline");
+  await page.locator("#atomworks-studio-menu > summary").click();
+  await page.waitForFunction(
+    () => document.querySelector("#workspace")?.getAttribute("data-studio-tab") === "atomworks",
+  );
+  const studioPanelBox = await page.locator("#atomworks-studio-popover").boundingBox();
+  assert.ok(studioPanelBox, "Studio panel is visible at the responsive baseline");
+  assert.ok(studioPanelBox.x >= 0 && studioPanelBox.x + studioPanelBox.width <= 608, "Studio panel stays within the viewport");
+  assert.ok(studioPanelBox.y >= 0 && studioPanelBox.y + studioPanelBox.height <= 620, "Studio panel stays within the viewport height");
+  await assertNoSevereAccessibilityIssues(page, "the narrow loaded editor");
+  await page.locator("#atomworks-studio-menu > summary").click();
   await page.setViewportSize({ width: 1400, height: 900 });
   await page.locator("#atomworks-studio-menu > summary").click();
   assert.ok(await page.locator(".annotation-row").count(), "stored annotations are summarized");
@@ -466,7 +477,7 @@ try {
   assert.equal(sessionResponse.ok(), true);
   const { editor_path: editorPath } = await sessionResponse.json();
   assert.match(editorPath, /^\//);
-  const embedded = await browser.newPage({ viewport: { width: 1400, height: 900 } });
+  const embedded = await context.newPage();
   const embeddedUrl = new URL(editorPath, baseUrl);
   embeddedUrl.searchParams.set("viewer", viewerMode);
   await embedded.goto(embeddedUrl.toString(), { waitUntil: "networkidle" });
@@ -474,6 +485,7 @@ try {
   assert.equal(await embedded.locator("body").getAttribute("class"), "embedded");
   assert.equal(await embedded.locator(".header-logo").isVisible(), true);
   assert.equal(await embedded.locator(".eyebrow").first().innerText(), "ATOMWORKS");
+  await assertNoSevereAccessibilityIssues(embedded, "the embedded loaded editor");
   await embedded.close();
   const host = await browser.newPage();
   await host.goto(baseUrl);

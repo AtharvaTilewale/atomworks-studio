@@ -92,7 +92,7 @@ AtomWorks and RFD4-Proteina are vendored as git submodules under `external/`, so
 clone with submodules, then bootstrap and run:
 
 ```bash
-git clone --recursive <repository-url>   # or run: git submodule update --init
+git clone --recursive <repository-url>   # or run: git submodule update --init --recursive
 make bootstrap
 make run
 ```
@@ -111,14 +111,23 @@ starting points.
 ## Add RFD4 generation
 
 RFD4-Proteina is bundled as the `external/RFD4-Proteina-dev` submodule. Run its
-one-time model setup, point `DATA_PATH` at the checkpoints, and start the local
-GPU launcher (set `ANNOTATION_STUDIO_RFD4_ROOT` only to override the bundled
-submodule with a separate checkout):
+one-time model setup, download the two public inference checkpoints, and start
+the local GPU launcher (set `ANNOTATION_STUDIO_RFD4_ROOT` only to override the
+bundled submodule with a separate checkout):
 
 ```bash
 export DATA_PATH=/persistent/rfd4-data
+bash external/RFD4-Proteina-dev/setup.sh  # one time; choose the local/other environment
+bash external/RFD4-Proteina-dev/scripts/download_example_data.sh "$DATA_PATH"
+uv run python scripts/check_rfd4_assets.py \
+  --rfd4-root external/RFD4-Proteina-dev --check-bucket
 bash deploy/local/start.sh
 ```
+
+The verifier reads the checkpoint names from the pinned RFD4 inference config,
+checks the local files, and confirms that the same byte-sized objects are
+anonymously available from the public RFD4 bucket. It avoids duplicating model
+filenames in Studio as RFD4 releases advance.
 
 Use the [local GPU guide](deploy/local/README.md) for a workstation or the
 [Brev guide](deploy/brev/README.md) for an authenticated GPU deployment. The

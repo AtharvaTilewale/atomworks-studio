@@ -19,9 +19,7 @@ def test_read_extensions_migrates_legacy_file_and_module_names(monkeypatch, tmp_
     current, legacy = _configure_paths(monkeypatch, tmp_path)
     legacy.parent.mkdir(parents=True)
     legacy.write_text(
-        "# old configuration\n"
-        "rfproteina.pymol.editors\n"
-        "atomworks_studio_rfd4.pymol.editors\n",
+        "# old configuration\nrfproteina.pymol.editors\natomworks_studio_rfd4.pymol.editors\n",
         encoding="utf-8",
     )
 

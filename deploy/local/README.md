@@ -31,6 +31,16 @@ bash "${RFPROTEINA_ROOT}/scripts/download_example_data.sh" \
   /absolute/path/to/data_path
 ```
 
+The launcher derives the required filenames from the pinned RFD4 inference
+configuration and fails before GPU startup if either file is absent. To also
+verify the public source objects and detect a truncated local download:
+
+```bash
+DATA_PATH=/absolute/path/to/data_path \
+uv run python scripts/check_rfd4_assets.py \
+  --rfd4-root "$RFPROTEINA_ROOT" --check-bucket
+```
+
 ## Start
 
 From the AtomWorks Studio repository root:
@@ -63,9 +73,9 @@ local Studio job directory. The browser/API still runs directly on the host.
 `$RFPROTEINA_ROOT/.ipd/.env.local`; omit it when all four supported Apptainer
 paths are ready.
 Studio cannot call `$RFPROTEINA_ROOT/scripts/launch_infer.sh` directly because
-that launcher requires SLURM. It sources
-`$RFPROTEINA_ROOT/scripts/inference_runtime.sh`, which shares the same
-underlying `af3_daemon.py launch` lifecycle without `sbatch`/`srun`.
+that launcher requires SLURM. The local service sources Studio's
+`deploy/lib/inference_runtime.sh`, which mirrors the `af3_daemon.py launch`
+lifecycle in RFD4's `scripts/common.sh` without `sbatch`/`srun`.
 
 Open:
 

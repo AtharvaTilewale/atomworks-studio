@@ -14,6 +14,7 @@ import logging
 import numpy as np
 from atomworks.io.utils.atom_array_plus import AnnotationList2D
 from atomworks.io.utils.standard_annotations.base import StandardAnnotationBase
+from atomworks_studio_editing.mutations import set_condition_mask
 from atomworks_studio_pymol.bridge import (
     _pymol_resi_to_res_id_ins_code,
     reload_structure_in_pymol,
@@ -76,20 +77,19 @@ class BaseAnnotationEditor:
         """Apply the editor's current settings to the PyMOL selection."""
         raise NotImplementedError
 
-    def _set_mask(self, value: bool) -> None:
+    def _set_mask(self, value: bool) -> bool:
         """Set the annotation mask to *value* for the current PyMOL selection."""
         obj_name = self._state.active
         if not obj_name or obj_name not in self._state.arrays:
-            return
+            return False
         indices = self._require_selection_indices()
         if indices is None:
-            return
+            return False
         arr = self._state.get_synced_array(obj_name)
-        mask = self._annotation_cls.mask(arr, default="generate").copy()
-        mask[indices] = value
-        self._annotation_cls.set_mask(arr, mask)
+        set_condition_mask(arr, self._annotation_cls, indices, value)
         self._reload_or_recolor()
         self._clear_selection()
+        return True
 
     def _reload_or_recolor(self, structural_change: bool = False) -> None:
         """Refresh the PyMOL view after an annotation or structural edit.
@@ -123,7 +123,7 @@ class MaskEditor(_QtWidgets.QWidget, BaseAnnotationEditor):
     """
 
     def __init__(
-        self, annotation_cls: StandardAnnotationBase, state: PluginState, parent: _QtWidgets.QWidget | None = None
+        self, annotation_cls: type[StandardAnnotationBase], state: PluginState, parent: _QtWidgets.QWidget | None = None
     ):
         super().__init__(parent)
         layout = _QtWidgets.QVBoxLayout(self)
@@ -185,7 +185,7 @@ class ScalarEditor(_QtWidgets.QWidget, BaseAnnotationEditor):
     """
 
     def __init__(
-        self, annotation_cls: StandardAnnotationBase, state: PluginState, parent: _QtWidgets.QWidget | None = None
+        self, annotation_cls: type[StandardAnnotationBase], state: PluginState, parent: _QtWidgets.QWidget | None = None
     ):
         super().__init__(parent)
         layout = _QtWidgets.QVBoxLayout(self)
@@ -285,7 +285,7 @@ class SequenceEditor(_QtWidgets.QWidget, BaseAnnotationEditor):
     """
 
     def __init__(
-        self, annotation_cls: StandardAnnotationBase, state: PluginState, parent: _QtWidgets.QWidget | None = None
+        self, annotation_cls: type[StandardAnnotationBase], state: PluginState, parent: _QtWidgets.QWidget | None = None
     ):
         super().__init__(parent)
         layout = _QtWidgets.QVBoxLayout(self)
@@ -333,7 +333,7 @@ class CoordinateEditor(_QtWidgets.QWidget, BaseAnnotationEditor):
     """
 
     def __init__(
-        self, annotation_cls: StandardAnnotationBase, state: PluginState, parent: _QtWidgets.QWidget | None = None
+        self, annotation_cls: type[StandardAnnotationBase], state: PluginState, parent: _QtWidgets.QWidget | None = None
     ):
         super().__init__(parent)
         layout = _QtWidgets.QVBoxLayout(self)
@@ -385,7 +385,7 @@ class PairValueEditor(_QtWidgets.QWidget, BaseAnnotationEditor):
     _POLL_MS = 200  # polling interval in milliseconds
 
     def __init__(
-        self, annotation_cls: StandardAnnotationBase, state: PluginState, parent: _QtWidgets.QWidget | None = None
+        self, annotation_cls: type[StandardAnnotationBase], state: PluginState, parent: _QtWidgets.QWidget | None = None
     ):
         super().__init__(parent)
 
@@ -395,7 +395,7 @@ class PairValueEditor(_QtWidgets.QWidget, BaseAnnotationEditor):
         layout.addWidget(_QtWidgets.QLabel(f"<b>{cls.name}</b> — pairwise condition"))
 
         desc = _QtWidgets.QLabel(
-            "Click 'Select Atom N', then left-click an atom in PyMOL. " "The selection is captured automatically."
+            "Click 'Select Atom N', then left-click an atom in PyMOL. The selection is captured automatically."
         )
         desc.setWordWrap(True)
         layout.addWidget(desc)

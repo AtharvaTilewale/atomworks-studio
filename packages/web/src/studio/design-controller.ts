@@ -1,7 +1,4 @@
-type StructureSummary = {
-  name: string;
-  atom_count: number;
-};
+import type { StructureSummary } from "../types";
 
 export type DesignDocument = {
   id: string;
@@ -40,6 +37,10 @@ export type OpenedDesignDocument = DesignDocument & {
   editor_path: string;
   structure: StructureSummary;
 };
+
+function isOpenedDesignDocument(document: DesignDocument): document is OpenedDesignDocument {
+  return Boolean(document.session_id && document.editor_path && document.structure);
+}
 
 type DesignSchema = {
   enabled: boolean;
@@ -456,10 +457,10 @@ export async function initializeDesignController(options: DesignControllerOption
           `/api/design-jobs/${encodeURIComponent(currentJobId)}/outputs/${encodeURIComponent(document.id)}/open`,
           { method: "POST" },
         );
-    if (!opened.session_id || !opened.structure || !opened.editor_path) {
+    if (!isOpenedDesignDocument(opened)) {
       throw new Error("design output did not include an editor session");
     }
-    return opened as OpenedDesignDocument;
+    return opened;
   }
 
   async function open(document: DesignDocument, button: HTMLButtonElement): Promise<void> {

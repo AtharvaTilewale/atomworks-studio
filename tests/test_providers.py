@@ -12,7 +12,7 @@ FIXTURE = Path(__file__).parent / "fixtures" / "SAM_hbonds.cif"
 
 class EmptyConditionProvider:
     definitions: tuple[ConditionDefinition, ...] = ()
-    definitions_by_key: ClassVar[dict[str, ConditionDefinition]] = {}
+    definitions_by_name: ClassVar[dict[str, ConditionDefinition]] = {}
 
     def after_condition_update(self, name: str, array: AtomArrayPlus) -> None:
         del name, array

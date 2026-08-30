@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import copy
-from collections.abc import Callable
 from io import StringIO
 from typing import Any, Literal
 
@@ -15,6 +14,7 @@ from atomworks.io import parse
 from atomworks.io.config import ParseConfig
 from atomworks.io.template import infer_bonds_from_residue_names
 from atomworks.io.utils.atom_array_plus import (
+    AnnotationList2D,
     AtomArrayPlus,
     as_atom_array_plus,
     concatenate_atom_array_plus,
@@ -28,6 +28,7 @@ from atomworks.io.utils.standard_annotations import S_SEGMAX, S_SEGMIN
 from atomworks.ml.conditions import C_DIS
 
 from atomworks_studio_editing.mutations import edit_distance_restraint as mutate_distance_restraint
+from atomworks_studio_editing.mutations import set_condition_mask
 from atomworks_studio_editing.structure_mutations import (
     assign_chain_id,
     delete_atoms as mutate_delete_atoms,
@@ -45,6 +46,7 @@ from atomworks.ml.utils.expandable_segment import (
 from .contracts import (
     NEUTRAL_CONDITION_PROVIDER,
     NEUTRAL_VALIDATION_PROVIDER,
+    ConditionOperation,
     ConditionProvider,
     ValidationProvider,
 )
@@ -112,10 +114,7 @@ INTERACTION_FAMILIES = {
     "halogen": "halogen",
     "metal": "metal",
 }
-INTERACTION_ANNOTATIONS = {
-    name: f"interaction_{name}"
-    for name in INTERACTION_TYPES
-}
+INTERACTION_ANNOTATIONS = {name: f"interaction_{name}" for name in INTERACTION_TYPES}
 
 
 def _first_array(result: dict[str, Any]) -> AtomArrayPlus:
@@ -237,10 +236,10 @@ class StudioDocument:
 
         for spec in self.condition_provider.definitions:
             condition = spec.condition
-            if spec.kind == "mask":
+            if spec.kind in {"mask", "operation"}:
                 if not condition.has_mask(self.array):
                     continue
-                mask = condition.mask(self.array, default="generate")
+                mask = np.asarray(condition.mask(self.array, default="generate"))
                 if spec.invert_mask:
                     mask = ~mask
                 if not mask.any():
@@ -266,77 +265,16 @@ class StudioDocument:
                 )
                 continue
 
-            if spec.kind == "operation":
-                # Operations (e.g. internal-coordinate conditioning) store a per-atom mask marking
-                # where they were applied; surface that as a plain active-atom count.
-                if not condition.has_mask(self.array):
-                    continue
-                mask = condition.mask(self.array, default="generate")
-                if not mask.any():
-                    continue
-                indices = atom_indices(mask)
-                entries.append(
-                    {
-                        "name": spec.key,
-                        "label": spec.label,
-                        "count": len(indices),
-                        "unit": spec.count_unit,
-                        "values": [{"label": "Active", "count": len(indices), "atom_indices": indices}],
-                    }
-                )
-                continue
-
             if not condition.has_annotation(self.array):
                 continue
-            annotation = condition.annotation(self.array, default="raise")
-            mask = condition.mask(self.array, default="generate")
+            raw_annotation = condition.annotation(self.array, default="raise")
             values: list[dict[str, Any]] = []
 
-            if spec.kind == "enum":
-                for member in spec.enum_values:
-                    if member.value == spec.default:
-                        continue
-                    member_mask = mask & (annotation == member.value)
-                    if member_mask.any():
-                        indices = atom_indices(member_mask)
-                        values.append(
-                            {
-                                "label": member.name,
-                                "value": int(member.value),
-                                "count": len(indices),
-                                "atom_indices": indices,
-                            }
-                        )
-            elif spec.kind == "integer":
-                for group in np.unique(annotation):
-                    if group == spec.default:
-                        continue
-                    group_mask = annotation == group
-                    indices = atom_indices(group_mask)
-                    values.append(
-                        {
-                            "label": f"Group {int(group)}",
-                            "value": int(group),
-                            "count": len(indices),
-                            "atom_indices": indices,
-                        }
-                    )
-            elif spec.kind == "vector3":
-                for chain in np.unique(self.array.chain_iid[mask]):
-                    chain_mask = mask & (self.array.chain_iid == chain)
-                    indices = atom_indices(chain_mask)
-                    xyz = annotation[indices[0]]
-                    values.append(
-                        {
-                            "label": f"Chain {chain}",
-                            "value": [float(value) for value in xyz],
-                            "count": len(indices),
-                            "atom_indices": indices,
-                        }
-                    )
-            elif spec.kind == "pair":
+            if spec.kind == "pair":
+                if not isinstance(raw_annotation, AnnotationList2D):
+                    raise TypeError(f"{spec.key} declared a pair editor but stores a 1-body annotation")
                 seen: set[tuple[int, int]] = set()
-                for pair, value in zip(annotation.pairs, annotation.values, strict=True):
+                for pair, value in zip(raw_annotation.pairs, raw_annotation.values, strict=True):
                     atom1, atom2 = sorted((int(pair[0]), int(pair[1])))
                     if atom1 == atom2 or (atom1, atom2) in seen:
                         continue
@@ -349,24 +287,91 @@ class StudioDocument:
                             "atom_indices": [atom1, atom2],
                         }
                     )
+            else:
+                annotation = np.asarray(raw_annotation)
+                mask = np.asarray(condition.mask(self.array, default="generate"))
+                if spec.kind == "enum":
+                    for member in spec.enum_values:
+                        if member.value == spec.default:
+                            continue
+                        member_mask = mask & (annotation == member.value)
+                        if member_mask.any():
+                            indices = atom_indices(member_mask)
+                            values.append(
+                                {
+                                    "label": member.name,
+                                    "value": int(member.value),
+                                    "count": len(indices),
+                                    "atom_indices": indices,
+                                }
+                            )
+                elif spec.kind == "integer":
+                    for group in np.unique(annotation):
+                        if group == spec.default:
+                            continue
+                        group_mask = annotation == group
+                        indices = atom_indices(group_mask)
+                        values.append(
+                            {
+                                "label": f"Group {int(group)}",
+                                "value": int(group),
+                                "count": len(indices),
+                                "atom_indices": indices,
+                            }
+                        )
+                elif spec.kind == "scalar":
+                    for scalar in np.unique(annotation):
+                        if scalar == spec.default:
+                            continue
+                        scalar_mask = annotation == scalar
+                        indices = atom_indices(scalar_mask)
+                        values.append(
+                            {
+                                "label": str(float(scalar)),
+                                "value": float(scalar),
+                                "count": len(indices),
+                                "atom_indices": indices,
+                            }
+                        )
+                elif spec.kind == "vector3":
+                    for chain in np.unique(self.array.chain_iid[mask]):
+                        chain_mask = mask & (self.array.chain_iid == chain)
+                        indices = atom_indices(chain_mask)
+                        if not indices:
+                            continue
+                        xyz = annotation[indices[0]]
+                        values.append(
+                            {
+                                "label": f"Chain {chain}",
+                                "value": [float(value) for value in xyz],
+                                "count": len(indices),
+                                "atom_indices": indices,
+                            }
+                        )
 
             if values:
+                if spec.count_unit == "residues":
+                    active = np.asarray(condition.mask(self.array, default="generate"))
+                    count = int(active[struc.get_residue_starts(self.array)].sum())
+                elif spec.count_unit in {"groups", "chains"}:
+                    count = len(values)
+                else:
+                    count = sum(value["count"] for value in values)
                 entries.append(
                     {
                         "name": spec.key,
                         "label": spec.label,
-                        "count": len(values) if spec.count_unit in {"groups", "chains"} else sum(
-                            value["count"] for value in values
-                        ),
+                        "count": count,
                         "unit": spec.count_unit,
                         "values": values,
                     }
                 )
 
         if condition_name is not None:
-            if condition_name not in self.condition_provider.definitions_by_key:
+            definition = self.condition_provider.definitions_by_name.get(condition_name)
+            if definition is None:
                 raise KeyError(f"unsupported condition: {condition_name}")
-            return [entry for entry in entries if entry["name"] == condition_name]
+            return [entry for entry in entries if entry["name"] == definition.key]
         return entries
 
     def stored_annotation_fields(self, field_name: str | None = None) -> list[dict[str, Any]]:
@@ -591,19 +596,23 @@ class StudioDocument:
         indices: list[int],
         *,
         enabled: bool = True,
-        value: float | list[float] | None = None,
+        value: int | float | list[int | float] | None = None,
         scope: ConditionScope = "atom",
     ) -> None:
-        if name not in self.condition_provider.definitions_by_key:
+        if name not in self.condition_provider.definitions_by_name:
             raise ValueError(f"unsupported condition: {name}")
         selected = self.resolve_indices(indices, scope)
-        spec = self.condition_provider.definitions_by_key[name]
+        spec = self.condition_provider.definitions_by_name[name]
         condition = spec.condition
         if spec.kind == "operation":
             raise ValueError(f"{name} is applied via its operation endpoint, not set_condition")
         if spec.kind == "pair":
+            if condition is not C_DIS:
+                raise ValueError(f"{name} is a pair annotation without a registered mutation handler")
             if len(selected) != 2:
                 raise ValueError(f"{name} requires exactly two different atoms")
+            if value is not None and (isinstance(value, bool) or not isinstance(value, int | float)):
+                raise ValueError(f"{name} requires a numeric pair value")
             pair_value = None if value is None else float(value)
             self.edit_distance_restraint(
                 int(selected[0]),
@@ -615,16 +624,14 @@ class StudioDocument:
         self.snapshot()
         try:
             if spec.kind == "mask":
-                mask = condition.mask(self.array, default="generate").copy()
-                mask[selected] = not enabled if spec.invert_mask else enabled
-                condition.set_mask(self.array, mask)
-                self.condition_provider.after_condition_update(name, self.array)
+                set_condition_mask(self.array, condition, selected, enabled, invert=spec.invert_mask)
+                self.condition_provider.after_condition_update(spec.key, self.array)
                 self._mark_changed()
                 return
 
             if spec.kind == "vector3":
-                annotation = condition.annotation(self.array, default="generate").copy()
-                mask = condition.mask(self.array, default="generate").copy()
+                annotation = np.asarray(condition.annotation(self.array, default="generate")).copy()
+                mask = np.asarray(condition.mask(self.array, default="generate")).copy()
                 if enabled:
                     vector = np.asarray(value, dtype=np.float32)
                     if vector.shape != (3,) or not np.isfinite(vector).all():
@@ -639,20 +646,26 @@ class StudioDocument:
                 self._mark_changed()
                 return
 
-            annotation = condition.annotation(self.array, default="generate").copy()
+            annotation = np.asarray(condition.annotation(self.array, default="generate")).copy()
             default = spec.default
             if enabled and value is None:
                 raise ValueError(f"{name} requires a value")
             if enabled and spec.kind == "enum":
                 allowed = {member.value for member in spec.enum_values}
-                if value not in allowed:
+                if isinstance(value, bool) or value not in allowed:
                     raise ValueError(f"{name} value must be one of {sorted(allowed)}")
-            if enabled and spec.kind == "integer" and not isinstance(value, int):
+            if enabled and spec.kind == "integer" and (isinstance(value, bool) or not isinstance(value, int)):
                 raise ValueError(f"{name} requires an integer value")
-            annotation[selected] = value if enabled else default
+            if (
+                enabled
+                and spec.kind == "scalar"
+                and (isinstance(value, bool) or not isinstance(value, int | float) or not np.isfinite(value))
+            ):
+                raise ValueError(f"{name} requires a finite numeric value")
+            annotation[selected] = value if enabled else np.asarray(condition.default_annotation(self.array))[selected]
             condition.set_annotation(self.array, annotation)
             if spec.kind == "enum":
-                mask = condition.mask(self.array, default="generate").copy()
+                mask = np.asarray(condition.mask(self.array, default="generate")).copy()
                 mask[selected] = enabled and value != default
                 condition.set_mask(self.array, mask)
             self._mark_changed()
@@ -664,13 +677,14 @@ class StudioDocument:
         self,
         indices: list[int],
         scope: ConditionScope,
-        transform: Callable[[Any, np.ndarray], None],
+        transform: ConditionOperation,
+        enabled: bool,
     ) -> None:
         """Apply a provider-supplied in-place array transform to the resolved selection, with undo."""
         selected = self.resolve_indices(indices, scope)
         self.snapshot()
         try:
-            transform(self.array, selected)
+            transform(self.array, selected, enabled)
             self._mark_changed()
         except Exception:
             self.array = self._undo.pop()
@@ -782,11 +796,7 @@ class StudioDocument:
         """Rigidly align common protein-backbone atoms to a reference document."""
 
         def identity_map(array: AtomArrayPlus) -> dict[tuple[str, int, str, str], int]:
-            ins_codes = (
-                array.ins_code
-                if "ins_code" in array.get_annotation_categories()
-                else np.full(len(array), "")
-            )
+            ins_codes = array.ins_code if "ins_code" in array.get_annotation_categories() else np.full(len(array), "")
             mapping: dict[tuple[str, int, str, str], int] = {}
             duplicates: set[tuple[str, int, str, str]] = set()
             for index in range(len(array)):
@@ -1002,9 +1012,7 @@ class StudioDocument:
                     "distance": float(np.linalg.norm(self.array.coord[atom1] - self.array.coord[atom2])),
                 }
                 if interaction_type == "pistacking":
-                    item["subtype"] = (
-                        "parallel" if int(value) == int(InteractionType.PISTACKING_P) else "t_shaped"
-                    )
+                    item["subtype"] = "parallel" if int(value) == int(InteractionType.PISTACKING_P) else "t_shaped"
                 elif interaction_type == "pication":
                     item["subtype"] = "cation"
                 interactions.append(item)
@@ -1031,11 +1039,10 @@ class StudioDocument:
             return []
 
         condition_masks: dict[str, np.ndarray] = {}
-        if self.condition_provider is not None:
-            for key in ("sequence", "coordinate", "index", "hotspot"):
-                definition = self.condition_provider.definitions_by_key.get(key)
-                if definition is not None:
-                    condition_masks[key] = definition.condition.mask(self.array, default="generate")
+        for key in ("sequence", "coordinate", "index", "hotspot"):
+            definition = self.condition_provider.definitions_by_name.get(key)
+            if definition is not None:
+                condition_masks[key] = definition.condition.mask(self.array, default="generate")
 
         has_segments = S_SEGMIN.has_mask(self.array) and S_SEGMAX.has_mask(self.array)
         segment_mask = S_SEGMIN.mask(self.array) if has_segments else np.zeros(len(self.array), dtype=bool)
@@ -1081,9 +1088,7 @@ class StudioDocument:
                         }
                     )
                 else:
-                    conditions = [
-                        key for key, mask in condition_masks.items() if bool(np.any(mask[start:stop]))
-                    ]
+                    conditions = [key for key, mask in condition_masks.items() if bool(np.any(mask[start:stop]))]
                     residue_name = str(self.array.res_name[start])
                     items.append(
                         {

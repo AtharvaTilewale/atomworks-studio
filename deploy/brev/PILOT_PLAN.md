@@ -27,10 +27,6 @@ flowchart LR
   AF3 daemon.
 - `scripts/accept_brev.py` exercises CIF editing, one-step generation, output
   loading, and optional AF3 search.
-- The Brev CLI is installed locally at version `v0.6.331` and authenticated to
-  the `rdf4-proteina-enablement` organization.
-- The authenticated HTTPS URL is
-  <https://atomworks-studio-k72mdjjr8.apps.run.brev.nvidia.com>.
 - Current ownership, deployment state, acceptance evidence, and operator
   commands are recorded in [PILOT_STATUS.md](PILOT_STATUS.md).
 
@@ -87,11 +83,9 @@ On the Brev instance, keep durable files below `/home/ubuntu/workspace`:
 /home/ubuntu/workspace/rfd4-annotation-studio/
 ```
 
-The RFD4 checkout must contain revision:
-
-```text
-0e9050ca426a74069b99b63ca4a6520b05c2f8c7
-```
+Use the RFD4 revision pinned by Studio's
+`external/RFD4-Proteina-dev` submodule. A separate checkout is supported only
+when it contains the minimum revision enforced by `launchable-setup.sh`.
 
 Required environment values:
 
@@ -103,11 +97,12 @@ export BREV_RFD4_STATE_DIR=/home/ubuntu/workspace/rfd4-annotation-studio
 export CUDA_VISIBLE_DEVICES=0
 ```
 
-Validate these checkpoints:
+Download and validate the exact checkpoints selected by pinned RFD4:
 
-```text
-$DATA_PATH/latent_checkpoints/ldm_checkpoints/arch_sweep_2026_07_03_pair_trimult_every2_720k-ema.ckpt
-$DATA_PATH/latent_checkpoints/ae_checkpoints/AE_ucond_512.ckpt
+```bash
+bash "$RFPROTEINA_ROOT/scripts/download_example_data.sh" "$DATA_PATH"
+uv run python scripts/check_rfd4_assets.py \
+  --rfd4-root "$RFPROTEINA_ROOT" --check-bucket
 ```
 
 For a two-GPU AF3 deployment, also configure all four variables:
@@ -130,8 +125,8 @@ Preferred route: create a Brev Launchable in VM mode:
 2. Use `deploy/brev/launchable-setup.sh` as the setup script.
 3. Disable Jupyter.
 4. Add an authenticated Secure Link named `studio` for port `8000`.
-5. Supply `RFPROTEINA_ROOT`, `DATA_PATH`, and
-   `BREV_RFD4_STATE_DIR` as launch parameters.
+5. Supply `DATA_PATH` and `BREV_RFD4_STATE_DIR` as launch parameters. Set
+   `RFPROTEINA_ROOT` only when overriding the bundled RFD4 submodule.
 6. Select the approved GPU profile and persistent disk size.
 7. Create or apply the Launchable to the selected instance.
 

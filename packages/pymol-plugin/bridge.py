@@ -113,7 +113,7 @@ def selection_to_indices(selection: str, index_map: dict[tuple, int]) -> list[in
 
     if misses and not indices:
         logger.warning(
-            "selection_to_indices: no atoms matched. " "PyMOL keys (sample): %s. Index map keys (sample): %s.",
+            "selection_to_indices: no atoms matched. PyMOL keys (sample): %s. Index map keys (sample): %s.",
             misses[:3],
             list(index_map.keys())[:3],
         )

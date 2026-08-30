@@ -9,7 +9,7 @@ The complete DNS, Kubernetes, GHCR, Brev, AF3, operations, and acceptance
 checklist is in the [production runbook](../README.md).
 After the service is ready, follow the [website guide](../../docs/WEB.md) to
 load, annotate, submit, and compare designs.
-The current authenticated deployment, ownership, acceptance evidence, and
+The last accepted deployment, current re-verification notes, ownership, and
 operator commands are recorded in [PILOT_STATUS.md](PILOT_STATUS.md).
 
 ## One-click Launchable
@@ -20,20 +20,31 @@ In the [Brev Launchable builder](https://docs.nvidia.com/brev/concepts/launchabl
 2. Use `deploy/brev/launchable-setup.sh` as the setup script.
 3. Disable Jupyter unless it is separately useful.
 4. Add an authenticated **Secure Link** named `studio` for port `8000`.
-5. Add required launch parameters `RFPROTEINA_ROOT`, pointing at a separate
-   persistent RFD4 checkout, and `DATA_PATH`, pointing at persistent storage
-   containing the RFD4 checkpoint. Optionally set `BREV_RFD4_STATE_DIR` to a
-   persistent volume; on Brev VMs it defaults to
+5. Add the required `DATA_PATH` launch parameter, pointing at persistent
+   storage for the two public RFD4 checkpoints. The setup downloads missing
+   files and verifies them against the pinned RFD4 config and public bucket.
+   `RFPROTEINA_ROOT` is optional and overrides the bundled RFD4 submodule with
+   a separate checkout. Optionally set `BREV_RFD4_STATE_DIR` to a persistent
+   volume; on Brev VMs it defaults to
    `~/workspace/rfd4-annotation-studio`. To enable AF3, also add
    `AF3_APPTAINER_PATH`, `AF3_SCRIPTS_DIR`, `AF3_MODEL_DIR`, and
    `AF3_JAX_CACHE_DIR`.
 6. Select a GPU profile with enough VRAM for the intended input size and create
    the Launchable.
 
-The setup script runs the RFD4 checkout's `setup.sh`, pins the web toolchain,
-builds the CUDA 12 RFD4 image once (default `latent-dev:cuda12`), installs a
-restartable systemd service when available, prestarts the configured AF3 daemon,
-and checks `/api/health`. The same source can be started with the Brev CLI:
+The setup script runs the RFD4 checkout's `setup.sh`, obtains and verifies the
+configured public checkpoints, pins the web toolchain, builds the CUDA 12 RFD4
+image once (default `latent-dev:cuda12`), installs a restartable systemd service
+when available, prestarts the configured AF3 daemon, and checks `/api/health`.
+Before allocating a GPU, a maintainer can validate the pinned source interfaces
+and public checkpoint objects from any networked checkout:
+
+```bash
+ANNOTATION_STUDIO_SETUP_PREFLIGHT_ONLY=1 \
+  bash deploy/brev/launchable-setup.sh
+```
+
+The same source can be started with the Brev CLI:
 
 ```bash
 brev start <repository-url> \
@@ -45,7 +56,8 @@ Studio does not invoke `$RFPROTEINA_ROOT/scripts/launch_infer.sh` directly becau
 submits SLURM jobs. Both launch paths use the same underlying
 `af3_daemon.py launch` lifecycle: `launch_infer.sh` emits it into the SLURM
 batch script, while direct local/Brev services use
-`$RFPROTEINA_ROOT/scripts/inference_runtime.sh`.
+Studio's `deploy/lib/inference_runtime.sh`, which mirrors the lifecycle in
+RFD4's `scripts/common.sh` without the SLURM wrapper.
 
 ## Manual launch
 
@@ -53,13 +65,20 @@ batch script, while direct local/Brev services use
    input. Clone this Studio repository with `git clone --recursive` on its
    persistent disk; RFD4 comes in as the `external/RFD4-Proteina-dev` submodule
    (set `RFPROTEINA_ROOT` to override it with a separate checkout).
-2. Run the RFD4 `setup.sh` once and stage the checkpoint under a persistent
-   `DATA_PATH`.
-3. Start the service:
+2. Run the RFD4 `setup.sh` once and stage its checkpoints under a persistent
+   `DATA_PATH`:
 
    ```bash
    export RFPROTEINA_ROOT=/home/ubuntu/workspace/RFD4-Proteina-dev
    export DATA_PATH=/home/ubuntu/workspace/rfd4-data
+   bash "$RFPROTEINA_ROOT/setup.sh"
+   bash "$RFPROTEINA_ROOT/scripts/download_example_data.sh" "$DATA_PATH"
+   uv run python scripts/check_rfd4_assets.py \
+     --rfd4-root "$RFPROTEINA_ROOT" --check-bucket
+   ```
+3. Start the service:
+
+   ```bash
    export BREV_RFD4_STATE_DIR=/home/ubuntu/workspace/rfd4-annotation-studio
    export BREV_RFD4_IMAGE=latent-dev:cuda12
    RFPROTEINA_CUDA_STACK=cuda12 \
@@ -138,3 +157,33 @@ For GPU generation, either use this authenticated Brev deployment end-to-end or
 deploy the same API/job contract behind the organization's authenticated GPU
 service. A public Kubernetes pod must not mount a Docker socket merely to run
 AF3; use a dedicated oracle service in that topology.
+
+## Scaling beyond the single-instance pilot
+
+`ProcessDesignProvider` is deliberately a one-process pilot backend. Raising
+`ANNOTATION_STUDIO_MAX_ACTIVE_JOBS` does not turn it into a multi-GPU service:
+its queue and ownership state live in one API process, and its executor runs one
+subprocess at a time.
+
+For many simultaneous users, keep Studio as a CPU control plane and move GPU
+execution behind a durable worker protocol:
+
+1. Authenticate users at the control plane and enforce per-user access, quotas,
+   fair scheduling, and cancellation. Capability IDs alone are not an identity
+   or billing boundary.
+2. Store job state in PostgreSQL, input/output CIFs and logs in object storage,
+   and dispatch immutable job envelopes through a persistent queue. Use leases,
+   heartbeats, idempotency keys, bounded retries, and terminal-state recovery.
+3. Run one warm worker per GPU. Each worker advertises its exact Studio/RFD4
+   revision and capabilities (RFD4-only, AF3-enabled, GPU/VRAM), pulls only a
+   compatible job, and writes results back to object storage.
+4. Provision a pool from the reviewed Brev Launchable, with a small warm minimum
+   for compiled-model latency and a credit/cost-aware maximum. Instance lifecycle
+   credentials belong in a separate operator or autoscaler, never in the public
+   Studio API process.
+5. Emit queue latency, GPU time, failures, retries, and cost attribution per user
+   and revision before increasing the pool size.
+
+This preserves the current API contract while allowing Brev instances to be
+replaced by another GPU substrate later. The pilot provider remains useful for
+one trusted deployment and as a worker-side execution adapter.

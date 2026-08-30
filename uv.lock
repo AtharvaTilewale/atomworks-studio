@@ -78,7 +78,7 @@ requires-dist = [
     { name = "ase", marker = "extra == 'ase'", specifier = ">=3.22.0" },
     { name = "ase-db-backends", marker = "extra == 'ase'", specifier = ">=0.10.0" },
     { name = "beartype", marker = "extra == 'ml'", specifier = ">=0.18.0" },
-    { name = "biotite", specifier = ">=1.6.0" },
+    { name = "biotite", specifier = "==1.6.0" },
     { name = "boto3", marker = "extra == 's3'" },
     { name = "catcif-tools", marker = "extra == 'catcif'" },
     { name = "cython", specifier = ">=3.0.0" },

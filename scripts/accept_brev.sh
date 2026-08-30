@@ -6,6 +6,14 @@ stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 artifact_dir="${root}/artifacts/brev-${stamp}"
 mkdir -p "${artifact_dir}"
 
+: "${DATA_PATH:?Set DATA_PATH to the persistent RFD4 assets}"
+rfd4_root="${ANNOTATION_STUDIO_RFD4_ROOT:-${RFPROTEINA_ROOT:-${root}/external/RFD4-Proteina-dev}}"
+uv run --project "${root}" python "${root}/scripts/check_rfd4_assets.py" \
+  --rfd4-root "${rfd4_root}" \
+  --data-path "${DATA_PATH}" \
+  --check-bucket \
+  --json "${artifact_dir}/rfd4-assets.json"
+
 base="${ANNOTATION_STUDIO_URL:-http://127.0.0.1:8000}"
 curl --fail --silent "${base}/api/health" >"${artifact_dir}/health.json"
 curl --fail --silent "${base}/api/ready" >"${artifact_dir}/ready.json"

@@ -423,8 +423,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** V1 Convert Internal Coords */
-        post: operations["v1_convert_internal_coords_api_v1_sessions__session_id__internal_coords_post"];
+        /** V1 Set Internal Coordinates */
+        post: operations["v1_set_internal_coordinates_api_v1_sessions__session_id__internal_coords_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -667,6 +667,22 @@ export interface components {
             scope: "atom" | "residue" | "chain";
             /** Value */
             value?: number | number[] | null;
+        };
+        /** ConditionOperationMutation */
+        ConditionOperationMutation: {
+            /** Atom Indices */
+            atom_indices: number[];
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Scope
+             * @default atom
+             * @enum {string}
+             */
+            scope: "atom" | "residue" | "chain";
         };
         /** DeleteMutation */
         DeleteMutation: {
@@ -1705,7 +1721,7 @@ export interface operations {
             };
         };
     };
-    v1_convert_internal_coords_api_v1_sessions__session_id__internal_coords_post: {
+    v1_set_internal_coordinates_api_v1_sessions__session_id__internal_coords_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -1716,7 +1732,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["SelectionResolve"];
+                "application/json": components["schemas"]["ConditionOperationMutation"];
             };
         };
         responses: {
