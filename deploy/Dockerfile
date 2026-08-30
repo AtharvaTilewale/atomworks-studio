@@ -59,7 +59,7 @@ RUN python -m pip install --no-cache-dir \
       torch==2.7.1 \
     && python -m pip install --no-cache-dir "./external/atomworks-dev[ml]" \
     && python -m pip install --no-cache-dir ./packages/editing \
-    && python -m pip install --no-cache-dir ./packages/api \
+    && python -m pip install --no-cache-dir './packages/api[durable]' \
     && if [ "${ANNOTATION_STUDIO_INSTALL_RFD4_PROVIDER}" = "true" ]; then \
          python -m pip install --no-cache-dir ./providers/rfd4; \
        elif [ "${ANNOTATION_STUDIO_INSTALL_RFD4_PROVIDER}" != "false" ]; then \

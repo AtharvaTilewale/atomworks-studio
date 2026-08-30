@@ -18,7 +18,7 @@ from typing import Any, Literal
 from urllib.parse import urlencode
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import PlainTextResponse, Response
+from fastapi.responses import JSONResponse, PlainTextResponse, Response
 from fastapi.routing import APIRoute
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
@@ -26,12 +26,15 @@ from pydantic import BaseModel, Field, field_validator
 from .contracts import (
     NEUTRAL_CONDITION_PROVIDER,
     NEUTRAL_VALIDATION_PROVIDER,
+    CapacityExceededError,
     ConditionOperation,
     ConditionProvider,
+    SessionNotFoundError,
     ValidationProvider,
 )
 from .core import BOND_TYPES, INTERACTION_TYPES, StudioDocument
-from .design_jobs import DesignJobRequest, ProcessDesignProvider
+from .design_jobs import DesignJobRequest, IdempotencyConflictError, ProcessDesignProvider
+from .identity import current_owner, reset_current_owner, set_current_owner
 from .version import __version__
 
 LOGGER = logging.getLogger("atomworks_studio")
@@ -40,10 +43,12 @@ MAX_UPLOAD_BYTES = 32 * 1024 * 1024
 MAX_SESSIONS = 64
 SESSION_TTL_SECONDS = 2 * 60 * 60
 SESSION_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{20,64}$")
-
-
-class SessionNotFoundError(KeyError):
-    """Raised when a document-store lookup cannot resolve a session."""
+IDENTITY_HEADER = os.environ.get("ANNOTATION_STUDIO_IDENTITY_HEADER")
+if IDENTITY_HEADER and os.environ.get("ANNOTATION_STUDIO_TRUST_PROXY_IDENTITY") != "1":
+    raise RuntimeError(
+        "ANNOTATION_STUDIO_IDENTITY_HEADER requires ANNOTATION_STUDIO_TRUST_PROXY_IDENTITY=1; "
+        "the proxy must strip client-supplied identity headers"
+    )
 
 
 class DocumentStore:
@@ -56,7 +61,7 @@ class DocumentStore:
         condition_provider: ConditionProvider | None = None,
         validation_provider: ValidationProvider | None = None,
     ) -> None:
-        self._documents: dict[str, tuple[float, StudioDocument]] = {}
+        self._documents: dict[str, tuple[float, str, StudioDocument]] = {}
         self._document_locks: dict[str, RLock] = {}
         self._lock = RLock()
         self._session_dir = session_dir
@@ -87,7 +92,7 @@ class DocumentStore:
 
     def _prune(self, *, reserve_slot: bool = False) -> None:
         memory_cutoff = time.monotonic() - SESSION_TTL_SECONDS
-        for session_id, (used, _) in list(self._documents.items()):
+        for session_id, (used, _, _) in list(self._documents.items()):
             if used < memory_cutoff:
                 self._forget(session_id, delete_file=self._session_dir is None)
 
@@ -113,7 +118,10 @@ class DocumentStore:
         path = self._session_file(session_id)
         if path is None:
             return
-        metadata = json.dumps({"name": document.name}, separators=(",", ":"))
+        metadata = json.dumps(
+            {"name": document.name, "owner_id": current_owner()},
+            separators=(",", ":"),
+        )
         temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
         with temporary.open("w", encoding="utf-8") as output:
             output.write(f"{metadata}\n{document.to_cif()}")
@@ -122,18 +130,21 @@ class DocumentStore:
         temporary.chmod(0o600)
         temporary.replace(path)
 
-    def _load(self, session_id: str) -> StudioDocument | None:
+    def _load(self, session_id: str) -> tuple[str, StudioDocument] | None:
         path = self._session_file(session_id)
         if path is None or not path.is_file():
             return None
         try:
             metadata_text, cif = path.read_text(encoding="utf-8").split("\n", 1)
             metadata = json.loads(metadata_text)
-            return StudioDocument.from_cif(
-                cif,
-                str(metadata.get("name", "structure")),
-                condition_provider=self._condition_provider,
-                validation_provider=self._validation_provider,
+            return (
+                str(metadata.get("owner_id", "local")),
+                StudioDocument.from_cif(
+                    cif,
+                    str(metadata.get("name", "structure")),
+                    condition_provider=self._condition_provider,
+                    validation_provider=self._validation_provider,
+                ),
             )
         except (IndexError, KeyError, OSError, ValueError):
             path.unlink(missing_ok=True)
@@ -143,7 +154,7 @@ class DocumentStore:
         with self._lock:
             self._prune(reserve_slot=True)
             session_id = secrets.token_urlsafe(24)
-            self._documents[session_id] = (time.monotonic(), document)
+            self._documents[session_id] = (time.monotonic(), current_owner(), document)
             self._document_locks[session_id] = RLock()
             self._persist(session_id, document)
             return session_id
@@ -153,15 +164,18 @@ class DocumentStore:
             self._prune()
             entry = self._documents.get(session_id)
             if entry is None:
-                document = self._load(session_id)
-                if document is None:
+                loaded = self._load(session_id)
+                if loaded is None:
                     raise KeyError(session_id)
-                entry = (time.monotonic(), document)
+                owner_id, document = loaded
+                entry = (time.monotonic(), owner_id, document)
                 self._document_locks[session_id] = RLock()
-            self._documents[session_id] = (time.monotonic(), entry[1])
+            if entry[1] != current_owner():
+                raise KeyError(session_id)
+            self._documents[session_id] = (time.monotonic(), entry[1], entry[2])
             if (path := self._session_file(session_id)) is not None:
                 path.touch()
-            return entry[1]
+            return entry[2]
 
     def call[T](
         self,
@@ -202,12 +216,28 @@ def _load_optional_providers() -> tuple[ConditionProvider, ValidationProvider, M
 session_dir_value = os.environ.get("ANNOTATION_STUDIO_SESSION_DIR")
 project_root = Path(os.environ.get("ANNOTATION_STUDIO_RFD4_ROOT", Path.cwd())).resolve()
 condition_provider, validation_provider, condition_operations = _load_optional_providers()
-design_jobs = ProcessDesignProvider.from_environment(project_root)
-store = DocumentStore(
-    Path(session_dir_value) if session_dir_value else None,
-    condition_provider=condition_provider,
-    validation_provider=validation_provider,
-)
+if os.environ.get("ANNOTATION_STUDIO_DATABASE_URL"):
+    from .durable_jobs import DurableDesignProvider
+
+    design_jobs = DurableDesignProvider.from_environment()
+else:
+    design_jobs = ProcessDesignProvider.from_environment(project_root)
+if os.environ.get("ANNOTATION_STUDIO_DATABASE_URL"):
+    from .durable_sessions import PostgresDocumentStore
+
+    store = PostgresDocumentStore(
+        design_jobs.repository,
+        condition_provider=condition_provider,
+        validation_provider=validation_provider,
+        ttl_seconds=int(os.environ.get("ANNOTATION_STUDIO_SESSION_TTL_SECONDS", str(SESSION_TTL_SECONDS))),
+        max_sessions_per_user=int(os.environ.get("ANNOTATION_STUDIO_MAX_SESSIONS_PER_USER", str(MAX_SESSIONS))),
+    )
+else:
+    store = DocumentStore(
+        Path(session_dir_value) if session_dir_value else None,
+        condition_provider=condition_provider,
+        validation_provider=validation_provider,
+    )
 output_sessions: dict[tuple[str, str], str] = {}
 output_sessions_lock = RLock()
 
@@ -227,10 +257,30 @@ async def security_headers(
     call_next: Callable[[Request], Awaitable[Response]],
 ) -> Response:
     started = time.monotonic()
+    owner_id = "local"
+    protected_api = request.url.path.startswith("/api/") and request.url.path not in {
+        "/api/health",
+        "/api/metrics",
+        "/api/ready",
+        "/api/v1/health",
+        "/api/v1/metrics",
+        "/api/v1/ready",
+    }
+    rejection: Response | None = None
+    if IDENTITY_HEADER and protected_api:
+        owner_id = request.headers.get(IDENTITY_HEADER, "").strip()
+        if not owner_id:
+            rejection = JSONResponse(status_code=401, content={"detail": "authenticated user identity is required"})
+        elif len(owner_id) > 256 or any(ord(character) < 32 for character in owner_id):
+            rejection = JSONResponse(status_code=400, content={"detail": "invalid authenticated user identity"})
+    owner_token = set_current_owner(owner_id)
     request_id = request.headers.get("X-Request-ID", "")
     if re.fullmatch(r"[A-Za-z0-9._-]{8,64}", request_id) is None:
         request_id = secrets.token_hex(12)
-    response = await call_next(request)
+    try:
+        response = rejection or await call_next(request)
+    finally:
+        reset_current_owner(owner_token)
     response.headers["X-Request-ID"] = request_id
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("Referrer-Policy", "no-referrer")
@@ -277,6 +327,21 @@ def _public_metrics(metrics: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _owner_id(request: Request) -> str:
+    del request
+    return current_owner()
+
+
+def _idempotency_key(request: Request) -> str | None:
+    value = request.headers.get("Idempotency-Key")
+    if value is None:
+        return None
+    value = value.strip()
+    if not value or len(value) > 128 or any(ord(character) < 33 or ord(character) > 126 for character in value):
+        raise HTTPException(status_code=400, detail="invalid Idempotency-Key")
+    return value
+
+
 def _job_document_session(job_id: str, output_id: str, cif: str, name: str) -> dict:
     key = (job_id, output_id)
     with output_sessions_lock:
@@ -293,12 +358,15 @@ def _job_document_session(job_id: str, output_id: str, cif: str, name: str) -> d
             condition_provider=condition_provider,
             validation_provider=validation_provider,
         )
-        session_id = store.add(document)
+        try:
+            session_id = store.add(document)
+        except CapacityExceededError as error:
+            raise HTTPException(status_code=429, detail=str(error)) from error
         output_sessions[key] = session_id
         return _session_response(session_id, document.summary())
 
 
-def _design_job_response(record: dict[str, Any]) -> dict[str, Any]:
+def _design_job_response(record: dict[str, Any], *, owner_id: str) -> dict[str, Any]:
     job_id = record["id"]
     if source_session_id := record.get("source_session_id"):
         with output_sessions_lock:
@@ -306,7 +374,7 @@ def _design_job_response(record: dict[str, Any]) -> dict[str, Any]:
     input_session = _job_document_session(
         job_id,
         "input",
-        design_jobs.input_cif(job_id),
+        design_jobs.input_cif(job_id, owner_id=owner_id),
         record["input_name"],
     )
     public_outputs = []
@@ -322,7 +390,17 @@ def _design_job_response(record: dict[str, Any]) -> dict[str, Any]:
         )
     return {
         **{
-            key: value for key, value in record.items() if key not in {"metric_summary", "outputs", "source_session_id"}
+            key: value
+            for key, value in record.items()
+            if key
+            not in {
+                "idempotency_key",
+                "metric_summary",
+                "outputs",
+                "owner_id",
+                "request_fingerprint",
+                "source_session_id",
+            }
         },
         "metric_summary": {
             key: value
@@ -519,7 +597,31 @@ def health() -> dict[str, str]:
 
 @app.get("/api/ready")
 def ready() -> dict[str, str]:
+    healthcheck = getattr(design_jobs, "healthcheck", None)
+    if healthcheck is not None:
+        try:
+            healthcheck()
+        except Exception as error:
+            LOGGER.warning("durable backend is not ready: %s", error)
+            raise HTTPException(status_code=503, detail="durable backend is not ready") from error
     return {"status": "ready"}
+
+
+@app.get("/api/metrics", response_class=PlainTextResponse, include_in_schema=False)
+def metrics(request: Request) -> PlainTextResponse:
+    token = os.environ.get("ANNOTATION_STUDIO_METRICS_TOKEN")
+    operational_metrics = getattr(design_jobs, "operational_metrics", None)
+    if not token or operational_metrics is None:
+        raise HTTPException(status_code=404, detail="metrics are not configured")
+    authorization = request.headers.get("Authorization", "")
+    if not authorization.startswith("Bearer ") or not secrets.compare_digest(authorization[7:], token):
+        raise HTTPException(status_code=401, detail="invalid metrics credentials")
+    values = operational_metrics()
+    lines = []
+    for name, value in sorted(values.items()):
+        metric_name = f"annotation_studio_{name}"
+        lines.extend((f"# TYPE {metric_name} gauge", f"{metric_name} {value}"))
+    return PlainTextResponse("\n".join(lines) + "\n", media_type="text/plain; version=0.0.4")
 
 
 @app.get("/api/schema")
@@ -536,39 +638,54 @@ def design_schema() -> dict:
 
 
 @app.post("/api/sessions/{session_id}/design-jobs")
-def submit_design_job(session_id: str, request: DesignJobRequest) -> dict:
+def submit_design_job(session_id: str, job_request: DesignJobRequest, http_request: Request) -> dict:
+    owner_id = _owner_id(http_request)
     cif, name = _call(session_id, lambda document: (document.to_cif(), document.name))
     try:
-        record = design_jobs.submit(cif, name, request, source_session_id=session_id)
+        record = design_jobs.submit(
+            cif,
+            name,
+            job_request,
+            source_session_id=session_id,
+            owner_id=owner_id,
+            idempotency_key=_idempotency_key(http_request),
+        )
+    except IdempotencyConflictError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    except CapacityExceededError as error:
+        raise HTTPException(status_code=429, detail=str(error)) from error
     except RuntimeError as error:
         raise HTTPException(status_code=503, detail=str(error)) from error
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
     with output_sessions_lock:
         output_sessions[(record["id"], "input")] = session_id
-    return _design_job_response(record)
+    return _design_job_response(record, owner_id=owner_id)
 
 
 @app.get("/api/design-jobs/{job_id}")
-def get_design_job(job_id: str) -> dict:
+def get_design_job(job_id: str, request: Request) -> dict:
+    owner_id = _owner_id(request)
     try:
-        return _design_job_response(design_jobs.get(job_id))
+        return _design_job_response(design_jobs.get(job_id, owner_id=owner_id), owner_id=owner_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="design job not found") from None
 
 
 @app.post("/api/design-jobs/{job_id}/cancel")
-def cancel_design_job(job_id: str) -> dict:
+def cancel_design_job(job_id: str, request: Request) -> dict:
+    owner_id = _owner_id(request)
     try:
-        return _design_job_response(design_jobs.cancel(job_id))
+        return _design_job_response(design_jobs.cancel(job_id, owner_id=owner_id), owner_id=owner_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="design job not found") from None
 
 
 @app.post("/api/design-jobs/{job_id}/outputs/{output_id}/open")
-def open_design_output(job_id: str, output_id: str) -> dict:
+def open_design_output(job_id: str, output_id: str, request: Request) -> dict:
+    owner_id = _owner_id(request)
     try:
-        cif, output = design_jobs.output_cif(job_id, output_id)
+        cif, output = design_jobs.output_cif(job_id, output_id, owner_id=owner_id)
         session = _job_document_session(job_id, output_id, cif, output["label"])
     except KeyError:
         raise HTTPException(status_code=404, detail="design output not found") from None
@@ -585,12 +702,13 @@ def open_design_output(job_id: str, output_id: str) -> dict:
 
 
 @app.post("/api/design-jobs/{job_id}/outputs/{output_id}/align-to-input")
-def align_design_output(job_id: str, output_id: str) -> dict:
+def align_design_output(job_id: str, output_id: str, request: Request) -> dict:
+    owner_id = _owner_id(request)
     try:
-        cif, output = design_jobs.output_cif(job_id, output_id)
+        cif, output = design_jobs.output_cif(job_id, output_id, owner_id=owner_id)
         session = _job_document_session(job_id, output_id, cif, output["label"])
         reference = StudioDocument.from_cif(
-            design_jobs.input_cif(job_id),
+            design_jobs.input_cif(job_id, owner_id=owner_id),
             "design input",
             condition_provider=condition_provider,
             validation_provider=validation_provider,
@@ -648,7 +766,10 @@ async def create_session(
         )
     except Exception as error:
         raise HTTPException(status_code=422, detail=f"invalid annotated CIF: {error}") from error
-    session_id = store.add(document)
+    try:
+        session_id = store.add(document)
+    except CapacityExceededError as error:
+        raise HTTPException(status_code=429, detail=str(error)) from error
     return _session_response(session_id, document.summary())
 
 
@@ -918,6 +1039,7 @@ for legacy_route in list(app.routes):
     if not isinstance(legacy_route, APIRoute) or not legacy_route.path.startswith("/api/"):
         continue
     versioned_path = "/api/v1" + legacy_route.path.removeprefix("/api")
+    include_versioned_in_schema = legacy_route.include_in_schema
     legacy_route.include_in_schema = False
     app.add_api_route(
         versioned_path,
@@ -928,6 +1050,7 @@ for legacy_route in list(app.routes):
         response_class=legacy_route.response_class,
         tags=legacy_route.tags,
         name=f"v1_{legacy_route.name}",
+        include_in_schema=include_versioned_in_schema,
     )
 
 

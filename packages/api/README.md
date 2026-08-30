@@ -43,5 +43,7 @@ scaling behind a process/service boundary while preserving the browser job
 contract.
 
 The shipped `ProcessDesignProvider` executes a configured command without a
-shell. It is used by local and Brev deployments. A future CoreWeave provider can
-implement the same `DesignProvider` protocol over HTTPS and a persistent queue.
+shell for local and single-VM Brev deployments. Setting the durable database
+and object-store variables selects `DurableDesignProvider`, shared PostgreSQL
+sessions, and the leased `atomworks-studio-durable worker`; model execution
+remains outside the web/API process. See `../../deploy/durable/README.md`.

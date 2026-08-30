@@ -17,10 +17,21 @@ and writes annotated CIF files directly. It depends on AtomWorks and
 with the website and RFD4 happens through the saved CIF format, not through a
 running Studio service.
 
-Mutable session state is process-local and bounded. Production deployment must
-run one API worker until a transactional shared store and distributed locking
-are implemented. GPU work is a provider subprocess; the CPU editor remains
-usable when no provider is installed.
+By default, mutable session state is process-local and bounded, and GPU work is
+a provider subprocess. This remains appropriate for a trusted workstation or
+single authenticated pilot VM, and the CPU editor remains usable when no model
+provider is installed.
+
+When `ANNOTATION_STUDIO_DATABASE_URL` and
+`ANNOTATION_STUDIO_OBJECT_STORE_URL` are set, PostgreSQL becomes authoritative
+for owner-scoped document snapshots (including bounded undo history), quotas,
+jobs, worker capabilities, attempts, cancellation, and expiring leases. CIF
+inputs/outputs and logs live in S3-compatible storage. API replicas are then
+stateless and GPU workers scale independently, one process per GPU. See
+[`deploy/durable`](../deploy/durable/README.md) for the trust boundary and
+operations contract. The authentication proxy must remove the configured
+identity header before injecting its stable user subject; the API hides another
+user's session or job as not found.
 
 RFD4 and AF3 use an explicit external checkout selected by
 `ANNOTATION_STUDIO_RFD4_ROOT`. Local and Brev launchers share Studio's vendored

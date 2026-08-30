@@ -5,6 +5,7 @@ from urllib.parse import parse_qs, urlparse
 
 import pytest
 from annotation_studio.core import StudioDocument
+from annotation_studio.identity import reset_current_owner, set_current_owner
 from annotation_studio.main import DocumentStore, SessionNotFoundError, app
 from annotation_studio.rfd4_provider import CONDITION_PROVIDER, VALIDATION_PROVIDER
 from fastapi.testclient import TestClient
@@ -110,10 +111,53 @@ def test_document_store_distinguishes_missing_sessions_from_operation_key_errors
         store.call("missing", lambda _document: None)
 
 
+def test_persistent_store_hides_sessions_from_other_owners(tmp_path: Path) -> None:
+    documents = DocumentStore(
+        tmp_path,
+        condition_provider=CONDITION_PROVIDER,
+        validation_provider=VALIDATION_PROVIDER,
+    )
+    owner_token = set_current_owner("alice@example.org")
+    try:
+        session_id = documents.add(
+            StudioDocument.from_cif(
+                FIXTURE.read_text(),
+                "private",
+                condition_provider=CONDITION_PROVIDER,
+                validation_provider=VALIDATION_PROVIDER,
+            )
+        )
+    finally:
+        reset_current_owner(owner_token)
+    other_token = set_current_owner("bob@example.org")
+    try:
+        with pytest.raises(KeyError):
+            documents.get(session_id)
+    finally:
+        reset_current_owner(other_token)
+
+
 def test_readiness_endpoint() -> None:
     response = client.get("/api/ready")
     assert response.status_code == 200
     assert response.json() == {"status": "ready"}
+
+
+def test_metrics_require_operator_token_and_stay_out_of_browser_schema(monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.setenv("ANNOTATION_STUDIO_METRICS_TOKEN", "test-metrics-token")
+    monkeypatch.setattr(
+        "annotation_studio.main.design_jobs.operational_metrics",
+        lambda: {"jobs_queued": 2.0},
+        raising=False,
+    )
+    assert client.get("/api/v1/metrics").status_code == 401
+    response = client.get(
+        "/api/v1/metrics",
+        headers={"Authorization": "Bearer test-metrics-token"},
+    )
+    assert response.status_code == 200
+    assert "annotation_studio_jobs_queued 2.0" in response.text
+    assert "/api/v1/metrics" not in client.get("/openapi.json").json()["paths"]
 
 
 def test_full_condition_api_and_download_roundtrip() -> None:

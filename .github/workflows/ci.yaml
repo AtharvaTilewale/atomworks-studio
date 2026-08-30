@@ -68,7 +68,21 @@ jobs:
 
   unit:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: studio_test
+          POSTGRES_USER: studio
+          POSTGRES_PASSWORD: studio-test-only
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U studio -d studio_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
+      ANNOTATION_STUDIO_TEST_DATABASE_URL: postgresql://studio:studio-test-only@127.0.0.1:5432/studio_test
       PYTHONPATH: ${{ github.workspace }}/external/RFD4-Proteina-dev/src
       GIT_CONFIG_COUNT: "1"
       GIT_CONFIG_KEY_0: url.https://x-access-token:${{ secrets.BAKER_LAB_READ_TOKEN }}@github.com/.insteadOf

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import csv
+import hashlib
 import json
 import math
 import os
@@ -20,6 +21,8 @@ from typing import Any, Literal
 import yaml
 from pydantic import BaseModel, Field, field_validator
 
+from .contracts import CapacityExceededError
+
 SAFE_NAME = re.compile(r"^[A-Za-z0-9_.-]+$")
 ALLOWED_CONFIG_KEYS = {
     "batch_size",
@@ -33,6 +36,10 @@ ALLOWED_CONFIG_KEYS = {
 SEARCH_STRATEGY_TARGET = "rfproteina.search.beam_search.BeamSearchStrategy"
 AF3_ENVIRONMENT_KEYS = ("AF3_APPTAINER_PATH", "AF3_SCRIPTS_DIR", "AF3_JAX_CACHE_DIR", "AF3_MODEL_DIR")
 ANSI_ESCAPE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+
+
+class IdempotencyConflictError(ValueError):
+    """The same owner reused an idempotency key for a different submission."""
 
 
 def _job_progress(record: dict[str, Any], log_path: Path | None, log_tail: str) -> dict[str, Any]:
@@ -93,6 +100,8 @@ class SearchOptions(BaseModel):
     def valid_weights(cls, values: dict[str, float]) -> dict[str, float]:
         if any(SAFE_NAME.fullmatch(key) is None for key in values):
             raise ValueError("reward keys may contain only letters, numbers, '.', '_', and '-'")
+        if any(not math.isfinite(value) for value in values.values()):
+            raise ValueError("reward weights must be finite")
         return values
 
 
@@ -112,6 +121,11 @@ class DesignJobRequest(BaseModel):
         if any(SAFE_NAME.fullmatch(value) is None for value in values):
             raise ValueError("metric tags may contain only letters, numbers, '.', '_', and '-'")
         return values
+
+
+def design_request_fingerprint(cif: str, name: str, request: DesignJobRequest) -> str:
+    payload = json.dumps(request.model_dump(), sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(cif.encode() + b"\0" + name.encode() + b"\0" + payload).hexdigest()
 
 
 def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
@@ -209,6 +223,7 @@ def _validate_resolved_config(config: dict[str, Any]) -> None:
                 or SAFE_NAME.fullmatch(key) is None
                 or not isinstance(value, int | float)
                 or isinstance(value, bool)
+                or not math.isfinite(value)
                 for key, value in weights.items()
             )
         ):
@@ -218,7 +233,10 @@ def _validate_resolved_config(config: dict[str, Any]) -> None:
             key not in weights
             or not isinstance(bounds, dict)
             or set(bounds) - {"min", "max"}
-            or any(not isinstance(bound, int | float) or isinstance(bound, bool) for bound in bounds.values())
+            or any(
+                not isinstance(bound, int | float) or isinstance(bound, bool) or not math.isfinite(bound)
+                for bound in bounds.values()
+            )
             for key, bounds in clip_values.items()
         ):
             raise ValueError("search clip_values must contain numeric min/max bounds for weighted metrics")
@@ -515,14 +533,33 @@ class ProcessDesignProvider:
         request: DesignJobRequest,
         *,
         source_session_id: str | None = None,
+        owner_id: str = "local",
+        idempotency_key: str | None = None,
     ) -> dict[str, Any]:
         if not self.enabled or self.root is None:
             raise RuntimeError("design jobs are not configured on this deployment")
         with self._lock:
             self._prune()
+            fingerprint = design_request_fingerprint(cif, name, request)
+            if idempotency_key:
+                existing = next(
+                    (
+                        record
+                        for record in self._jobs.values()
+                        if record.get("owner_id", "local") == owner_id
+                        and record.get("idempotency_key") == idempotency_key
+                    ),
+                    None,
+                )
+                if existing is not None:
+                    if existing.get("request_fingerprint") != fingerprint:
+                        raise IdempotencyConflictError(
+                            "Idempotency-Key was already used for a different design submission"
+                        )
+                    return copy.deepcopy(existing)
             active_jobs = sum(record["status"] in {"queued", "running"} for record in self._jobs.values())
             if active_jobs >= self.max_active_jobs:
-                raise RuntimeError("the GPU queue is full; wait for an active job to finish")
+                raise CapacityExceededError("the GPU queue is full; wait for an active job to finish")
             job_id = f"design-{int(time.time())}-{os.urandom(6).hex()}"
             job_dir = self.root / job_id
             input_path = job_dir / "input.cif"
@@ -544,6 +581,9 @@ class ProcessDesignProvider:
                 "status": "queued",
                 "input_name": name,
                 "source_session_id": source_session_id,
+                "owner_id": owner_id,
+                "idempotency_key": idempotency_key,
+                "request_fingerprint": fingerprint,
                 "created_at": now,
                 "updated_at": now,
                 "request": request.model_dump(exclude={"config_yaml"}),
@@ -623,9 +663,11 @@ class ProcessDesignProvider:
             )
             self._write_record(record)
 
-    def get(self, job_id: str) -> dict[str, Any]:
+    def get(self, job_id: str, *, owner_id: str = "local") -> dict[str, Any]:
         with self._lock:
             if job_id not in self._jobs:
+                raise KeyError(job_id)
+            if self._jobs[job_id].get("owner_id", "local") != owner_id:
                 raise KeyError(job_id)
             record = copy.deepcopy(self._jobs[job_id])
         log_path = self.root / job_id / "job.log" if self.root is not None else None
@@ -636,13 +678,15 @@ class ProcessDesignProvider:
         record["progress"] = _job_progress(record, log_path, record["log_tail"])
         return record
 
-    def cancel(self, job_id: str) -> dict[str, Any]:
+    def cancel(self, job_id: str, *, owner_id: str = "local") -> dict[str, Any]:
         """Cancel a queued or running job and terminate only its owned subprocess."""
 
         with self._lock:
             if job_id not in self._jobs:
                 raise KeyError(job_id)
             record = self._jobs[job_id]
+            if record.get("owner_id", "local") != owner_id:
+                raise KeyError(job_id)
             if record["status"] in {"completed", "failed", "cancelled"}:
                 return copy.deepcopy(record)
             record["status"] = "cancelled"
@@ -655,8 +699,14 @@ class ProcessDesignProvider:
             process.terminate()
         return result
 
-    def output_cif(self, job_id: str, output_id: str) -> tuple[str, dict[str, Any]]:
-        record = self.get(job_id)
+    def output_cif(
+        self,
+        job_id: str,
+        output_id: str,
+        *,
+        owner_id: str = "local",
+    ) -> tuple[str, dict[str, Any]]:
+        record = self.get(job_id, owner_id=owner_id)
         output = next((item for item in record["outputs"] if item["id"] == output_id), None)
         if output is None:
             raise KeyError(output_id)
@@ -665,8 +715,8 @@ class ProcessDesignProvider:
             raise ValueError("job output path escaped its workspace")
         return path.read_text(encoding="utf-8"), output
 
-    def input_cif(self, job_id: str) -> str:
-        self.get(job_id)
+    def input_cif(self, job_id: str, *, owner_id: str = "local") -> str:
+        self.get(job_id, owner_id=owner_id)
         if self.root is None:
             raise KeyError(job_id)
         return (self.root / job_id / "input.cif").read_text(encoding="utf-8")

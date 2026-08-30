@@ -210,6 +210,39 @@ class StudioDocument:
         clone.revision = self.revision
         return clone
 
+    def export_state(self) -> dict[str, Any]:
+        """Serialize the document and bounded undo stack for a shared session store."""
+
+        return {
+            "name": self.name,
+            "revision": self.revision,
+            "cif": self._array_to_cif(self.array),
+            "undo_cifs": [self._array_to_cif(array) for array in self._undo],
+        }
+
+    @classmethod
+    def from_state(
+        cls,
+        state: dict[str, Any],
+        *,
+        condition_provider: ConditionProvider | None = None,
+        validation_provider: ValidationProvider | None = None,
+    ) -> StudioDocument:
+        """Restore a shared-store snapshot, including cross-replica undo history."""
+
+        document = cls.from_cif(
+            str(state["cif"]),
+            str(state.get("name", "structure")),
+            condition_provider=condition_provider,
+            validation_provider=validation_provider,
+        )
+        undo_cifs = state.get("undo_cifs", [])
+        if not isinstance(undo_cifs, list) or len(undo_cifs) > 10:
+            raise ValueError("invalid persisted undo history")
+        document._undo = [parse_annotated_cif(str(cif)) for cif in undo_cifs]
+        document.revision = int(state.get("revision", 0))
+        return document
+
     def _mark_changed(self) -> None:
         self.revision += 1
         self._interaction_cache.clear()
@@ -1149,9 +1182,13 @@ class StudioDocument:
         }
 
     def to_cif(self) -> str:
+        return self._array_to_cif(self.array)
+
+    @staticmethod
+    def _array_to_cif(array: AtomArrayPlus) -> str:
         config = CIFWriteConfig(
             include_entity_categories=True,
             save_standard_annotations=True,
             chain_disambiguation="chain_iid",
         )
-        return to_cif_string(self.array, config=config)
+        return to_cif_string(array, config=config)

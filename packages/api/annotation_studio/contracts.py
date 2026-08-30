@@ -17,6 +17,14 @@ ConditionDefault = bool | int | float | None
 ConditionOperation = Callable[[AtomArrayPlus, Iterable[int], bool], None]
 
 
+class SessionNotFoundError(KeyError):
+    """A session store could not resolve a session for the current owner."""
+
+
+class CapacityExceededError(RuntimeError):
+    """A bounded local or shared resource has reached its configured limit."""
+
+
 @dataclass(frozen=True, slots=True)
 class ConditionValue:
     """One named value accepted by an enum-style condition."""
@@ -108,12 +116,22 @@ class DesignProvider(Protocol):
         request: Any,
         *,
         source_session_id: str | None = None,
+        owner_id: str = "local",
+        idempotency_key: str | None = None,
     ) -> dict[str, Any]: ...
 
-    def get(self, job_id: str) -> dict[str, Any]: ...
+    def get(self, job_id: str, *, owner_id: str = "local") -> dict[str, Any]: ...
 
-    def output_cif(self, job_id: str, output_id: str) -> tuple[str, dict[str, Any]]: ...
+    def cancel(self, job_id: str, *, owner_id: str = "local") -> dict[str, Any]: ...
 
-    def input_cif(self, job_id: str) -> str: ...
+    def output_cif(
+        self,
+        job_id: str,
+        output_id: str,
+        *,
+        owner_id: str = "local",
+    ) -> tuple[str, dict[str, Any]]: ...
+
+    def input_cif(self, job_id: str, *, owner_id: str = "local") -> str: ...
 
     def close(self) -> None: ...

@@ -353,23 +353,25 @@ coloring.
 Use cheap inline metrics and pre-oracle filters before AF3 when possible. AF3
 inside a branching search can multiply oracle calls quickly.
 
-## 7. Public-site to Brev worker bridge
+## 7. Durable public-site to GPU-worker bridge
 
-The same-host authenticated Brev deployment above is implemented. A permanent
-public Kubernetes editor dispatching to a separate Brev worker is a separate
-production phase and needs:
+The same-host authenticated Brev deployment above remains the simplest pilot.
+The durable queue, shared session store, object-store adapter, and leased worker
+needed for a permanent multi-user control plane are implemented under
+[`deploy/durable`](durable/README.md). Production still must supply the
+organization's OIDC proxy, managed PostgreSQL/S3, private worker networking,
+secrets, and Brev lifecycle autoscaler.
 
 1. OIDC/SSO on the public Studio.
-2. A persistent PostgreSQL or Redis-backed job queue.
+2. The shipped PostgreSQL-backed job queue and shared session store.
 3. S3-compatible storage for capability-scoped input CIFs, outputs, logs, and
    metric files.
-4. A Brev worker that long-polls outbound over HTTPS, atomically claims jobs,
-   downloads inputs, runs RFD4, and uploads outputs.
+4. One shipped lease worker per GPU, connected over a private network,
+   downloading inputs, running RFD4, and uploading outputs.
 5. Short-lived, scoped worker credentials stored in a runtime secret manager.
 6. Per-user quotas, concurrency limits, cancellation, retries, heartbeats,
    idempotency, audit logs, and cost attribution.
-7. A provider implementation behind the existing design-job API so the browser
-   contract and viewer remain unchanged.
+7. The shipped durable provider behind the unchanged browser design-job API.
 
 Do not enable paid GPU submission anonymously. Session capability IDs protect
 documents but are not identity, authorization, or a billing boundary.
@@ -408,11 +410,11 @@ Alternatively deploy a known immutable GHCR SHA tag. Never roll back by moving
 
 ### Scaling
 
-The shipped Kubernetes manifest deliberately uses one replica and `Recreate`
+The pilot Kubernetes manifest deliberately uses one replica and `Recreate`
 because sessions use a ReadWriteOnce PVC and process-local mutation locks.
-Multiple replicas require shared transactional session storage and distributed
-locking. The Brev worker likewise runs one RFD4 job at a time; horizontal GPU
-scaling belongs in the external queue/worker phase.
+Use `deploy/durable/kubernetes.yaml` for multiple API replicas backed by the
+shared transactional session store. GPU scaling is independent: start one
+leased worker process per GPU and scale instances from queue/capability metrics.
 
 ## 9. Production acceptance checklist
 

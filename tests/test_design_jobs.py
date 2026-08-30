@@ -29,7 +29,11 @@ def test_single_gpu_provider_defaults_to_one_active_job(monkeypatch: pytest.Monk
 def test_schema_only_advertises_af3_metrics_when_configured(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     for key in (*AF3_ENVIRONMENT_KEYS, "AF3_LAUNCHER_SOCKET_TEMPLATE"):
         monkeypatch.delenv(key, raising=False)
-    manager = ProcessDesignProvider(root=tmp_path / "jobs", project_root=tmp_path, command=["rfd4"])
+    manager = ProcessDesignProvider(
+        root=tmp_path / "jobs",
+        project_root=tmp_path,
+        command=[sys.executable, "-c", "import time; time.sleep(30)"],
+    )
 
     local_schema = manager.schema()
     assert local_schema["capabilities"]["af3"] is False
@@ -105,6 +109,11 @@ def test_model_options_reject_unsafe_or_unbounded_values(tmp_path: Path, config_
         )
 
 
+def test_search_weights_must_be_finite() -> None:
+    with pytest.raises(ValueError, match="finite"):
+        SearchOptions(weights={"oracle.plddt_coi": float("nan")})
+
+
 def test_local_gpu_provider_collects_cifs_and_metrics(tmp_path: Path) -> None:
     manager = ProcessDesignProvider(
         root=tmp_path / "jobs",
@@ -136,6 +145,29 @@ def test_local_gpu_provider_collects_cifs_and_metrics(tmp_path: Path) -> None:
     cif, output = manager.output_cif(record["id"], record["outputs"][0]["id"])
     assert "_atom_site." in cif
     assert output["kind"] == "generated"
+    manager.close()
+
+
+def test_local_gpu_provider_honors_idempotency_keys(tmp_path: Path) -> None:
+    manager = ProcessDesignProvider(
+        root=tmp_path / "jobs",
+        project_root=tmp_path,
+        command=[sys.executable, "-c", "import time; time.sleep(30)"],
+    )
+    first = manager.submit(
+        FIXTURE.read_text(),
+        "fixture",
+        DesignJobRequest(num_designs=1),
+        idempotency_key="submission-1",
+    )
+    duplicate = manager.submit(
+        FIXTURE.read_text(),
+        "fixture",
+        DesignJobRequest(num_designs=1),
+        idempotency_key="submission-1",
+    )
+    assert duplicate["id"] == first["id"]
+    manager.cancel(first["id"])
     manager.close()
 
 
