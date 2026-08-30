@@ -81,7 +81,7 @@
     "package": "pnpm compile && vsce package --no-dependencies --no-rewrite-relative-links"
   },
   "devDependencies": {
-    "@types/node": "^26.1.1",
+    "@types/node": "^26.4.0",
     "@types/vscode": "^1.95.0",
     "@vscode/vsce": "^3.9.2",
     "ovsx": "^1.0.2",

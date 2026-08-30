@@ -34,5 +34,5 @@ testpaths = ["tests", "packages/pymol-plugin/smoke", "packages/pymol-plugin/test
 
 [dependency-groups]
 dev = [
-    "ruff>=0.16.0",
+    "ruff>=0.16.4",
 ]
