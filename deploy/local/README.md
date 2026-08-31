@@ -120,16 +120,17 @@ TorchInductor, Triton, and CUDA compilation artifacts under
 therefore reused across jobs, containers, and Studio restarts. The cache may
 rebuild after model-shape, PyTorch/CUDA, image, or GPU-architecture changes.
 
-## AF3
+## Refolding runtime
 
 The local prototype defaults to RFD4-only generation and inline metrics. Set all
-four `AF3_APPTAINER_PATH`, `AF3_SCRIPTS_DIR`, `AF3_MODEL_DIR`, and
-`AF3_JAX_CACHE_DIR` values in `$RFPROTEINA_ROOT/.ipd/.env.local` after installing Apptainer and
-the licensed AF3 runtime assets. `local/start.sh` then starts and supervises a
-warm AF3 daemon automatically (GPU 1 by default; override with
-`AF3_GPU_DEVICES`) and exports its socket to the Studio process. Partial AF3
-configuration fails early, and AF3 metric choices remain hidden when it is not
-configured.
+`AF3_IMAGE`, `AF3_MODEL_DIR`, and `AF3_JAX_CACHE_DIR` values in
+`$RFPROTEINA_ROOT/.ipd/.env.local` after installing Apptainer. Set
+`ANNOTATION_STUDIO_REFOLDING_ORACLES=of3` and point `AF3_MODEL_DIR` at the
+downloaded OF3 weights to use the ungated default; a legacy licensed deployment
+can instead set it to `af3`. `local/start.sh` starts and supervises the warm
+RFD4 refolding daemon automatically (GPU 1 by default; override with
+`AF3_GPU_DEVICES`) and exports its socket to Studio. A local daemon advertises
+exactly one family, so it cannot mix OF3 and AF3 weights.
 
 Use `$RFPROTEINA_ROOT/scripts/run_af3_daemon_smoke.sh --gpu 1` first to verify that the worker
 reaches `ready`. The two-GPU local default keeps RFD4 on GPU 0 and AF3 warm on

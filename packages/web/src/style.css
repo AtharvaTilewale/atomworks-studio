@@ -391,6 +391,35 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 14px 0; }
 
 /* Metrics picker */
 .metrics-picker-wrap { margin: 10px 0; }
+.design-recipes {
+  margin: 10px 0; padding: 10px; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--surface-recessed);
+}
+.design-recipes .card-title-row { margin-bottom: 8px; }
+.design-recipes h3 {
+  margin: 0; color: var(--text-secondary); font-size: 10px; text-transform: uppercase; letter-spacing: .08em;
+}
+.design-recipes .card-title-row > span {
+  color: var(--text-subtle); font-size: 9px; text-transform: uppercase; letter-spacing: .06em;
+}
+.design-recipe-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.design-recipe {
+  display: grid; min-height: 56px; padding: 8px; color: var(--text-secondary); background: var(--surface-card);
+  border-color: var(--border-strong); text-align: left;
+}
+.design-recipe:hover:not(:disabled), .design-recipe:focus-visible {
+  border-color: var(--accent-hover); background: var(--accent-soft);
+}
+.design-recipe strong { color: var(--text); font-size: 11px; }
+.design-recipe span { margin-top: 3px; color: var(--text-muted); font-size: 9px; line-height: 1.3; }
+.design-recipe-summary { min-height: 28px; margin: 8px 0 0; color: var(--text-muted); font-size: 10px; line-height: 1.4; }
+.design-settings { margin: 10px 0; padding: 0; border: 0; }
+.design-settings > summary { cursor: pointer; color: var(--text-secondary); font-size: 11px; font-weight: 650; }
+.design-settings[open] > summary { margin-bottom: 10px; }
+.design-settings > label, .design-settings > .inline-fields, .design-settings > .metrics-picker-wrap, .design-settings > #search-options {
+  margin-left: 1px; margin-right: 1px;
+}
+.design-advanced { padding-top: 9px; border-top: 1px solid var(--border); }
 .metrics-picker-label { display: block; margin-bottom: 6px; color: var(--text-secondary); font-size: 12px; }
 #metrics-picker { display: flex; flex-direction: column; gap: 8px; }
 .metrics-group { display: flex; flex-direction: column; gap: 5px; }

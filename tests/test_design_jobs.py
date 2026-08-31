@@ -36,7 +36,7 @@ def test_schema_only_advertises_af3_metrics_when_configured(monkeypatch: pytest.
     )
 
     local_schema = manager.schema()
-    assert local_schema["capabilities"]["af3"] is False
+    assert local_schema["capabilities"]["refolding_oracles"] == []
     assert "design" in local_schema["metrics_tags"]
     assert "unindexed" in local_schema["metrics_tags"]
     assert "unconditional_refolding" not in local_schema["metrics_tags"]
@@ -51,15 +51,19 @@ def test_schema_only_advertises_af3_metrics_when_configured(monkeypatch: pytest.
 
     for key in AF3_ENVIRONMENT_KEYS:
         monkeypatch.setenv(key, "/configured")
-    af3_schema = manager.schema()
-    assert af3_schema["capabilities"]["af3"] is True
+    legacy_schema = manager.schema()
+    assert legacy_schema["capabilities"]["refolding_oracles"] == ["af3"]
     assert {
         "ppi_refolding",
         "ame_refolding",
         "disco_refolding",
         "sm_binder_refolding",
         "unconditional_refolding",
-    } <= set(af3_schema["metrics_tags"])
+    } <= set(legacy_schema["metrics_tags"])
+    monkeypatch.setenv("ANNOTATION_STUDIO_REFOLDING_ORACLES", "of3")
+    of3_schema = manager.schema()
+    assert of3_schema["capabilities"]["refolding_oracles"] == ["of3"]
+    assert of3_schema["capabilities"]["default_refolding_oracle"] == "of3"
     manager.close()
 
 
@@ -85,8 +89,30 @@ def test_build_search_config_keeps_io_server_controlled(tmp_path: Path) -> None:
     assert config["inputs"] == str(tmp_path / "input.cif")
     assert config["batch_size"] == 2
     assert config["generation"]["args"] == {"nsteps": 100, "self_cond": True}
+    assert config["defaults"] == [
+        "inference",
+        {"override /metrics/inline_metrics": "design_metrics"},
+        {"override /metrics/refolding_oracles": "of3"},
+        "_self_",
+    ]
     assert config["search"]["strategy"]["_target_"].endswith("BeamSearchStrategy")
     assert config["search"]["rewards"]["weights"] == {"oracle.plddt_coi": 1.0}
+
+
+def test_local_provider_rejects_unconfigured_refolding_runtime(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("ANNOTATION_STUDIO_REFOLDING_ORACLES", "of3")
+    manager = ProcessDesignProvider(
+        root=tmp_path / "jobs",
+        project_root=tmp_path,
+        command=[sys.executable, "-c", "import time; time.sleep(30)"],
+    )
+    with pytest.raises(RuntimeError, match="OF3 refolding is not configured"):
+        manager.submit(
+            FIXTURE.read_text(),
+            "fixture",
+            DesignJobRequest(metrics_tags=["unconditional_refolding"], refolding_oracle="of3"),
+        )
+    manager.close()
 
 
 @pytest.mark.parametrize(

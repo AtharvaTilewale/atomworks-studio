@@ -24,23 +24,17 @@ from .contracts import CapacityExceededError
 from .design_jobs import (
     AF3_ENVIRONMENT_KEYS,
     ANSI_ESCAPE,
+    REFOLDING_METRIC_TAGS,
     DesignJobRequest,
     IdempotencyConflictError,
     SearchOptions,
     build_rfd4_config,
     collect_outputs,
     design_request_fingerprint,
+    request_uses_refolding,
     summarize_metrics,
 )
 
-AF3_METRIC_TAGS = {
-    "ppi_refolding",
-    "ame_refolding",
-    "disco_refolding",
-    "motif_scaffold_refolding",
-    "sm_binder_refolding",
-    "unconditional_refolding",
-}
 WORKER_CHILD_ENV_KEYS = {
     "CONDA_PREFIX",
     "CUDA_VISIBLE_DEVICES",
@@ -910,11 +904,18 @@ class DurableDesignProvider:
 
     def schema(self) -> dict[str, Any]:
         defaults = DesignJobRequest().model_dump()
+        refolding_oracles = [oracle for oracle in ("of3", "af3") if oracle in self.available_capabilities]
+        if refolding_oracles:
+            defaults["refolding_oracle"] = refolding_oracles[0]
         defaults["search"] = SearchOptions(step_checkpoints=[0, 50, 100]).model_dump()
         return {
             "enabled": True,
             "provider": "durable-rfd4",
-            "capabilities": {"af3": "af3" in self.available_capabilities, "durable": True},
+            "capabilities": {
+                "durable": True,
+                "refolding_oracles": refolding_oracles,
+                "default_refolding_oracle": refolding_oracles[0] if refolding_oracles else None,
+            },
             "defaults": defaults,
             "limits": {
                 "num_designs": 64,
@@ -930,7 +931,7 @@ class DurableDesignProvider:
                 "hotspot_conditioning",
                 "interchain_interactions",
                 "rasa_conditioning",
-                *(sorted(AF3_METRIC_TAGS) if "af3" in self.available_capabilities else []),
+                *(sorted(REFOLDING_METRIC_TAGS) if refolding_oracles else []),
             ],
         }
 
@@ -958,10 +959,8 @@ class DurableDesignProvider:
             project_root=Path("/runtime/rfd4"),
         )
         capabilities = ["rfd4"]
-        if AF3_METRIC_TAGS.intersection(request.metrics_tags) or (
-            request.search and AF3_METRIC_TAGS.intersection(request.search.reward_metrics_tags)
-        ):
-            capabilities.append("af3")
+        if request_uses_refolding(request):
+            capabilities.append(request.refolding_oracle)
         missing_capabilities = set(capabilities) - self.available_capabilities
         if missing_capabilities:
             raise RuntimeError(

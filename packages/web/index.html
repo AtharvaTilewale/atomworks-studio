@@ -307,6 +307,27 @@
           <details id="design-card" class="card" data-studio-panel="rfd4" open>
             <summary>Generate with RFD4</summary>
             <p id="design-availability" class="muted gpu-status" data-state="checking">Checking GPU design service…</p>
+            <section class="design-recipes" aria-label="Design recipes">
+              <div class="card-title-row">
+                <h3>Start with a recipe</h3>
+                <span>editable</span>
+              </div>
+              <div class="design-recipe-grid">
+                <button id="design-recipe-fast" type="button" class="design-recipe" disabled>
+                  <strong>Fast screen</strong>
+                  <span>Inline geometry + interface checks</span>
+                </button>
+                <button id="design-recipe-confidence" type="button" class="design-recipe" disabled>
+                  <strong>Confidence-ranked binder</strong>
+                  <span>Inline checks + model refolding when available</span>
+                </button>
+              </div>
+              <p id="design-recipe-summary" class="design-recipe-summary" aria-live="polite">
+                Connect a design service to choose a recipe.
+              </p>
+            </section>
+            <details class="design-settings" open>
+              <summary>Design settings</summary>
             <label>Workflow
               <select id="design-mode">
                 <option value="generate">Generate</option>
@@ -318,6 +339,9 @@
               <label>Batch size<input id="design-batch" type="number" min="1" max="32" value="4" /></label>
             </div>
             <label>Diffusion steps<input id="design-steps" type="number" min="1" max="1000" value="100" /></label>
+            <label id="design-refolding-oracle-row" hidden>Confidence runtime
+              <select id="design-refolding-oracle"></select>
+            </label>
             <div class="metrics-picker-wrap">
               <span class="metrics-picker-label">Metrics</span>
               <div id="metrics-picker"></div>
@@ -335,22 +359,26 @@
                 <datalist id="search-reward-options"></datalist>
               </label>
               <label>Reward weight<input id="search-weight" type="number" step="0.1" value="1" /></label>
-              <p id="search-af3-note" class="menu-note" hidden>
-                AF3 refolding runs at every search checkpoint for this reward group. It is substantially slower than inline metrics.
-              </p>
-            </div>
-            <label class="file-button secondary compact">
-              Load model-options YAML
-              <input id="design-config-file" type="file" accept=".yaml,.yml,text/yaml" />
-            </label>
-            <label>Advanced model options
-              <textarea id="design-config" rows="5" placeholder="generation:&#10;  model:&#10;    ..."></textarea>
-            </label>
+              <p id="search-refolding-note" class="menu-note" hidden>
+                Model refolding runs at every search checkpoint for this reward group. It is substantially slower than inline metrics.
+                </p>
+              </div>
+            </details>
+            <details class="design-settings design-advanced">
+              <summary>Advanced model options (YAML)</summary>
+              <label class="file-button secondary compact">
+                Load model-options YAML
+                <input id="design-config-file" type="file" accept=".yaml,.yml,text/yaml" />
+              </label>
+              <label>Model options
+                <textarea id="design-config" rows="5" placeholder="generation:&#10;  model:&#10;    ..."></textarea>
+              </label>
+            </details>
             <div class="action-row">
               <button id="submit-design" disabled>Submit GPU design job</button>
               <button id="cancel-design" class="secondary" disabled>Cancel job</button>
             </div>
-            <div id="design-job-status" class="muted"></div>
+            <div id="design-job-status" class="muted" aria-live="polite"></div>
             <div id="design-progress" class="design-progress" hidden>
               <div class="design-progress-row">
                 <strong id="design-progress-phase">Queued</strong>

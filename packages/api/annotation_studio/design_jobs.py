@@ -34,7 +34,18 @@ ALLOWED_CONFIG_KEYS = {
     "seed",
 }
 SEARCH_STRATEGY_TARGET = "rfproteina.search.beam_search.BeamSearchStrategy"
-AF3_ENVIRONMENT_KEYS = ("AF3_APPTAINER_PATH", "AF3_SCRIPTS_DIR", "AF3_JAX_CACHE_DIR", "AF3_MODEL_DIR")
+# The RFD4 daemon retains its historical AF3 name, but OpenFold3 uses the
+# same Apptainer transport with a different model directory.
+AF3_ENVIRONMENT_KEYS = ("AF3_IMAGE", "AF3_JAX_CACHE_DIR", "AF3_MODEL_DIR")
+REFOLDING_ORACLES = ("of3", "af3")
+REFOLDING_METRIC_TAGS = {
+    "ppi_refolding",
+    "ame_refolding",
+    "disco_refolding",
+    "motif_scaffold_refolding",
+    "sm_binder_refolding",
+    "unconditional_refolding",
+}
 ANSI_ESCAPE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 
 
@@ -112,6 +123,7 @@ class DesignJobRequest(BaseModel):
     steps: int = Field(default=100, ge=1, le=1000)
     seed: int | None = Field(default=None, ge=0, le=2**31 - 1)
     metrics_tags: list[str] = Field(default_factory=lambda: ["design"], max_length=32)
+    refolding_oracle: Literal["of3", "af3"] = "of3"
     search: SearchOptions | None = None
     config_yaml: str | None = Field(default=None, max_length=128 * 1024)
 
@@ -121,6 +133,38 @@ class DesignJobRequest(BaseModel):
         if any(SAFE_NAME.fullmatch(value) is None for value in values):
             raise ValueError("metric tags may contain only letters, numbers, '.', '_', and '-'")
         return values
+
+
+def refolding_oracles_from_environment() -> tuple[str, ...]:
+    """Return explicitly configured refolding runtimes for this process.
+
+    The shared daemon transport is named after AF3 for historical reasons, but
+    it also executes OpenFold3.  Keep model-family selection explicit so an
+    OF3 worker never silently consumes licensed AF3 weights.  Old deployments
+    that configure the daemon without this setting retain AF3 behavior.
+    """
+
+    configured = bool(os.environ.get("AF3_LAUNCHER_SOCKET_TEMPLATE")) or all(
+        os.environ.get(key) for key in AF3_ENVIRONMENT_KEYS
+    )
+    if not configured:
+        return ()
+    requested = os.environ.get("ANNOTATION_STUDIO_REFOLDING_ORACLES")
+    if requested is None:
+        return ("af3",)
+    requested_oracles = {item.strip() for item in requested.split(",")}
+    selected = tuple(oracle for oracle in REFOLDING_ORACLES if oracle in requested_oracles)
+    if len(selected) > 1:
+        raise RuntimeError(
+            "a local RFD4 daemon has one model directory; configure exactly one refolding runtime"
+        )
+    return selected
+
+
+def request_uses_refolding(request: DesignJobRequest) -> bool:
+    return bool(REFOLDING_METRIC_TAGS.intersection(request.metrics_tags)) or bool(
+        request.search and REFOLDING_METRIC_TAGS.intersection(request.search.reward_metrics_tags)
+    )
 
 
 def design_request_fingerprint(cif: str, name: str, request: DesignJobRequest) -> str:
@@ -253,7 +297,17 @@ def build_rfd4_config(
     """Build a safe external Hydra config while keeping paths server-controlled."""
 
     config: dict[str, Any] = {
-        "defaults": ["inference", "_self_"],
+        "defaults": [
+            "inference",
+            # RFD4's all_inline_metrics also includes optional developability
+            # metrics.  Hydra constructs every target before their tag gates
+            # apply, and the Rosetta metric requires a separately licensed
+            # PyRosetta runtime that Studio does not provision.  The Studio UI
+            # exposes the supported design/conditioning metric surface only.
+            {"override /metrics/inline_metrics": "design_metrics"},
+            {"override /metrics/refolding_oracles": request.refolding_oracle},
+            "_self_",
+        ],
         "inputs": str(input_path),
         "out_dir": str(output_dir),
         "run_name_": run_name,
@@ -473,9 +527,7 @@ class ProcessDesignProvider:
         return self.root is not None and bool(self.command)
 
     def schema(self) -> dict[str, Any]:
-        af3_enabled = bool(os.environ.get("AF3_LAUNCHER_SOCKET_TEMPLATE")) or all(
-            os.environ.get(key) for key in AF3_ENVIRONMENT_KEYS
-        )
+        refolding_oracles = refolding_oracles_from_environment()
         metrics_tags = [
             "design",
             "unindexed",
@@ -484,23 +536,18 @@ class ProcessDesignProvider:
             "interchain_interactions",
             "rasa_conditioning",
         ]
-        if af3_enabled:
-            metrics_tags.extend(
-                [
-                    "ppi_refolding",
-                    "ame_refolding",
-                    "disco_refolding",
-                    "motif_scaffold_refolding",
-                    "sm_binder_refolding",
-                    "unconditional_refolding",
-                ]
-            )
+        if refolding_oracles:
+            metrics_tags.extend(sorted(REFOLDING_METRIC_TAGS))
         defaults = DesignJobRequest().model_dump()
+        defaults["refolding_oracle"] = refolding_oracles[0] if refolding_oracles else "of3"
         defaults["search"] = SearchOptions(step_checkpoints=[0, 50, 100]).model_dump()
         return {
             "enabled": self.enabled,
             "provider": "local-rfd4",
-            "capabilities": {"af3": af3_enabled},
+            "capabilities": {
+                "refolding_oracles": list(refolding_oracles),
+                "default_refolding_oracle": refolding_oracles[0] if refolding_oracles else None,
+            },
             "defaults": defaults,
             "limits": {"num_designs": 64, "batch_size": 32, "steps": 1000},
             "metrics_tags": metrics_tags,
@@ -538,6 +585,10 @@ class ProcessDesignProvider:
     ) -> dict[str, Any]:
         if not self.enabled or self.root is None:
             raise RuntimeError("design jobs are not configured on this deployment")
+        if request_uses_refolding(request) and request.refolding_oracle not in refolding_oracles_from_environment():
+            raise RuntimeError(
+                f"{request.refolding_oracle.upper()} refolding is not configured on this deployment"
+            )
         with self._lock:
             self._prune()
             fingerprint = design_request_fingerprint(cif, name, request)

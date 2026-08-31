@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Shared direct-inference runtime used outside SLURM.
 #
-# launch_infer.sh emits equivalent AF3 daemon orchestration into its SLURM
+# launch_infer.sh emits equivalent refolding-daemon orchestration into its SLURM
 # script. Local and Brev Studio use this helper because they run directly on
 # one host and do not have sbatch/srun.
 
@@ -28,7 +28,7 @@ configure_persistent_compile_cache() {
 run_inference_service_with_af3() {
     local project_root="${1:?project root is required}"
     local state_root="${2:?state directory is required}"
-    local default_gpu_devices="${3:?default AF3 GPU devices are required}"
+    local default_gpu_devices="${3:?default refolding GPU devices are required}"
     shift 3
     (( $# > 0 )) || {
         echo "A service command is required." >&2
@@ -36,8 +36,7 @@ run_inference_service_with_af3() {
     }
 
     local required_variables=(
-        AF3_APPTAINER_PATH
-        AF3_SCRIPTS_DIR
+        AF3_IMAGE
         AF3_JAX_CACHE_DIR
         AF3_MODEL_DIR
     )
@@ -56,11 +55,11 @@ run_inference_service_with_af3() {
             echo "Apptainer is required when the AF3 daemon is configured." >&2
             return 1
         }
-        [[ -f "${AF3_APPTAINER_PATH}" ]] || {
-            echo "AF3_APPTAINER_PATH is not a file: ${AF3_APPTAINER_PATH}" >&2
+        [[ -f "${AF3_IMAGE}" ]] || {
+            echo "AF3_IMAGE is not a file: ${AF3_IMAGE}" >&2
             return 1
         }
-        for variable in AF3_SCRIPTS_DIR AF3_JAX_CACHE_DIR AF3_MODEL_DIR; do
+        for variable in AF3_JAX_CACHE_DIR AF3_MODEL_DIR; do
             [[ -d "${!variable}" ]] || {
                 echo "${variable} is not a directory: ${!variable}" >&2
                 return 1
@@ -87,16 +86,34 @@ run_inference_service_with_af3() {
 
     if (( configured_variables == ${#required_variables[@]} )); then
         mkdir -p "${state_root}/af3-logs"
-        eval "$(
-            "${python}" "${project_root}/src/rfproteina/af3/af3_daemon.py" launch \
-                --gpu-devices "${AF3_GPU_DEVICES:-${default_gpu_devices}}" \
-                --log-dir "${state_root}/af3-logs" \
-                --background
-        )"
-        af3_supervisor_pid="${AF3_DAEMONS_PID}"
-        echo "AF3 daemon started on GPU device(s) ${AF3_GPU_DEVICES:-${default_gpu_devices}}."
+        local daemon_devices="${AF3_GPU_DEVICES:-${default_gpu_devices}}"
+        local daemon_launcher="${project_root}/src/rfproteina/af3/af3_daemon.py"
+        local launch_help
+        launch_help="$("${python}" "${daemon_launcher}" launch --help)"
+        if grep -q -- '--gpu-devices' <<<"${launch_help}"; then
+            eval "$(
+                "${python}" "${daemon_launcher}" launch \
+                    --gpu-devices "${daemon_devices}" \
+                    --log-dir "${state_root}/af3-logs" \
+                    --background
+            )"
+        else
+            # The Studio-compatible RFD4 branch launches ranks 0..N-1. Scope
+            # CUDA visibility so its rank 0 maps to the requested physical GPU.
+            local legacy_num_gpus
+            legacy_num_gpus="$(tr ',' '\n' <<<"${daemon_devices}" | wc -l | tr -d ' ')"
+            eval "$(
+                CUDA_VISIBLE_DEVICES="${daemon_devices}" \
+                    "${python}" "${daemon_launcher}" launch \
+                        --num-gpus "${legacy_num_gpus}" \
+                        --log-dir "${state_root}/af3-logs" \
+                        --background
+            )"
+        fi
+        af3_supervisor_pid="${AF3_DAEMONS_PID:?AF3 launcher did not return a supervisor PID}"
+        echo "Refolding daemon started on GPU device(s) ${daemon_devices}."
     else
-        echo "AF3 daemon is disabled; refolding metrics and AF3-guided search are unavailable."
+        echo "Refolding daemon is disabled; refolding metrics and model-guided search are unavailable."
     fi
 
     "$@" &

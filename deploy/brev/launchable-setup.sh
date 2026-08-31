@@ -49,12 +49,43 @@ fi
 
 : "${DATA_PATH:?Create a DATA_PATH launch parameter pointing at persistent RFD4 checkpoints}"
 
+# OpenFold3 uses RFD4's AF3-named Apptainer daemon with ungated weights.  It
+# is the only refolding family configured by this single-daemon Launchable.
+if ! command -v apptainer >/dev/null 2>&1; then
+  sudo apt-get update
+  if apt-cache show apptainer >/dev/null 2>&1; then
+    sudo apt-get install --yes apptainer
+  else
+    # Ubuntu 22.04 images used by Brev do not carry Apptainer in their enabled
+    # APT sources. Install the official generic Debian package instead; APT
+    # still resolves its small system dependency set from the base image.
+    apptainer_version="${APPTAINER_VERSION:-1.5.3}"
+    apptainer_deb="$(mktemp --suffix=.deb)"
+    trap 'rm -f "${apptainer_deb}"' EXIT
+    curl --fail --location --retry 3 \
+      "https://github.com/apptainer/apptainer/releases/download/v${apptainer_version}/apptainer_${apptainer_version}_amd64.deb" \
+      --output "${apptainer_deb}"
+    sudo apt-get install --yes "${apptainer_deb}"
+    rm -f "${apptainer_deb}"
+    trap - EXIT
+  fi
+fi
+command -v apptainer >/dev/null 2>&1 || {
+  echo "Apptainer is required for the OpenFold3 refolding runtime." >&2
+  exit 1
+}
+
 if ! command -v node >/dev/null 2>&1 || ! node -e '
   const [major, minor] = process.versions.node.split(".").map(Number);
   process.exit(major > 22 || (major === 22 && minor >= 12) || (major === 20 && minor >= 19) ? 0 : 1);
 '; then
   curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
   sudo apt-get install --yes nodejs
+fi
+
+if ! command -v cc >/dev/null 2>&1; then
+  sudo apt-get update
+  sudo apt-get install --yes build-essential
 fi
 
 if ! command -v cargo >/dev/null 2>&1; then
@@ -72,19 +103,52 @@ command -v uv >/dev/null 2>&1 || curl -LsSf https://astral.sh/uv/install.sh | sh
 # Reuse the repository's only Python/model setup path; "other" avoids SLURM rc configuration.
 printf '5\n' | bash "${rfd4_root}/setup.sh"
 mkdir -p "${DATA_PATH}"
+of3_image_path="${DATA_PATH}/af3/apptainer_images/af3-open-36fad16.sif"
 if ! "${rfd4_root}/.venv/bin/python" "${studio_root}/scripts/check_rfd4_assets.py" \
   --rfd4-root "${rfd4_root}" --data-path "${DATA_PATH}"; then
   bash "${rfd4_root}/scripts/download_example_data.sh" "${DATA_PATH}"
 fi
+export AF3_IMAGE="${AF3_IMAGE:-${of3_image_path}}"
+export AF3_MODEL_DIR="${AF3_MODEL_DIR:-${DATA_PATH}/af3/af3_weights/of3}"
+export AF3_JAX_CACHE_DIR="${AF3_JAX_CACHE_DIR:-${DATA_PATH}/af3/jax_cache}"
+export ANNOTATION_STUDIO_REFOLDING_ORACLES="${ANNOTATION_STUDIO_REFOLDING_ORACLES:-of3}"
+of3_weights_path="${AF3_MODEL_DIR}/of3_ported_weights.bin.zst"
+of3_provenance_path="${AF3_MODEL_DIR}/of3_ported_weights.provenance.json"
+[[ "${ANNOTATION_STUDIO_REFOLDING_ORACLES}" == "of3" ]] || {
+  echo "This single-daemon Launchable supports OpenFold3 only; use durable workers for mixed OF3/AF3 pools." >&2
+  exit 2
+}
+if [[ ! -f "${AF3_IMAGE}" ]]; then
+  af3_build_root="${DATA_PATH}/af3/alphafold3-36fad16"
+  if [[ ! -f "${af3_build_root}/apptainer/af3-open.def" ]]; then
+    git clone https://github.com/kierandidi/alphafold3.git "${af3_build_root}"
+    git -C "${af3_build_root}" checkout --detach 36fad16
+  fi
+  mkdir -p "$(dirname "${AF3_IMAGE}")"
+  # The image is built from the exact RFD4-validated fork revision and contains
+  # no model parameters. Keeping it in DATA_PATH makes the expensive build
+  # reusable when the Launchable is restarted.
+  sudo apptainer build "${AF3_IMAGE}" "${af3_build_root}/apptainer/af3-open.def"
+fi
+if [[ ! -f "${of3_weights_path}" || ! -f "${of3_provenance_path}" ]]; then
+  "${rfd4_root}/.venv/bin/python" "${rfd4_root}/scripts/setup_of3_weights.py" \
+    --image "${AF3_IMAGE}" --output_dir "${AF3_MODEL_DIR}"
+fi
+[[ -f "${AF3_IMAGE}" && -f "${of3_weights_path}" && -f "${of3_provenance_path}" ]] || {
+  echo "OpenFold3 assets are missing after setup; check ${DATA_PATH}/af3." >&2
+  exit 1
+}
+mkdir -p "${AF3_JAX_CACHE_DIR}"
 "${rfd4_root}/.venv/bin/python" "${studio_root}/scripts/check_rfd4_assets.py" \
   --rfd4-root "${rfd4_root}" --data-path "${DATA_PATH}" --check-bucket
 bash "${studio_root}/scripts/build_patinae_viewer.sh"
 pnpm --dir "${studio_root}" install --frozen-lockfile
 uv sync --project "${studio_root}" --all-packages --all-extras --all-groups
 
-BREV_RFD4_IMAGE="${BREV_RFD4_IMAGE:-latent-dev:cuda12}"
+default_cuda_stack="${RFPROTEINA_CUDA_STACK:-cuda13}"
+BREV_RFD4_IMAGE="${BREV_RFD4_IMAGE:-latent-dev:${default_cuda_stack}}"
 if ! docker image inspect "${BREV_RFD4_IMAGE}" >/dev/null 2>&1; then
-  RFPROTEINA_CUDA_STACK=cuda12 \
+  RFPROTEINA_CUDA_STACK="${default_cuda_stack}" \
     bash "${studio_root}/deploy/lib/build_latent_dev_docker.sh" "${rfd4_root}" "${BREV_RFD4_IMAGE}"
 fi
 
@@ -98,8 +162,8 @@ service_launcher="${state_root}/start-service.sh"
   echo "#!/usr/bin/env bash"
   echo "set -euo pipefail"
   for variable in \
-    DATA_PATH BREV_RFD4_IMAGE AF3_APPTAINER_PATH AF3_SCRIPTS_DIR AF3_JAX_CACHE_DIR \
-    AF3_MODEL_DIR AF3_GPU_DEVICES APPTAINER_BIND_PATHS CUDA_VISIBLE_DEVICES; do
+    DATA_PATH BREV_RFD4_IMAGE AF3_IMAGE AF3_JAX_CACHE_DIR AF3_MODEL_DIR AF3_GPU_DEVICES \
+    ANNOTATION_STUDIO_REFOLDING_ORACLES APPTAINER_BIND_PATHS CUDA_VISIBLE_DEVICES; do
     [[ -z "${!variable:-}" ]] || printf 'export %s=%q\n' "${variable}" "${!variable}"
   done
   printf 'export RFPROTEINA_ROOT=%q\n' "${rfd4_root}"

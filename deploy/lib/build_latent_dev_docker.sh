@@ -18,9 +18,14 @@ REPO_ROOT="$(cd "$REPO_ROOT" && pwd)"
 IMAGE_TAG="${2:-latent-dev:local}"
 DOCKERFILE="$REPO_ROOT/.ipd/docker/latent-dev.Dockerfile"
 STACK="${RFPROTEINA_CUDA_STACK:-cuda13}"
+WITH_TMOL="${RFPROTEINA_WITH_TMOL:-0}"
 case "$STACK" in
     cuda12|cuda13) ;;
     *) echo "Error: RFPROTEINA_CUDA_STACK must be cuda12 or cuda13" >&2; exit 2 ;;
+esac
+case "$WITH_TMOL" in
+    0|1) ;;
+    *) echo "Error: RFPROTEINA_WITH_TMOL must be 0 or 1" >&2; exit 2 ;;
 esac
 
 command -v docker >/dev/null 2>&1 || { echo "Error: docker not found on PATH" >&2; exit 1; }
@@ -30,11 +35,12 @@ command -v docker >/dev/null 2>&1 || { echo "Error: docker not found on PATH" >&
     exit 1
 }
 
-echo ">>> building $IMAGE_TAG from $DOCKERFILE (stack=$STACK)"
+echo ">>> building $IMAGE_TAG from $DOCKERFILE (stack=$STACK with_tmol=$WITH_TMOL)"
 docker build \
     --file "$DOCKERFILE" \
     --tag "$IMAGE_TAG" \
     --build-arg STACK="$STACK" \
+    --build-arg WITH_TMOL="$WITH_TMOL" \
     --build-arg DEPS_LAYER_REV=10 \
     "$REPO_ROOT"
 

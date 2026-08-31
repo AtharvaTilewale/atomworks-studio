@@ -5,7 +5,7 @@ RFD4 run on the same Brev instance; the browser submits capability-scoped jobs
 to the Studio API, which queues one local GPU process at a time. No CIF leaves
 the instance and there is no SLURM dependency.
 
-The complete DNS, Kubernetes, GHCR, Brev, AF3, operations, and acceptance
+The complete DNS, Kubernetes, GHCR, Brev, OpenFold3, operations, and acceptance
 checklist is in the [production runbook](../README.md).
 After the service is ready, follow the [website guide](../../docs/WEB.md) to
 load, annotate, submit, and compare designs.
@@ -26,16 +26,16 @@ In the [Brev Launchable builder](https://docs.nvidia.com/brev/concepts/launchabl
    `RFPROTEINA_ROOT` is optional and overrides the bundled RFD4 submodule with
    a separate checkout. Optionally set `BREV_RFD4_STATE_DIR` to a persistent
    volume; on Brev VMs it defaults to
-   `~/workspace/rfd4-annotation-studio`. To enable AF3, also add
-   `AF3_APPTAINER_PATH`, `AF3_SCRIPTS_DIR`, `AF3_MODEL_DIR`, and
-   `AF3_JAX_CACHE_DIR`.
+   `~/workspace/rfd4-annotation-studio`. The Launchable installs Apptainer,
+   downloads ungated OpenFold3 assets, and configures OF3 automatically.
 6. Select a GPU profile with enough VRAM for the intended input size and create
    the Launchable.
 
 The setup script runs the RFD4 checkout's `setup.sh`, obtains and verifies the
-configured public checkpoints, pins the web toolchain, builds the CUDA 12 RFD4
-image once (default `latent-dev:cuda12`), installs a restartable systemd service
-when available, prestarts the configured AF3 daemon, and checks `/api/health`.
+configured public checkpoints and OF3 assets, pins the web toolchain, builds
+the CUDA 12 RFD4 image once (default `latent-dev:cuda12`), installs a
+restartable systemd service when available, prestarts the refolding daemon, and
+checks `/api/health`.
 Before allocating a GPU, a maintainer can validate the pinned source interfaces
 and public checkpoint objects from any networked checkout:
 
@@ -139,10 +139,16 @@ brev delete rfd4-studio-cloud
 ## Search and oracles
 
 Vanilla generation and rewards computed by RFD4 itself use the instance GPU
-directly. AF3 refolding rewards require the separately licensed AF3 runtime and
-weights documented in the production runbook. Select a non-refolding reward such as
-`interchain_interactions.hbond_atom_pair_count_coi` when that oracle runtime is
-not installed.
+directly. This Launchable uses free Apache-licensed OpenFold3 weights through
+RFD4's existing AF3-named daemon transport. It advertises only `of3`, so one
+daemon never mixes OF3 and licensed AF3 model families. Select a non-refolding
+reward such as `interchain_interactions.hbond_atom_pair_count_coi` when the
+refolding runtime is intentionally disabled.
+
+Use a durable deployment with separate OF3 and AF3-capable worker pools when
+both families are required. Studio exposes the choice per job and routes it to
+a worker advertising the selected capability; it does not repoint a warm daemon
+between weight families.
 
 The web form covers common design count, batch, step, metric, beam, branching,
 checkpoint, and reward settings. The YAML box accepts data-only model options;

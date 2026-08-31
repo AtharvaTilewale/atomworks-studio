@@ -112,13 +112,31 @@ that generation is not configured without treating the editor as failed.
 
 With the local GPU launcher or a Brev deployment, the panel can:
 
+- start from **Fast screen** for eight short designs with inline geometry and
+  interface checks, or **Confidence-ranked binder** for a larger screen with
+  OpenFold3 (OF3) refolding when that capability is configured;
+- show the selected design count, diffusion steps, batches, and whether model
+  refolding will add GPU time before submission;
 - choose generation or reward-guided search
-- select model metrics and AF3 refolding tags
+- select model metrics, choose the available OF3/AF3 runtime, and select
+  refolding tags
 - set replicate and search parameters
 - submit, monitor, and cancel a job
 - show phases, elapsed time, and live logs
 - cycle, align, and compare returned designs
 - download generated and refolded CIFs
+
+The recipes are intentionally editable: use one to obtain a sensible first
+submission, then open **Design settings** only for the metrics, search, and
+sampling controls that need changing. **Advanced model options (YAML)** is
+collapsed because it is for reviewed, data-only overrides rather than routine
+design setup. OF3 confidence metrics are useful for ranking but materially
+slower; avoid them for exploratory screens when inline checks answer the
+question.
+
+While a job is active Studio polls quickly enough to keep the phase and log
+current, then backs off for queued and background-browser jobs. Leaving a tab
+open therefore does not create a high-frequency control-plane load.
 
 Use the [local GPU guide](../deploy/local/README.md) or
 [Brev guide](../deploy/brev/README.md) to enable these controls.

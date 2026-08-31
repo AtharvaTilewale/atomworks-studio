@@ -91,7 +91,7 @@ def _provider(repository: PostgresJobRepository, tmp_path: Path) -> DurableDesig
         repository,
         LocalObjectStore(tmp_path / "objects"),
         required_revision="test-revision",
-        available_capabilities=("rfd4", "af3"),
+        available_capabilities=("rfd4", "of3", "af3"),
         default_max_queued=2,
         default_max_running=1,
     )
@@ -138,10 +138,10 @@ def test_claims_enforce_capabilities_running_quota_and_cancellation(
 ) -> None:
     provider = _provider(repository, tmp_path)
     regular = provider.submit(FIXTURE.read_text(), "regular", DesignJobRequest(), owner_id="alice")
-    af3 = provider.submit(
+    of3 = provider.submit(
         FIXTURE.read_text(),
         "oracle",
-        DesignJobRequest(metrics_tags=["unconditional_refolding"]),
+        DesignJobRequest(metrics_tags=["unconditional_refolding"], refolding_oracle="of3"),
         owner_id="alice",
     )
     repository.register_worker("rfd4-worker", revision="test-revision", capabilities=["rfd4"], gpu_name=None)
@@ -193,18 +193,18 @@ def test_claims_enforce_capabilities_running_quota_and_cancellation(
     assert provider.get(regular["id"], owner_id="alice")["status"] == "cancelled"
 
     repository.register_worker(
-        "af3-worker",
+        "of3-worker",
         revision="test-revision",
-        capabilities=["rfd4", "af3"],
+        capabilities=["rfd4", "of3"],
         gpu_name=None,
     )
     claimed = repository.claim(
-        "af3-worker",
+        "of3-worker",
         revision="test-revision",
-        capabilities=["rfd4", "af3"],
+        capabilities=["rfd4", "of3"],
         lease_seconds=60,
     )
-    assert str(claimed["id"]) == af3["id"]
+    assert str(claimed["id"]) == of3["id"]
 
 
 def test_claim_rejects_worker_identity_drift(repository: PostgresJobRepository) -> None:

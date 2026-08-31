@@ -73,6 +73,9 @@ if [[ -n "${BREV_RFD4_IMAGE:-}" ]]; then
   touch "${state_root}/brev.env"
   docker_command=(
     docker run --rm
+    # The host-side OF3 daemon consumes manifests from the shared state mount.
+    # Keep their ownership with the service user rather than Docker's root.
+    --user "$(id -u):$(id -g)"
     --gpus "device=${gpu_device}"
     --volume "${rfd4_root}:${rfd4_root}"
     --volume "${DATA_PATH}:${DATA_PATH}:ro"

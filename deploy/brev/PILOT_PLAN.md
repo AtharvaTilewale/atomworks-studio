@@ -69,7 +69,7 @@ The selected instance needs:
 - VM mode with Docker and systemd;
 - enough VRAM for the intended RFD4 input sizes;
 - persistent workspace storage;
-- one GPU for RFD4, or two GPUs when AF3 is enabled;
+- one GPU for RFD4, or two GPUs when OF3 refolding is enabled;
 - SSH access to the private Studio and RFD4 repositories.
 
 ## Phase 2: prepare persistent data
@@ -94,7 +94,8 @@ export RFPROTEINA_ROOT=/home/ubuntu/workspace/RFD4-Proteina-dev
 export ANNOTATION_STUDIO_RFD4_ROOT="$RFPROTEINA_ROOT"
 export DATA_PATH=/home/ubuntu/workspace/rfd4-data
 export BREV_RFD4_STATE_DIR=/home/ubuntu/workspace/rfd4-annotation-studio
-export CUDA_VISIBLE_DEVICES=0
+# Reserve GPU 1 for RFD4 generation. The OF3 daemon below uses GPU 0.
+export CUDA_VISIBLE_DEVICES=1
 ```
 
 Download and validate the exact checkpoints selected by pinned RFD4:
@@ -105,17 +106,19 @@ uv run python scripts/check_rfd4_assets.py \
   --rfd4-root "$RFPROTEINA_ROOT" --check-bucket
 ```
 
-For a two-GPU AF3 deployment, also configure all four variables:
+For a two-GPU OF3 deployment, configure the RFD4 daemon's canonical variables:
 
 ```bash
-export AF3_APPTAINER_PATH=/home/ubuntu/workspace/af3/af3.sif
-export AF3_SCRIPTS_DIR=/home/ubuntu/workspace/af3/scripts
-export AF3_MODEL_DIR=/home/ubuntu/workspace/af3/weights
-export AF3_JAX_CACHE_DIR=/home/ubuntu/workspace/af3/jax-cache
-export AF3_GPU_DEVICES=1
+export AF3_IMAGE="$DATA_PATH/af3/apptainer_images/af3-open-36fad16.sif"
+export AF3_MODEL_DIR="$DATA_PATH/af3/af3_weights/of3"
+export AF3_JAX_CACHE_DIR="$DATA_PATH/af3/jax_cache"
+export ANNOTATION_STUDIO_REFOLDING_ORACLES=of3
+# Keep OF3 on GPU 0 and RFD4 generation on GPU 1. This also works with the
+# pinned legacy launcher, whose rank 0 maps to physical GPU 0.
+export AF3_GPU_DEVICES=0
 ```
 
-Leave all AF3 variables unset for the initial one-GPU RFD4 pilot.
+Leave all refolding variables unset for the initial one-GPU RFD4 pilot.
 
 ## Phase 3: deploy the service
 

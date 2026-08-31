@@ -37,7 +37,7 @@ if [[ -f "${env_file}" ]]; then
 fi
 
 if [[ "${ANNOTATION_STUDIO_RFD4_ONLY:-0}" == "1" ]]; then
-  unset AF3_APPTAINER_PATH AF3_SCRIPTS_DIR AF3_JAX_CACHE_DIR AF3_MODEL_DIR
+  unset AF3_IMAGE AF3_JAX_CACHE_DIR AF3_MODEL_DIR ANNOTATION_STUDIO_REFOLDING_ORACLES
 fi
 
 if ! command -v node >/dev/null 2>&1 || ! node -e '
@@ -88,6 +88,9 @@ if [[ -n "${LOCAL_RFD4_IMAGE:-}" ]]; then
   }
   docker_command=(
     docker run --rm
+    # The host-side OF3 daemon consumes manifests from the shared state mount.
+    # Keep their ownership with the launching user rather than Docker's root.
+    --user "$(id -u):$(id -g)"
     --gpus "device=${gpu_device}"
     --volume "${rfd4_root}:${rfd4_root}"
     --volume "${DATA_PATH}:${DATA_PATH}:ro"

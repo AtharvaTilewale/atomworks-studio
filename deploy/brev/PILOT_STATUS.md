@@ -21,6 +21,35 @@ currently running deployment. Before inviting users, an operator must start or
 recreate the instance and rerun `make accept-brev` plus the clean-Launchable
 cycle.
 
+## Re-verification handoff
+
+To let a maintainer run the complete live acceptance, do **not** send a Brev
+password, browser cookie, SSH private key, GitHub token, AF3 weight credential,
+or cloud key in chat. Instead, provide one of these controlled access paths:
+
+1. Install the Brev CLI on the maintainer workstation and complete its normal
+   interactive device/browser login there, then select the
+   `rdf4-proteina-enablement` organization; or
+2. Add the maintainer's approved account to that organization with permission
+   to inspect, start, stop, SSH/exec, and manage Secure Links for the existing
+   `rfd4-studio-cloud` instance; or
+3. Have the current instance owner start the instance and open a temporary,
+   authenticated terminal session on it. The maintainer needs no persistent
+   secret if the session already has the required repository access.
+
+Before the run, the operator must explicitly approve use of the selected GPU
+profile and credit spend, confirm that the persistent workspace is retained,
+and give the current Secure Link URL (or authorize creation of one). For the
+one-GPU RFD4 acceptance, public RFD4 checkpoint access is sufficient; AF3 must
+remain disabled. A two-GPU AF3 acceptance additionally needs the separately
+licensed AF3 runtime and weights already mounted on the worker.
+
+With one of those paths, the maintainer will run the existing instance and
+clean-Launchable checks, save their artifacts under the persistent state
+directory, verify authenticated browser access in both renderers, perform a
+real design and output-open round trip, and test restart persistence. The
+commands and acceptance criteria are in [PILOT_PLAN.md](PILOT_PLAN.md).
+
 ## Endpoint and ownership
 
 - Studio URL: <https://atomworks-studio-k72mdjjr8.apps.run.brev.nvidia.com>

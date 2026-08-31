@@ -716,6 +716,12 @@ export interface components {
              * @default 8
              */
             num_designs: number;
+            /**
+             * Refolding Oracle
+             * @default of3
+             * @enum {string}
+             */
+            refolding_oracle: "of3" | "af3";
             search?: components["schemas"]["SearchOptions"] | null;
             /** Seed */
             seed?: number | null;

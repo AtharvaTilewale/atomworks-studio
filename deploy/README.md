@@ -6,13 +6,13 @@
 
 This runbook covers the complete path from a local browser build to the
 permanent Kubernetes editor, an authenticated Brev GPU deployment, the warm
-AlphaFold 3 (AF3) daemon, release automation, and production operations.
+OpenFold3 (OF3) refolding daemon, release automation, and production operations.
 
 The production contract is intentionally split:
 
 - The permanent Kubernetes service is the CPU web/API editor. Mol* and Patinae
   are explicit client-side renderers served by the same deployment.
-- The currently implemented GPU provider runs Annotation Studio, RFD4, and AF3
+- The currently implemented GPU provider runs Annotation Studio, RFD4, and OF3
   on one authenticated Brev VM. Jobs never require SLURM.
 - A public Kubernetes site cannot yet submit directly to a separate Brev VM.
   That topology requires the remote worker bridge described below; do not
@@ -236,23 +236,14 @@ store cloud keys in the generated service launcher.
 
 ### GPU layout
 
-For a one-GPU pilot:
-
-```bash
-CUDA_VISIBLE_DEVICES=0
-AF3_GPU_DEVICES=0
-```
-
-RFD4 and AF3 share GPU 0, which must be validated for peak VRAM.
-
-For the recommended two-GPU search worker:
+For the recommended two-GPU OF3 worker:
 
 ```bash
 CUDA_VISIBLE_DEVICES=0
 AF3_GPU_DEVICES=1
 ```
 
-RFD4 uses GPU 0 and the AF3 daemon uses driver GPU 1. The Studio job manager
+RFD4 uses GPU 0 and the OF3 daemon uses driver GPU 1. The Studio job manager
 serializes RFD4 jobs, so one VM does not overcommit the model GPU.
 
 ### Persistent directories
@@ -261,10 +252,9 @@ Keep all durable data under `/home/ubuntu/workspace`:
 
 ```text
 /home/ubuntu/workspace/rfd4-data/                 RFD4 checkpoints
-/home/ubuntu/workspace/af3/af3.sif                AF3 runtime
-/home/ubuntu/workspace/af3/scripts/                approved AF3 scripts
-/home/ubuntu/workspace/af3/weights/                AF3 model parameters
-/home/ubuntu/workspace/af3/jax-cache/              JAX compilation cache
+/home/ubuntu/workspace/rfd4-data/af3/apptainer_images/af3-open-36fad16.sif  OF3 runtime image
+/home/ubuntu/workspace/rfd4-data/af3/af3_weights/of3/                        OF3 parameters
+/home/ubuntu/workspace/rfd4-data/af3/jax_cache/                              JAX compilation cache
 /home/ubuntu/workspace/rfd4-annotation-studio/     jobs, sessions, logs
 ```
 
@@ -274,19 +264,21 @@ Keeping the worker warm therefore requires a running Brev instance and
 sufficient credits; a Launchable is a provisioning recipe, not an always-on
 scheduler.
 
-## 5. AF3 daemon
+## 5. OF3 refolding daemon
 
-Only AlphaFold 3 is part of this production workflow. OpenFold-3/OF3 is not
-configured or required.
+The default production refolding backend is OpenFold3 (OF3), using RFD4's
+existing AF3-named daemon transport and Apache-licensed weights. AF3 remains an
+optional separate durable-worker capability; it is never mixed into an OF3
+daemon.
 
 The supported runtime is the existing Apptainer-backed warm daemon. Configure
-all four variables or none:
+all three variables or none:
 
 ```bash
-AF3_APPTAINER_PATH=/home/ubuntu/workspace/af3/af3.sif
-AF3_SCRIPTS_DIR=/home/ubuntu/workspace/af3/scripts
-AF3_MODEL_DIR=/home/ubuntu/workspace/af3/weights
-AF3_JAX_CACHE_DIR=/home/ubuntu/workspace/af3/jax-cache
+AF3_IMAGE=/home/ubuntu/workspace/rfd4-data/af3/apptainer_images/af3-open-36fad16.sif
+AF3_MODEL_DIR=/home/ubuntu/workspace/rfd4-data/af3/af3_weights/of3
+AF3_JAX_CACHE_DIR=/home/ubuntu/workspace/rfd4-data/af3/jax_cache
+ANNOTATION_STUDIO_REFOLDING_ORACLES=of3
 ```
 
 Also configure any external data mounts:
@@ -296,7 +288,7 @@ APPTAINER_BIND_PATHS=/home/ubuntu/workspace:/home/ubuntu/workspace
 ```
 
 `brev/start.sh` validates these paths and prestarts
-`src/rfproteina/af3/af3_daemon.py`. The daemon loads AF3 once, retains the warm
+`src/rfproteina/af3/af3_daemon.py`. The daemon loads OF3 once, retains the warm
 worker, and receives fold requests over a mode-0600 Unix socket. RFD4
 subprocesses inherit `AF3_LAUNCHER_SOCKET_TEMPLATE`, so generation, final
 refolding metrics, and beam-search rewards reuse the daemon.
@@ -322,13 +314,13 @@ ls /home/ubuntu/workspace/rfd4-annotation-studio/af3-logs
 Do not mount a Docker socket into the public Kubernetes editor. AF3 belongs on
 the authenticated GPU worker.
 
-## 6. AF3-guided generation and search
+## 6. OF3-guided generation and search
 
-For final AF3 metrics without search, select an appropriate refolding tag such
+For final OF3 metrics without search, select an appropriate refolding tag such
 as `unconditional_refolding`, `ppi_refolding`, `sm_binder_refolding`, or
 `motif_scaffold_refolding`.
 
-For beam search using AF3 pLDDT as reward:
+For beam search using OF3 pLDDT as reward:
 
 ```yaml
 metrics_tags:
@@ -346,11 +338,11 @@ In the Studio, choose Search mode, select `unconditional_refolding`, set the
 reward key to `oracle.ranking_score`, then set diffusion checkpoints, branching,
 and beam width. Use `oracle.plddt_coi` only for inputs with a chain-of-interest
 annotation. RFD4 writes generated CIFs and per-example metric CSV files.
-The Studio collects and ranks outputs, returns generated and AF3-refolded CIFs,
+The Studio collects and ranks outputs, returns generated and OF3-refolded CIFs,
 shows numeric metrics, and exposes pLDDT/confidence-like CIF fields for viewer
 coloring.
 
-Use cheap inline metrics and pre-oracle filters before AF3 when possible. AF3
+Use cheap inline metrics and pre-oracle filters before OF3 when possible. OF3
 inside a branching search can multiply oracle calls quickly.
 
 ## 7. Durable public-site to GPU-worker bridge

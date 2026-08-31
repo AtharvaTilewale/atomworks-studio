@@ -134,15 +134,18 @@ try {
       select.value = "search";
       select.dispatchEvent(new Event("change"));
     });
-    const af3Available = await page.locator("#search-reward-tag option").evaluateAll(
+    const refoldingAvailable = await page.locator("#search-reward-tag option").evaluateAll(
       (options) => options.some((option) => option.value === "unconditional_refolding" && !option.disabled),
     );
     await page.locator("#search-reward-tag").evaluate((select, useAf3) => {
       select.value = useAf3 ? "unconditional_refolding" : "interchain_interactions";
       select.dispatchEvent(new Event("change"));
-    }, af3Available);
-    assert.equal(await page.locator("#search-af3-note").evaluate((element) => element.hidden), !af3Available);
-    const expectedReward = af3Available
+    }, refoldingAvailable);
+    assert.equal(
+      await page.locator("#search-refolding-note").evaluate((element) => element.hidden),
+      !refoldingAvailable,
+    );
+    const expectedReward = refoldingAvailable
       ? "oracle.ranking_score"
       : "interchain_interactions.hbond_atom_pair_count_coi";
     assert.equal(await page.locator("#search-reward").inputValue(), expectedReward);
@@ -173,8 +176,31 @@ try {
   assert.match(await page.locator("#structure-summary").innerText(), /66/);
   assert.equal(await page.locator("#download").isEnabled(), true);
   assert.equal(await page.locator("#submit-design").isDisabled(), !expectDesignEnabled);
+  await page.locator("#rfd4-proteina-menu > summary").click();
+  assert.deepEqual(await page.locator(".design-recipe strong").allTextContents(), [
+    "Fast screen",
+    "Confidence-ranked binder",
+  ]);
+  if (expectDesignEnabled) {
+    const refoldingOptions = await page.locator("#design-refolding-oracle option").evaluateAll(
+      (options) => options.map((option) => option.value),
+    );
+    if (refoldingOptions.length) {
+      assert.equal(await page.locator("#design-refolding-oracle").inputValue(), refoldingOptions[0]);
+      assert.equal(await page.locator("#design-refolding-oracle-row").evaluate((element) => element.hidden), false);
+    }
+    await page.locator("#design-recipe-fast").click();
+    assert.equal(await page.locator("#design-count").inputValue(), "8");
+    assert.equal(await page.locator("#design-steps").inputValue(), "50");
+    assert.match(await page.locator("#design-recipe-summary").innerText(), /inline checks only/);
+    await page.locator("#design-recipe-confidence").click();
+    assert.equal(await page.locator("#design-count").inputValue(), "16");
+    assert.equal(await page.locator("#design-steps").inputValue(), "100");
+    assert.ok(await page.locator(".design-advanced").evaluate((element) => !element.open));
+  }
   await page.locator("#atomworks-studio-menu > summary").click();
   assert.deepEqual(await page.locator("#pick-scope option").allTextContents(), ["Atom", "Residue", "Chain"]);
+  await page.locator("#atomworks-studio-menu > summary").click();
   assert.ok(await page.locator(".sequence-dock .sequence-token").count(), "top sequence dock has residues");
   const sequenceResidues = page.locator(".sequence-dock .sequence-token[data-atoms]");
   await sequenceResidues.first().click();

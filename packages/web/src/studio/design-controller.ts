@@ -46,7 +46,8 @@ type DesignSchema = {
   enabled: boolean;
   provider: string;
   capabilities?: {
-    af3?: boolean;
+    refolding_oracles?: Array<"of3" | "af3">;
+    default_refolding_oracle?: "of3" | "af3" | null;
   };
   metrics_tags: string[];
   defaults?: {
@@ -124,33 +125,33 @@ const REWARD_METRIC_PRESETS: Record<string, RewardMetricPreset[]> = {
     { value: "design_unindexed_motif_allatom_rmsd.rmsd", label: "Insertion RMSD (minimize)", weight: -1 },
   ],
   unconditional_refolding: [
-    { value: "oracle.ranking_score", label: "AF3 ranking score (maximize)", weight: 1 },
-    { value: "oracle.overall_ptm", label: "AF3 overall pTM (maximize)", weight: 1 },
-    { value: "oracle.plddt_coi", label: "AF3 chain pLDDT (maximize; requires COI)", weight: 1 },
-    { value: "refolded_backbone_rmsd.rmsd", label: "AF3 backbone RMSD (minimize)", weight: -1 },
+    { value: "oracle.ranking_score", label: "Model ranking score (maximize)", weight: 1 },
+    { value: "oracle.overall_ptm", label: "Model overall pTM (maximize)", weight: 1 },
+    { value: "oracle.plddt_coi", label: "Model chain pLDDT (maximize; requires COI)", weight: 1 },
+    { value: "refolded_backbone_rmsd.rmsd", label: "Model backbone RMSD (minimize)", weight: -1 },
   ],
   ppi_refolding: [
-    { value: "oracle_ppi.ptm_coi", label: "AF3 binder pTM (maximize)", weight: 1 },
-    { value: "oracle_ppi.min_ipae_coi", label: "AF3 minimum interface PAE (minimize)", weight: -1 },
-    { value: "refolded_target_aligned_binder_rmsd.rmsd", label: "AF3 target-aligned binder RMSD (minimize)", weight: -1 },
+    { value: "oracle_ppi.ptm_coi", label: "Model binder pTM (maximize)", weight: 1 },
+    { value: "oracle_ppi.min_ipae_coi", label: "Model minimum interface PAE (minimize)", weight: -1 },
+    { value: "refolded_target_aligned_binder_rmsd.rmsd", label: "Model target-aligned binder RMSD (minimize)", weight: -1 },
   ],
   ame_refolding: [
-    { value: "oracle.plddt_coi", label: "AF3 chain pLDDT (maximize)", weight: 1 },
-    { value: "refolded_motif_allatom_rmsd.rmsd", label: "AF3 catalytic motif RMSD (minimize)", weight: -1 },
+    { value: "oracle.plddt_coi", label: "Model chain pLDDT (maximize)", weight: 1 },
+    { value: "refolded_motif_allatom_rmsd.rmsd", label: "Model catalytic motif RMSD (minimize)", weight: -1 },
   ],
   disco_refolding: [
-    { value: "oracle.plddt_coi", label: "AF3 chain pLDDT (maximize)", weight: 1 },
-    { value: "max_ligand_centroid_distance.ligand_centroid_distance", label: "AF3 ligand-centroid distance (minimize)", weight: -1 },
+    { value: "oracle.plddt_coi", label: "Model chain pLDDT (maximize)", weight: 1 },
+    { value: "max_ligand_centroid_distance.ligand_centroid_distance", label: "Model ligand-centroid distance (minimize)", weight: -1 },
   ],
   sm_binder_refolding: [
-    { value: "oracle.iptm_coi", label: "AF3 interface pTM (maximize)", weight: 1 },
-    { value: "oracle.min_ipae_coi", label: "AF3 minimum interface PAE (minimize)", weight: -1 },
-    { value: "refolded_backbone_aligned_ligand_rmsd.rmsd", label: "AF3 aligned ligand RMSD (minimize)", weight: -1 },
+    { value: "oracle.iptm_coi", label: "Model interface pTM (maximize)", weight: 1 },
+    { value: "oracle.min_ipae_coi", label: "Model minimum interface PAE (minimize)", weight: -1 },
+    { value: "refolded_backbone_aligned_ligand_rmsd.rmsd", label: "Model aligned ligand RMSD (minimize)", weight: -1 },
   ],
   motif_scaffold_refolding: [
-    { value: "oracle.plddt_coi", label: "AF3 chain pLDDT (maximize)", weight: 1 },
-    { value: "refolded_motif_allatom_rmsd.rmsd", label: "AF3 motif all-atom RMSD (minimize)", weight: -1 },
-    { value: "refolded_motif_ca_rmsd.rmsd", label: "AF3 motif Cα RMSD (minimize)", weight: -1 },
+    { value: "oracle.plddt_coi", label: "Model chain pLDDT (maximize)", weight: 1 },
+    { value: "refolded_motif_allatom_rmsd.rmsd", label: "Model motif all-atom RMSD (minimize)", weight: -1 },
+    { value: "refolded_motif_ca_rmsd.rmsd", label: "Model motif Cα RMSD (minimize)", weight: -1 },
   ],
 };
 
@@ -175,12 +176,17 @@ const searchRewardTag = byId<HTMLSelectElement>("search-reward-tag");
 const searchReward = byId<HTMLInputElement>("search-reward");
 const searchRewardOptions = byId<HTMLDataListElement>("search-reward-options");
 const searchWeight = byId<HTMLInputElement>("search-weight");
-const searchAf3Note = byId<HTMLParagraphElement>("search-af3-note");
+const refoldingOracleRow = byId<HTMLLabelElement>("design-refolding-oracle-row");
+const refoldingOracle = byId<HTMLSelectElement>("design-refolding-oracle");
+const searchRefoldingNote = byId<HTMLParagraphElement>("search-refolding-note");
 const configFile = byId<HTMLInputElement>("design-config-file");
 const configText = byId<HTMLTextAreaElement>("design-config");
 const submit = byId<HTMLButtonElement>("submit-design");
 const cancelDesign = byId<HTMLButtonElement>("cancel-design");
 const status = byId<HTMLDivElement>("design-job-status");
+const fastRecipe = byId<HTMLButtonElement>("design-recipe-fast");
+const confidenceRecipe = byId<HTMLButtonElement>("design-recipe-confidence");
+const recipeSummary = byId<HTMLParagraphElement>("design-recipe-summary");
 const progress = byId<HTMLDivElement>("design-progress");
 const progressPhase = byId<HTMLElement>("design-progress-phase");
 const progressElapsed = byId<HTMLElement>("design-progress-elapsed");
@@ -226,12 +232,13 @@ function formatDuration(seconds: number): string {
   return minutes ? `${minutes}m ${remainder}s` : `${remainder}s`;
 }
 
-function buildMetricsPicker(tags: string[], defaults: string[]): void {
+function buildMetricsPicker(tags: string[], defaults: string[], refoldingAvailable: boolean): void {
   // Populate hidden select
   metrics.replaceChildren();
   for (const tag of tags) {
     const option = new Option(metricOptionLabel(tag), tag);
-    option.selected = defaults.includes(tag);
+    option.disabled = Boolean(METRIC_META[tag]?.refolding && !refoldingAvailable);
+    option.selected = defaults.includes(tag) && !option.disabled;
     metrics.add(option);
   }
 
@@ -253,14 +260,18 @@ function buildMetricsPicker(tags: string[], defaults: string[]): void {
       const meta = METRIC_META[tag];
       const chip = document.createElement("button");
       chip.type = "button";
-      chip.className = defaults.includes(tag) ? "metric-chip selected" : "metric-chip";
+      chip.className = defaults.includes(tag) && !(meta?.refolding && !refoldingAvailable)
+        ? "metric-chip selected"
+        : "metric-chip";
       chip.dataset.tag = tag;
       chip.textContent = meta?.label ?? metricOptionLabel(tag);
+      chip.disabled = Boolean(meta?.refolding && !refoldingAvailable);
       if (meta?.hint) chip.title = meta.hint;
       chip.addEventListener("click", () => {
         const isSelected = chip.classList.toggle("selected");
         const option = [...metrics.options].find((o) => o.value === tag);
         if (option) option.selected = isSelected;
+        metrics.dispatchEvent(new Event("change"));
       });
       chips.append(chip);
     }
@@ -269,7 +280,7 @@ function buildMetricsPicker(tags: string[], defaults: string[]): void {
   }
 
   makeGroup(nonRefolding, "Design & conditioning");
-  if (refolding.length) makeGroup(refolding, "AF3 refolding", "metrics-group-refolding");
+  if (refolding.length) makeGroup(refolding, "Model refolding", "metrics-group-refolding");
 }
 
 function updateRewardMetricOptions(selectDefault = true): void {
@@ -282,7 +293,7 @@ function updateRewardMetricOptions(selectDefault = true): void {
       return option;
     }),
   );
-  searchAf3Note.hidden = !METRIC_META[searchRewardTag.value]?.refolding;
+  searchRefoldingNote.hidden = !METRIC_META[searchRewardTag.value]?.refolding;
   if (selectDefault && presets.length) {
     searchReward.value = presets[0].value;
     searchWeight.value = String(presets[0].weight);
@@ -368,6 +379,7 @@ function requestBody(): Record<string, unknown> {
     batch_size: numberValue(batch),
     steps: numberValue(steps),
     metrics_tags: selectedValues(metrics),
+    refolding_oracle: refoldingOracle.value || "of3",
     config_yaml: configText.value.trim() || null,
   };
   if (designMode === "search") {
@@ -404,6 +416,8 @@ export async function initializeDesignController(options: DesignControllerOption
   let comparisonLoading = false;
   let comparisonGeneration = 0;
   let comparisonQueue = Promise.resolve();
+  let availableMetrics = new Set<string>();
+  let refoldingAvailable = false;
 
   const documentKey = (document: DesignDocument): string => `${document.kind}:${document.id}`;
 
@@ -426,6 +440,47 @@ export async function initializeDesignController(options: DesignControllerOption
   function updateSession(): void {
     submit.disabled = activeJob || !enabled || options.getSessionId() === null;
     cancelDesign.disabled = !activeJob || !currentJobId;
+  }
+
+  function setMetrics(tags: string[]): void {
+    const requested = new Set(tags);
+    for (const option of metrics.options) option.selected = requested.has(option.value) && !option.disabled;
+    for (const chip of metricsPicker.querySelectorAll<HTMLButtonElement>(".metric-chip[data-tag]")) {
+      const option = [...metrics.options].find((candidate) => candidate.value === chip.dataset.tag);
+      chip.classList.toggle("selected", Boolean(option?.selected));
+    }
+  }
+
+  function updateRecipeSummary(): void {
+    const selected = selectedValues(metrics);
+    const hasRefolding = selected.some((tag) => METRIC_META[tag]?.refolding);
+    const designs = Math.max(0, numberValue(count));
+    const batchSize = Math.max(1, numberValue(batch));
+    const batches = Math.ceil(designs / batchSize);
+    if (mode.value === "search") {
+      recipeSummary.textContent = `Reward-guided search · ${numberValue(searchBranches)} branches × ${numberValue(searchBeam)} beam · ${searchCheckpoints.value || "configured"} checkpoints${hasRefolding ? ` · ${refoldingOracle.options[refoldingOracle.selectedIndex]?.text ?? "model"} refolding adds GPU time` : ""}.`;
+      return;
+    }
+    recipeSummary.textContent = `${designs} designs · ${numberValue(steps)} diffusion steps · ${batches} GPU batch${batches === 1 ? "" : "es"}${hasRefolding ? ` · ${refoldingOracle.options[refoldingOracle.selectedIndex]?.text ?? "model"} confidence refolding enabled (slower)` : " · inline checks only (fastest)"}.`;
+  }
+
+  function applyRecipe(kind: "fast" | "confidence"): void {
+    mode.value = "generate";
+    searchOptions.hidden = true;
+    batch.value = "4";
+    if (kind === "fast") {
+      count.value = "8";
+      steps.value = "50";
+      setMetrics(["design", "interchain_interactions"]);
+    } else {
+      count.value = "16";
+      steps.value = "100";
+      const refolding = refoldingAvailable && availableMetrics.has("ppi_refolding")
+        ? "ppi_refolding"
+        : refoldingAvailable && availableMetrics.has("unconditional_refolding") ? "unconditional_refolding" : undefined;
+      setMetrics(["design", "interchain_interactions", ...(refolding ? [refolding] : [])]);
+    }
+    updateRecipeSummary();
   }
 
   function applyPreset(metricsTags: string[], search?: SearchPreset): string[] {
@@ -654,7 +709,11 @@ export async function initializeDesignController(options: DesignControllerOption
           sessionStorage.removeItem("annotation-studio-design-job");
           return;
         }
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        const delay = document.visibilityState === "hidden"
+          ? 15_000
+          : job.status === "queued" ? 5_000
+          : job.outputs.length ? 2_000 : 3_000;
+        await new Promise((resolve) => setTimeout(resolve, delay));
       }
     } catch (error) {
       if (generation === pollGeneration) throw error;
@@ -702,7 +761,16 @@ export async function initializeDesignController(options: DesignControllerOption
       searchCheckpoints.value = `0,${Math.floor(numberValue(steps) / 2)},${numberValue(steps)}`;
       updateRewardMetricOptions(false);
     }
+    updateRecipeSummary();
   });
+  metrics.addEventListener("change", updateRecipeSummary);
+  for (const input of [count, batch, steps, searchBranches, searchBeam, searchCheckpoints]) {
+    input.addEventListener("input", updateRecipeSummary);
+    input.addEventListener("change", updateRecipeSummary);
+  }
+  fastRecipe.addEventListener("click", () => applyRecipe("fast"));
+  confidenceRecipe.addEventListener("click", () => applyRecipe("confidence"));
+  refoldingOracle.addEventListener("change", updateRecipeSummary);
   searchRewardTag.addEventListener("change", () => updateRewardMetricOptions());
   searchReward.addEventListener("change", () => {
     const preset = (REWARD_METRIC_PRESETS[searchRewardTag.value] ?? [])
@@ -762,16 +830,25 @@ export async function initializeDesignController(options: DesignControllerOption
   try {
     const schema = await options.request<DesignSchema>("/api/design/schema");
     enabled = schema.enabled;
+    availableMetrics = new Set(schema.metrics_tags);
+    const refoldingOracles = schema.capabilities?.refolding_oracles ?? [];
+    refoldingAvailable = refoldingOracles.length > 0;
+    refoldingOracle.replaceChildren(...refoldingOracles.map((oracle) => new Option(
+      oracle === "of3" ? "OpenFold3 (recommended)" : "AlphaFold 3",
+      oracle,
+    )));
+    refoldingOracle.value = schema.capabilities?.default_refolding_oracle ?? refoldingOracles[0] ?? "of3";
+    refoldingOracleRow.hidden = !refoldingAvailable;
     searchRewardTag.replaceChildren();
     const defaults = schema.defaults?.metrics_tags?.length
       ? schema.defaults.metrics_tags
       : schema.metrics_tags.includes("design") ? ["design"] : [];
-    buildMetricsPicker(schema.metrics_tags, defaults);
+    buildMetricsPicker(schema.metrics_tags, defaults, refoldingAvailable);
     for (const tag of schema.metrics_tags) {
       const option = new Option(metricOptionLabel(tag), tag);
-      if (METRIC_META[tag]?.refolding && schema.capabilities?.af3 === false) {
+      if (METRIC_META[tag]?.refolding && !refoldingAvailable) {
         option.disabled = true;
-        option.textContent += " · AF3 unavailable";
+        option.textContent += " · refolding unavailable";
       }
       searchRewardTag.add(option);
     }
@@ -798,6 +875,12 @@ export async function initializeDesignController(options: DesignControllerOption
       ? `${schema.provider} GPU queue is ready at ${window.location.host}.`
       : "GPU generation is not configured on this deployment; editing remains available.";
     availability.dataset.state = enabled ? "ready" : "offline";
+    fastRecipe.disabled = !enabled;
+    confidenceRecipe.disabled = !enabled;
+    if (!refoldingAvailable) {
+      confidenceRecipe.title = "Uses inline checks; configure OpenFold3 or AlphaFold 3 for confidence ranking.";
+    }
+    updateRecipeSummary();
   } catch (error) {
     availability.textContent = `Could not inspect the GPU service: ${String(error)}`;
     availability.dataset.state = "error";

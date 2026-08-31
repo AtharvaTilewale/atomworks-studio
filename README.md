@@ -18,7 +18,7 @@ transcribed into a separate JSON or YAML configuration.
 
 The editor and all desktop integrations work on CPU. Connect the optional
 RFD4-Proteina provider to generate designs, calculate metrics, compare outputs,
-and run AF3 reward-guided search.
+and run OF3 or AF3 reward-guided search when an appropriate worker is configured.
 
 <p align="center">
   <img src="docs/images/web-molstar-editor.png" width="920" alt="AtomWorks Studio editing an annotated CIF with the Molstar renderer">
