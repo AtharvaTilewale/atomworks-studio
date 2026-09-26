@@ -148,5 +148,5 @@ editor.
 - [Source provenance](docs/PROVENANCE.md)
 
 AtomWorks, RFD4-Proteina, and Patinae remain revision-pinned upstream
-dependencies. Use of this repository is governed by the
-[NVIDIA Source Code License](LICENSE.md).
+dependencies with their own licenses. AtomWorks Studio itself is released under the
+[BSD 3-Clause License](LICENSE.md).

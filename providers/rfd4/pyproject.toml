@@ -7,7 +7,7 @@ name = "atomworks-annotation-studio-rfd4"
 version = "0.1.0"
 description = "RFD4 provider adapter for AtomWorks Annotation Studio"
 requires-python = ">=3.12,<=3.12.10"
-license = { text = "NVIDIA Source Code License" }
+license = "BSD-3-Clause"
 dependencies = [
     "atomworks-annotation-studio>=0.1.0,<0.2",
     "numpy>=1.26,<3",
