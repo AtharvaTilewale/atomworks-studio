@@ -1,3 +1,3 @@
-repository = "https://github.com/baker-laboratory/atomworks-quantum.git"
+repository = "https://github.com/baker-laboratory/atomworks-quantum-dev.git"
 revision = "c5c94d3ac6bff2b51db6c9019d1116c524c576eb"
 runtime_variable = "ANNOTATION_STUDIO_QUANTUM_COMMAND"

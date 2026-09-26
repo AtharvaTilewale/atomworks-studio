@@ -287,4 +287,4 @@ Then restart PyMOL.
 ## Feature Requests and Bug Reports
 
 AtomWorks Studio is in beta. Report bugs and request features in the
-[AtomWorks Studio issue tracker](https://github.com/baker-laboratory/atomworks-studio/issues).
+[AtomWorks Studio issue tracker](https://github.com/baker-laboratory/atomworks-studio-dev/issues).

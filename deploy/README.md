@@ -157,18 +157,18 @@ environment secrets, not in repository files or chat:
 
 ```bash
 gh variable set ANNOTATION_STUDIO_HOST \
-  --repo baker-laboratory/atomworks-studio \
+  --repo baker-laboratory/atomworks-studio-dev \
   --env annotation-studio \
   --body studio.example.com
 
 base64 -w0 deploy-kubeconfig.yaml |
   gh secret set KUBE_CONFIG_B64 \
-    --repo baker-laboratory/atomworks-studio \
+    --repo baker-laboratory/atomworks-studio-dev \
     --env annotation-studio
 
 printf '%s' "$GHCR_READ_PACKAGES_TOKEN" |
   gh secret set GHCR_PULL_TOKEN \
-    --repo baker-laboratory/atomworks-studio \
+    --repo baker-laboratory/atomworks-studio-dev \
     --env annotation-studio
 ```
 

@@ -3,7 +3,7 @@ import * as vscode from "vscode";
 
 const DEFAULT_SERVER_URL = "http://127.0.0.1:8000";
 const SETUP_URL =
-  "https://github.com/baker-laboratory/atomworks-studio#quick-start";
+  "https://github.com/baker-laboratory/atomworks-studio-dev#quick-start";
 type ViewerBackend = "patinae" | "molstar";
 type HostTheme = "dark" | "light" | "high-contrast" | "high-contrast-light";
 

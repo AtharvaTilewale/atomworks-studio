@@ -49,8 +49,8 @@ flowchart LR
 Run on the authenticated machine:
 
 ```bash
-git clone git@github.com:baker-laboratory/atomworks-studio.git
-cd atomworks-studio
+git clone git@github.com:baker-laboratory/atomworks-studio-dev.git
+cd atomworks-studio-dev
 git switch kdidi/brev-secure-link-pilot
 
 brev --version

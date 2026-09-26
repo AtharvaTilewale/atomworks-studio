@@ -9,9 +9,9 @@ does not copy CIF, session, credential, or model state into the extension host.
 
 **Download the latest `.vsix`** (rebuilt from `main` on every push by CI):
 
-- <https://github.com/baker-laboratory/atomworks-studio/releases/download/vscode-latest/atomworks-annotation-studio.vsix>
+- <https://github.com/baker-laboratory/atomworks-studio-dev/releases/download/vscode-latest/atomworks-annotation-studio.vsix>
 
-Versioned builds are attached to each [`v*` release](https://github.com/baker-laboratory/atomworks-studio/releases),
+Versioned builds are attached to each [`v*` release](https://github.com/baker-laboratory/atomworks-studio-dev/releases),
 and you can always build it yourself with `pnpm --dir packages/vscode package`.
 
 Then install it in VS Code or Cursor:

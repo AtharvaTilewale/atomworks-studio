@@ -11,12 +11,12 @@
   "license": "BSD-3-Clause",
   "repository": {
     "type": "git",
-    "url": "https://github.com/baker-laboratory/atomworks-studio.git",
+    "url": "https://github.com/baker-laboratory/atomworks-studio-dev.git",
     "directory": "packages/vscode"
   },
-  "homepage": "https://github.com/baker-laboratory/atomworks-studio/tree/main/packages/vscode",
+  "homepage": "https://github.com/baker-laboratory/atomworks-studio-dev/tree/main/packages/vscode",
   "bugs": {
-    "url": "https://github.com/baker-laboratory/atomworks-studio/issues"
+    "url": "https://github.com/baker-laboratory/atomworks-studio-dev/issues"
   },
   "engines": {
     "vscode": "^1.95.0"

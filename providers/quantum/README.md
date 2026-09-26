@@ -1,7 +1,7 @@
 # AtomWorks-Quantum provider for AtomWorks Studio
 
 `atomworks-annotation-studio-quantum` lets Studio users run
-[AtomWorks-Quantum](https://github.com/baker-laboratory/atomworks-quantum) (aq)
+[AtomWorks-Quantum](https://github.com/baker-laboratory/atomworks-quantum-dev) (aq)
 calculations (single points, optimizations, frequencies, transition-state
 searches, MD, protonation) on the structure they are editing, and open the
 resulting structures in the editor.
@@ -40,7 +40,7 @@ Install aq in an environment of its own (it pins a different AtomWorks commit
 than Studio), at a revision that has the `aq job` command:
 
 ```bash
-git clone https://github.com/baker-laboratory/atomworks-quantum.git /opt/atomworks-quantum
+git clone https://github.com/baker-laboratory/atomworks-quantum-dev.git /opt/atomworks-quantum
 cd /opt/atomworks-quantum
 uv sync --extra xtb --extra ts        # add the extras of the models you want to offer
 .venv/bin/aq job schema > /dev/null   # fails if this aq has no job command

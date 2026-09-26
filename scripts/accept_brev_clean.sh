@@ -7,7 +7,7 @@ if [[ "${preflight_only}" != "1" ]]; then
 fi
 
 clean_root="${ATOMWORKS_STUDIO_CLEAN_ROOT:-${HOME}/workspace/atomworks-studio-clean-acceptance}"
-source_repository="${ATOMWORKS_STUDIO_CLEAN_REPOSITORY:-https://github.com/baker-laboratory/atomworks-studio.git}"
+source_repository="${ATOMWORKS_STUDIO_CLEAN_REPOSITORY:-https://github.com/baker-laboratory/atomworks-studio-dev.git}"
 source_ref="${ATOMWORKS_STUDIO_CLEAN_REF:-main}"
 case "${clean_root}" in
   *atomworks-studio-clean-acceptance) ;;

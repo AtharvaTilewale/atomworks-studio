@@ -7,7 +7,7 @@
 <p align="center"><em>Build, inspect, and run protein-design tasks as annotated CIFs.</em></p>
 
 <p align="center">
-  <a href="https://github.com/baker-laboratory/atomworks-studio/actions/workflows/ci.yaml"><img src="https://github.com/baker-laboratory/atomworks-studio/actions/workflows/ci.yaml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/baker-laboratory/atomworks-studio-dev/actions/workflows/ci.yaml"><img src="https://github.com/baker-laboratory/atomworks-studio-dev/actions/workflows/ci.yaml/badge.svg" alt="CI"></a>
   <a href="VERSION"><img src="https://img.shields.io/badge/version-0.1.0-177f73" alt="Version 0.1.0"></a>
 </p>
 
@@ -66,7 +66,7 @@ server URL and renderer choice; sessions and model data remain in the service.
 </p>
 
 **Download the latest build** (rebuilt from `main` by CI on every push):
-[`atomworks-annotation-studio.vsix`](https://github.com/baker-laboratory/atomworks-studio/releases/download/vscode-latest/atomworks-annotation-studio.vsix),
+[`atomworks-annotation-studio.vsix`](https://github.com/baker-laboratory/atomworks-studio-dev/releases/download/vscode-latest/atomworks-annotation-studio.vsix),
 then `code --install-extension atomworks-annotation-studio.vsix --force` and
 point it at a running Studio server.
 

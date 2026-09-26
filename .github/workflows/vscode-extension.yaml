@@ -2,7 +2,7 @@ name: VS Code extension
 
 # Build the VS Code / Cursor extension on every push to main and publish it to a
 # rolling "vscode-latest" prerelease so there is always a stable download link:
-#   https://github.com/baker-laboratory/atomworks-studio/releases/download/vscode-latest/atomworks-annotation-studio.vsix
+#   https://github.com/baker-laboratory/atomworks-studio-dev/releases/download/vscode-latest/atomworks-annotation-studio.vsix
 # Versioned releases (on v* tags) are produced by release.yaml, which can also
 # publish to the VS Code Marketplace when a VSCE_PAT secret is configured.
 
