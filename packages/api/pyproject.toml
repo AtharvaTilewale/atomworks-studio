@@ -25,6 +25,9 @@ durable = [
     "boto3>=1.40,<2",
     "psycopg[binary,pool]>=3.2,<4",
 ]
+quantum = [
+    "atomworks-annotation-studio-quantum>=0.1.0,<0.2",
+]
 rfd4 = [
     "atomworks-annotation-studio-rfd4>=0.1.0,<0.2",
 ]
@@ -37,6 +40,7 @@ test = [
 atomworks-studio-durable = "annotation_studio.durable_cli:main"
 
 [tool.uv.sources]
+atomworks-annotation-studio-quantum = { workspace = true }
 atomworks-annotation-studio-rfd4 = { workspace = true }
 atomworks-studio-editing = { workspace = true }
 

@@ -141,6 +141,35 @@ open therefore does not create a high-frequency control-plane load.
 Use the [local GPU guide](../deploy/local/README.md) or
 [Brev guide](../deploy/brev/README.md) to enable these controls.
 
+## Run quantum calculations
+
+When the API runs the AtomWorks-Quantum provider (configured as described in
+[providers/quantum/README.md](../providers/quantum/README.md)), the toolbar
+shows an **AtomWorks-Quantum** tab. It runs atomworks-quantum (aq) on the
+structure open in the editor. Without the provider the tab is hidden.
+
+- Choose a calculation: **Single point**, **Optimize**, **Optimize +
+  frequencies**, **Transition state search** (needs aq's `ts` extra), or
+  **Molecular dynamics**.
+- Choose an installed model, the structure's total charge as an integer, and
+  the spin multiplicity. The note under the model says which charges and
+  multiplicities it accepts. The panel does not offer aq's `formal` charge: it
+  needs hydrogen annotations that structures exported from Studio do not carry,
+  so aq would first have to protonate the structure. Optimizations and
+  transition-state searches take a force threshold in eV/Å and a step limit;
+  molecular dynamics takes its number of steps. Both start at aq's defaults for
+  the chosen calculation.
+- Submit, follow the current stage, the elapsed time and the aq log, and cancel
+  if needed; a cancelled job still lists the stages that finished. The job keeps
+  the structure as it was when you submitted it.
+- Each finished stage is listed with its energy in eV, whether it converged,
+  and its number of imaginary frequencies. **Open** makes the stage's structure
+  the active document, **Align to input** superimposes it on the submitted
+  structure first, and the file links download its results, such as
+  `result.json` and `trajectory.cif`.
+
+![The AtomWorks-Quantum panel after an optimize + frequencies job on phenol](images/web-quantum-panel.png)
+
 ## Install as a PWA
 
 Studio publishes a web app manifest and a shell-only service worker. On

@@ -5,6 +5,7 @@ requires-python = ">=3.12, <=3.12.10"
 [manifest]
 members = [
     "atomworks-annotation-studio",
+    "atomworks-annotation-studio-quantum",
     "atomworks-annotation-studio-rfd4",
     "atomworks-studio-editing",
     "atomworks-studio-pymol",
@@ -144,6 +145,9 @@ durable = [
     { name = "boto3" },
     { name = "psycopg", extra = ["binary", "pool"] },
 ]
+quantum = [
+    { name = "atomworks-annotation-studio-quantum" },
+]
 rfd4 = [
     { name = "atomworks-annotation-studio-rfd4" },
 ]
@@ -155,6 +159,7 @@ test = [
 [package.metadata]
 requires-dist = [
     { name = "atomworks", extras = ["ml"], editable = "external/atomworks-dev" },
+    { name = "atomworks-annotation-studio-quantum", marker = "extra == 'quantum'", editable = "providers/quantum" },
     { name = "atomworks-annotation-studio-rfd4", marker = "extra == 'rfd4'", editable = "providers/rfd4" },
     { name = "atomworks-studio-editing", editable = "packages/editing" },
     { name = "boto3", marker = "extra == 'durable'", specifier = ">=1.40,<2" },
@@ -168,7 +173,29 @@ requires-dist = [
     { name = "pyyaml", specifier = ">=6,<7" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.34,<1" },
 ]
-provides-extras = ["durable", "rfd4", "test"]
+provides-extras = ["durable", "quantum", "rfd4", "test"]
+
+[[package]]
+name = "atomworks-annotation-studio-quantum"
+version = "0.1.0"
+source = { editable = "providers/quantum" }
+dependencies = [
+    { name = "atomworks-annotation-studio" },
+    { name = "pydantic" },
+]
+
+[package.optional-dependencies]
+pymol = [
+    { name = "atomworks-studio-pymol" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "atomworks-annotation-studio", editable = "packages/api" },
+    { name = "atomworks-studio-pymol", marker = "extra == 'pymol'", editable = "packages/pymol-plugin" },
+    { name = "pydantic", specifier = ">=2.10,<3" },
+]
+provides-extras = ["pymol"]
 
 [[package]]
 name = "atomworks-annotation-studio-rfd4"

@@ -134,8 +134,6 @@ h2 { margin: 0 0 12px; font-size: 14px; text-transform: uppercase; letter-spacin
   box-shadow: 0 10px 30px #000a;
 }
 .workspace[data-studio-tab] > .studio-menu-popover { display: grid; }
-.workspace[data-studio-tab="atomworks"] > .studio-menu-popover > [data-studio-panel="rfd4"],
-.workspace[data-studio-tab="rfd4"] > .studio-menu-popover > [data-studio-panel="atomworks"] { display: none; }
 .studio-menu-popover > * { grid-column: 1; width: 100%; }
 .studio-menu-popover > .card { margin: 0; align-self: start; }
 .viewer-menu-popover label { margin: 0 0 8px; font-size: 10px; }
@@ -456,6 +454,22 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 14px 0; }
 .gpu-status[data-state="ready"]::before { background: var(--gpu); box-shadow: 0 0 0 2px #76b9002e; }
 .gpu-status[data-state="error"] { color: #ffe7e7; background: var(--danger-soft); border-color: var(--danger); }
 .gpu-status[data-state="error"]::before { background: var(--danger); }
+
+/* Quantum jobs */
+#quantum-card .menu-note { margin: -4px 0 8px; color: var(--text-subtle); }
+#quantum-card .menu-note:empty { display: none; }
+#quantum-job-status { white-space: pre-wrap; overflow-wrap: anywhere; }
+.quantum-results { display: grid; gap: 5px; margin-top: 10px; }
+.quantum-result {
+  display: grid; gap: 5px; padding: 7px 8px; border: 1px solid var(--border-strong); border-radius: 5px;
+  color: var(--text-secondary); background: var(--surface-recessed); font-size: 11px;
+}
+.quantum-result.active { border-color: var(--accent-hover); background: var(--accent-soft); }
+.quantum-result.active .document-kind { color: var(--text-secondary); }
+.quantum-result-title { display: flex; align-items: baseline; gap: 7px; overflow-wrap: anywhere; }
+.quantum-result-facts { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font: 10px var(--font-mono); }
+.quantum-result-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 8px; }
+.artifact-link { color: var(--institutional); font-size: 10px; }
 
 /* VS Code cannot share cross-origin CSS variables, so map its active theme kind
    to the same semantic tokens while the wrapper itself uses native variables. */

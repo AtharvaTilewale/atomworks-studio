@@ -3,6 +3,7 @@ members = [
     "packages/api",
     "packages/editing",
     "packages/pymol-plugin",
+    "providers/quantum",
     "providers/rfd4",
 ]
 

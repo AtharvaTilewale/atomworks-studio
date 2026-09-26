@@ -44,6 +44,7 @@ export class ViewerToolbarController {
   private readonly viewerActionTarget = element<HTMLSelectElement>("viewer-action-target");
   private readonly representationExclusive = element<HTMLInputElement>("representation-exclusive");
   private readonly studioMenu = element<HTMLDetailsElement>("atomworks-studio-menu");
+  private readonly studioPopover = element<HTMLElement>("atomworks-studio-popover");
   private readonly workspace = element<HTMLElement>("workspace");
 
   constructor(private readonly options: ViewerToolbarControllerOptions) {}
@@ -51,20 +52,11 @@ export class ViewerToolbarController {
   bind(): void {
     for (const menu of document.querySelectorAll<HTMLDetailsElement>(".viewer-menu")) {
       menu.addEventListener("toggle", () => {
-        const studioTab = menu.id === "atomworks-studio-menu"
-          ? "atomworks"
-          : menu.id === "rfd4-proteina-menu"
-          ? "rfd4"
-          : null;
+        // A studio tab (data-studio-tab) shows only the popover panels with the same data-studio-panel.
+        const studioTab = menu.dataset.studioTab;
         if (menu.open) {
           closeToolbarMenus(menu);
-          if (studioTab) {
-            this.workspace.dataset.studioTab = studioTab;
-            element("atomworks-studio-popover").setAttribute(
-              "aria-label",
-              studioTab === "rfd4" ? "RFD4-Proteina" : "AtomWorks Studio",
-            );
-          }
+          if (studioTab) this.showStudioTab(studioTab, menu.querySelector("summary")?.textContent?.trim() ?? "");
         } else if (
           studioTab === this.workspace.dataset.studioTab
           && !document.querySelector(".studio-menu[open]")
@@ -262,6 +254,14 @@ export class ViewerToolbarController {
 
   private parseMode(value: string | null): ViewerMode | null {
     return value === "patinae" || value === "molstar" ? value : null;
+  }
+
+  private showStudioTab(tab: string, label: string): void {
+    this.workspace.dataset.studioTab = tab;
+    this.studioPopover.setAttribute("aria-label", label);
+    for (const panel of this.studioPopover.querySelectorAll<HTMLElement>("[data-studio-panel]")) {
+      panel.hidden = panel.dataset.studioPanel !== tab;
+    }
   }
 
   private async executeCommand(

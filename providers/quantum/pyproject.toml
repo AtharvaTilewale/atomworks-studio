@@ -1,0 +1,40 @@
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "atomworks-annotation-studio-quantum"
+version = "0.1.0"
+description = "AtomWorks-Quantum job provider for AtomWorks Annotation Studio"
+readme = "README.md"
+requires-python = ">=3.12,<=3.12.10"
+license = "BSD-3-Clause"
+# atomworks-quantum is deliberately not a dependency: aq runs in its own environment,
+# reached through ANNOTATION_STUDIO_QUANTUM_COMMAND.
+dependencies = [
+    "atomworks-annotation-studio>=0.1.0,<0.2",
+    "pydantic>=2.10,<3",
+]
+
+# The PyMOL commands (atomworks_studio_quantum.pymol) are an optional extra.
+[project.optional-dependencies]
+pymol = [
+    "atomworks-studio-pymol>=0.1.0,<0.2",
+]
+
+[tool.uv.sources]
+atomworks-annotation-studio = { workspace = true }
+atomworks-studio-pymol = { workspace = true }
+
+[project.entry-points."atomworks_studio.providers"]
+quantum = "atomworks_studio_quantum"
+
+[tool.hatch.build.targets.wheel]
+packages = ["atomworks_studio_quantum"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "atomworks_studio_quantum",
+    "pyproject.toml",
+    "README.md",
+]

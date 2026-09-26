@@ -34,6 +34,7 @@ FROM python:3.12.10-slim-bookworm@sha256:fd95fa221297a88e1cf49c55ec1828edd7c5a42
 ARG ANNOTATION_STUDIO_VERSION=development
 ARG ANNOTATION_STUDIO_REVISION=unknown
 ARG ANNOTATION_STUDIO_INSTALL_RFD4_PROVIDER=false
+ARG ANNOTATION_STUDIO_INSTALL_QUANTUM_PROVIDER=false
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     RFPROTEINA_LIGHTWEIGHT_IMPORT=1 \
@@ -50,6 +51,7 @@ COPY external/atomworks-dev ./external/atomworks-dev
 COPY packages/editing ./packages/editing
 COPY packages/api ./packages/api
 COPY providers/rfd4 ./providers/rfd4
+COPY providers/quantum ./providers/quantum
 COPY --from=web-builder /build/packages/web/dist ./packages/web/dist
 # atomworks (git submodule) and the shared editing package (workspace member) are vendored
 # locally, so install them from the build context in dependency order before the API
@@ -64,6 +66,12 @@ RUN python -m pip install --no-cache-dir \
          python -m pip install --no-cache-dir ./providers/rfd4; \
        elif [ "${ANNOTATION_STUDIO_INSTALL_RFD4_PROVIDER}" != "false" ]; then \
          echo "ANNOTATION_STUDIO_INSTALL_RFD4_PROVIDER must be true or false" >&2; \
+         exit 2; \
+       fi \
+    && if [ "${ANNOTATION_STUDIO_INSTALL_QUANTUM_PROVIDER}" = "true" ]; then \
+         python -m pip install --no-cache-dir ./providers/quantum; \
+       elif [ "${ANNOTATION_STUDIO_INSTALL_QUANTUM_PROVIDER}" != "false" ]; then \
+         echo "ANNOTATION_STUDIO_INSTALL_QUANTUM_PROVIDER must be true or false" >&2; \
          exit 2; \
        fi \
     && rm -rf ./packages ./providers ./external

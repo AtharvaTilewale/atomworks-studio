@@ -63,6 +63,10 @@ when a compatible RFD4 checkout is supplied and configured at runtime. Local
 editor mode intentionally has GPU design disabled unless
 `ANNOTATION_STUDIO_JOB_DIR`, `ANNOTATION_STUDIO_RFD4_ROOT`, and
 `ANNOTATION_STUDIO_RFD4_COMMAND` are configured.
+The quantum job provider is added with
+`--build-arg ANNOTATION_STUDIO_INSTALL_QUANTUM_PROVIDER=true`. The image does
+not contain atomworks-quantum, and a uv environment cannot be moved, so see
+`providers/quantum/README.md` for running aq with the container.
 
 ## 2. Source-control and release gate
 

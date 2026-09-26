@@ -8,17 +8,16 @@ import os
 import re
 import secrets
 import time
-from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
-from contextlib import asynccontextmanager
-from importlib.metadata import entry_points
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
+from contextlib import asynccontextmanager, contextmanager
 from importlib.resources import files
 from pathlib import Path
 from threading import RLock
 from typing import Any, Literal
 from urllib.parse import urlencode
 
-from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import JSONResponse, PlainTextResponse, Response
+from fastapi import Body, FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.routing import APIRoute
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
@@ -27,14 +26,16 @@ from .contracts import (
     NEUTRAL_CONDITION_PROVIDER,
     NEUTRAL_VALIDATION_PROVIDER,
     CapacityExceededError,
-    ConditionOperation,
     ConditionProvider,
+    IdempotencyConflictError,
+    JobProvider,
     SessionNotFoundError,
     ValidationProvider,
 )
 from .core import BOND_TYPES, INTERACTION_TYPES, StudioDocument
-from .design_jobs import DesignJobRequest, IdempotencyConflictError, ProcessDesignProvider
+from .design_jobs import RFD4_LABEL, DesignJobRequest, ProcessDesignProvider
 from .identity import current_owner, reset_current_owner, set_current_owner
+from .providers import ProviderSummary, load_providers
 from .version import __version__
 
 LOGGER = logging.getLogger("atomworks_studio")
@@ -43,6 +44,12 @@ MAX_UPLOAD_BYTES = 32 * 1024 * 1024
 MAX_SESSIONS = 64
 SESSION_TTL_SECONDS = 2 * 60 * 60
 SESSION_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{20,64}$")
+# The built-in RFD4 design jobs are registered under this provider name.
+RFD4_PROVIDER = "rfd4"
+# Job record fields that stay on the server.
+PRIVATE_JOB_FIELDS = frozenset(
+    {"idempotency_key", "metric_summary", "outputs", "owner_id", "request_fingerprint", "source_session_id"}
+)
 IDENTITY_HEADER = os.environ.get("ANNOTATION_STUDIO_IDENTITY_HEADER")
 if IDENTITY_HEADER and os.environ.get("ANNOTATION_STUDIO_TRUST_PROXY_IDENTITY") != "1":
     raise RuntimeError(
@@ -197,31 +204,19 @@ class DocumentStore:
             return result
 
 
-def _load_optional_providers() -> tuple[ConditionProvider, ValidationProvider, Mapping[str, ConditionOperation]]:
-    """Load one installed provider without making it an API import dependency."""
-
-    failures: list[str] = []
-    for entry_point in entry_points(group="atomworks_studio.providers"):
-        try:
-            provider = entry_point.load()
-            operations = getattr(provider, "CONDITION_OPERATIONS", {})
-            return provider.CONDITION_PROVIDER, provider.VALIDATION_PROVIDER, operations
-        except (ImportError, OSError, RuntimeError) as error:
-            failures.append(f"{entry_point.name}: {error}")
-    if failures and os.environ.get("ANNOTATION_STUDIO_PROVIDER_REQUIRED") == "1":
-        raise RuntimeError("could not initialize a required Studio provider: " + "; ".join(failures))
-    return NEUTRAL_CONDITION_PROVIDER, NEUTRAL_VALIDATION_PROVIDER, {}
-
-
 session_dir_value = os.environ.get("ANNOTATION_STUDIO_SESSION_DIR")
 project_root = Path(os.environ.get("ANNOTATION_STUDIO_RFD4_ROOT", Path.cwd())).resolve()
-condition_provider, validation_provider, condition_operations = _load_optional_providers()
+providers = load_providers(project_root)
+condition_provider = providers.condition_provider
+validation_provider = providers.validation_provider
+condition_operations = providers.condition_operations
 if os.environ.get("ANNOTATION_STUDIO_DATABASE_URL"):
     from .durable_jobs import DurableDesignProvider
 
     design_jobs = DurableDesignProvider.from_environment()
 else:
     design_jobs = ProcessDesignProvider.from_environment(project_root)
+providers.add_job_provider(RFD4_PROVIDER, design_jobs, label=RFD4_LABEL)
 if os.environ.get("ANNOTATION_STUDIO_DATABASE_URL"):
     from .durable_sessions import PostgresDocumentStore
 
@@ -238,14 +233,15 @@ else:
         condition_provider=condition_provider,
         validation_provider=validation_provider,
     )
-output_sessions: dict[tuple[str, str], str] = {}
+# (provider name, job id, output id or "input") -> editor session of that structure.
+output_sessions: dict[tuple[str, str, str], str] = {}
 output_sessions_lock = RLock()
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     yield
-    design_jobs.close()
+    providers.close()
 
 
 app = FastAPI(title="AtomWorks Annotation Studio", version=__version__, lifespan=lifespan)
@@ -342,8 +338,8 @@ def _idempotency_key(request: Request) -> str | None:
     return value
 
 
-def _job_document_session(job_id: str, output_id: str, cif: str, name: str) -> dict:
-    key = (job_id, output_id)
+def _job_document_session(provider_name: str, job_id: str, output_id: str, cif: str, name: str) -> dict:
+    key = (provider_name, job_id, output_id)
     with output_sessions_lock:
         session_id = output_sessions.get(key)
         if session_id is not None:
@@ -366,50 +362,169 @@ def _job_document_session(job_id: str, output_id: str, cif: str, name: str) -> d
         return _session_response(session_id, document.summary())
 
 
-def _design_job_response(record: dict[str, Any], *, owner_id: str) -> dict[str, Any]:
+def _public_output(output: dict[str, Any]) -> dict[str, Any]:
+    """Return an output without server paths; artifacts are listed by name and file name."""
+
+    public = {
+        "id": output["id"],
+        "label": output["label"],
+        "kind": output["kind"],
+        "rank": output["rank"],
+        "metrics": _public_metrics(output["metrics"]),
+    }
+    if units := output.get("units"):
+        public["units"] = units
+    if artifacts := output.get("artifacts"):
+        public["artifacts"] = [{"name": name, "label": Path(path).name} for name, path in artifacts.items()]
+    return public
+
+
+def _job_response(
+    provider_name: str,
+    provider: JobProvider,
+    record: dict[str, Any],
+    *,
+    owner_id: str,
+) -> dict[str, Any]:
     job_id = record["id"]
     if source_session_id := record.get("source_session_id"):
         with output_sessions_lock:
-            output_sessions.setdefault((job_id, "input"), source_session_id)
+            output_sessions.setdefault((provider_name, job_id, "input"), source_session_id)
     input_session = _job_document_session(
+        provider_name,
         job_id,
         "input",
-        design_jobs.input_cif(job_id, owner_id=owner_id),
+        provider.input_cif(job_id, owner_id=owner_id),
         record["input_name"],
     )
-    public_outputs = []
-    for output in record["outputs"]:
-        public_outputs.append(
-            {
-                "id": output["id"],
-                "label": output["label"],
-                "kind": output["kind"],
-                "rank": output["rank"],
-                "metrics": _public_metrics(output["metrics"]),
-            }
-        )
     return {
-        **{
-            key: value
-            for key, value in record.items()
-            if key
-            not in {
-                "idempotency_key",
-                "metric_summary",
-                "outputs",
-                "owner_id",
-                "request_fingerprint",
-                "source_session_id",
-            }
-        },
+        **{key: value for key, value in record.items() if key not in PRIVATE_JOB_FIELDS},
         "metric_summary": {
             key: value
             for key, value in record["metric_summary"].items()
             if "path" not in key.lower() and not key.startswith("generation.")
         },
         "input": {"id": "input", "label": record["input_name"], "kind": "input", "metrics": {}, **input_session},
-        "outputs": public_outputs,
+        "outputs": [_public_output(output) for output in record["outputs"]],
     }
+
+
+def _job_provider(name: str) -> JobProvider:
+    provider = providers.job_providers.get(name)
+    if provider is None:
+        raise HTTPException(status_code=404, detail=f"job provider not found: {name}")
+    return provider
+
+
+@contextmanager
+def _job_submission_errors() -> Iterator[None]:
+    """Map request parsing and submission failures to HTTP errors."""
+
+    try:
+        yield
+    except IdempotencyConflictError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    except CapacityExceededError as error:
+        raise HTTPException(status_code=429, detail=str(error)) from error
+    except RuntimeError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+
+def _submit_job(
+    provider_name: str,
+    session_id: str,
+    http_request: Request,
+    parse: Callable[[JobProvider], Any],
+) -> dict:
+    """Submit the session structure; parse runs only for an existing session and a valid Idempotency-Key."""
+
+    provider = _job_provider(provider_name)
+    owner_id = _owner_id(http_request)
+    cif, name = _call(session_id, lambda document: (document.to_cif(), document.name))
+    idempotency_key = _idempotency_key(http_request)
+    with _job_submission_errors():
+        record = provider.submit(
+            cif,
+            name,
+            parse(provider),
+            source_session_id=session_id,
+            owner_id=owner_id,
+            idempotency_key=idempotency_key,
+        )
+    with output_sessions_lock:
+        output_sessions[(provider_name, record["id"], "input")] = session_id
+    return _job_response(provider_name, provider, record, owner_id=owner_id)
+
+
+def _get_job(provider_name: str, job_id: str, request: Request, *, not_found: str = "job not found") -> dict:
+    provider = _job_provider(provider_name)
+    owner_id = _owner_id(request)
+    try:
+        return _job_response(provider_name, provider, provider.get(job_id, owner_id=owner_id), owner_id=owner_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=not_found) from None
+
+
+def _cancel_job(provider_name: str, job_id: str, request: Request, *, not_found: str = "job not found") -> dict:
+    provider = _job_provider(provider_name)
+    owner_id = _owner_id(request)
+    try:
+        return _job_response(provider_name, provider, provider.cancel(job_id, owner_id=owner_id), owner_id=owner_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=not_found) from None
+
+
+def _open_job_output(
+    provider_name: str,
+    job_id: str,
+    output_id: str,
+    request: Request,
+    *,
+    not_found: str = "job output not found",
+) -> dict:
+    provider = _job_provider(provider_name)
+    owner_id = _owner_id(request)
+    try:
+        cif, output = provider.output_cif(job_id, output_id, owner_id=owner_id)
+        session = _job_document_session(provider_name, job_id, output_id, cif, output["label"])
+    except KeyError:
+        raise HTTPException(status_code=404, detail=not_found) from None
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    return {**_public_output(output), **session}
+
+
+def _align_job_output(
+    provider_name: str,
+    job_id: str,
+    output_id: str,
+    request: Request,
+    *,
+    not_found: str = "job output not found",
+) -> dict:
+    provider = _job_provider(provider_name)
+    owner_id = _owner_id(request)
+    try:
+        cif, output = provider.output_cif(job_id, output_id, owner_id=owner_id)
+        session = _job_document_session(provider_name, job_id, output_id, cif, output["label"])
+        reference = StudioDocument.from_cif(
+            provider.input_cif(job_id, owner_id=owner_id),
+            "job input",
+            condition_provider=condition_provider,
+            validation_provider=validation_provider,
+        )
+        alignment: dict[str, float | int] = {}
+        response = _apply(
+            session["session_id"],
+            lambda document: alignment.update(document.align_to(reference)),
+        )
+    except KeyError:
+        raise HTTPException(status_code=404, detail=not_found) from None
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    return {**_public_output(output), "alignment": alignment, **response}
 
 
 class SelectionRequest(BaseModel):
@@ -634,103 +749,93 @@ def schema() -> dict:
 
 @app.get("/api/design/schema")
 def design_schema() -> dict:
-    return design_jobs.schema()
+    return _job_provider(RFD4_PROVIDER).schema()
 
 
 @app.post("/api/sessions/{session_id}/design-jobs")
 def submit_design_job(session_id: str, job_request: DesignJobRequest, http_request: Request) -> dict:
-    owner_id = _owner_id(http_request)
-    cif, name = _call(session_id, lambda document: (document.to_cif(), document.name))
-    try:
-        record = design_jobs.submit(
-            cif,
-            name,
-            job_request,
-            source_session_id=session_id,
-            owner_id=owner_id,
-            idempotency_key=_idempotency_key(http_request),
-        )
-    except IdempotencyConflictError as error:
-        raise HTTPException(status_code=409, detail=str(error)) from error
-    except CapacityExceededError as error:
-        raise HTTPException(status_code=429, detail=str(error)) from error
-    except RuntimeError as error:
-        raise HTTPException(status_code=503, detail=str(error)) from error
-    except ValueError as error:
-        raise HTTPException(status_code=422, detail=str(error)) from error
-    with output_sessions_lock:
-        output_sessions[(record["id"], "input")] = session_id
-    return _design_job_response(record, owner_id=owner_id)
+    return _submit_job(RFD4_PROVIDER, session_id, http_request, lambda _provider: job_request)
 
 
 @app.get("/api/design-jobs/{job_id}")
 def get_design_job(job_id: str, request: Request) -> dict:
-    owner_id = _owner_id(request)
-    try:
-        return _design_job_response(design_jobs.get(job_id, owner_id=owner_id), owner_id=owner_id)
-    except KeyError:
-        raise HTTPException(status_code=404, detail="design job not found") from None
+    return _get_job(RFD4_PROVIDER, job_id, request, not_found="design job not found")
 
 
 @app.post("/api/design-jobs/{job_id}/cancel")
 def cancel_design_job(job_id: str, request: Request) -> dict:
-    owner_id = _owner_id(request)
-    try:
-        return _design_job_response(design_jobs.cancel(job_id, owner_id=owner_id), owner_id=owner_id)
-    except KeyError:
-        raise HTTPException(status_code=404, detail="design job not found") from None
+    return _cancel_job(RFD4_PROVIDER, job_id, request, not_found="design job not found")
 
 
 @app.post("/api/design-jobs/{job_id}/outputs/{output_id}/open")
 def open_design_output(job_id: str, output_id: str, request: Request) -> dict:
-    owner_id = _owner_id(request)
-    try:
-        cif, output = design_jobs.output_cif(job_id, output_id, owner_id=owner_id)
-        session = _job_document_session(job_id, output_id, cif, output["label"])
-    except KeyError:
-        raise HTTPException(status_code=404, detail="design output not found") from None
-    except ValueError as error:
-        raise HTTPException(status_code=422, detail=str(error)) from error
-    return {
-        "id": output["id"],
-        "label": output["label"],
-        "kind": output["kind"],
-        "rank": output["rank"],
-        "metrics": _public_metrics(output["metrics"]),
-        **session,
-    }
+    return _open_job_output(RFD4_PROVIDER, job_id, output_id, request, not_found="design output not found")
 
 
 @app.post("/api/design-jobs/{job_id}/outputs/{output_id}/align-to-input")
 def align_design_output(job_id: str, output_id: str, request: Request) -> dict:
-    owner_id = _owner_id(request)
+    return _align_job_output(RFD4_PROVIDER, job_id, output_id, request, not_found="design output not found")
+
+
+@app.get("/api/providers")
+def list_providers() -> list[ProviderSummary]:
+    return providers.summaries()
+
+
+@app.get("/api/providers/{name}/jobs/schema")
+def provider_job_schema(name: str) -> dict:
+    return _job_provider(name).schema()
+
+
+@app.post("/api/sessions/{session_id}/providers/{name}/jobs")
+def submit_provider_job(
+    session_id: str,
+    name: str,
+    http_request: Request,
+    payload: dict[str, Any] = Body(...),
+) -> dict:
+    return _submit_job(name, session_id, http_request, lambda provider: provider.parse_request(payload))
+
+
+@app.get("/api/providers/{name}/jobs/{job_id}")
+def get_provider_job(name: str, job_id: str, request: Request) -> dict:
+    return _get_job(name, job_id, request)
+
+
+@app.post("/api/providers/{name}/jobs/{job_id}/cancel")
+def cancel_provider_job(name: str, job_id: str, request: Request) -> dict:
+    return _cancel_job(name, job_id, request)
+
+
+@app.post("/api/providers/{name}/jobs/{job_id}/outputs/{output_id}/open")
+def open_provider_job_output(name: str, job_id: str, output_id: str, request: Request) -> dict:
+    return _open_job_output(name, job_id, output_id, request)
+
+
+@app.post("/api/providers/{name}/jobs/{job_id}/outputs/{output_id}/align-to-input")
+def align_provider_job_output(name: str, job_id: str, output_id: str, request: Request) -> dict:
+    return _align_job_output(name, job_id, output_id, request)
+
+
+@app.get(
+    "/api/providers/{name}/jobs/{job_id}/outputs/{output_id}/artifacts/{artifact}",
+    response_class=FileResponse,
+)
+def download_provider_job_artifact(
+    name: str,
+    job_id: str,
+    output_id: str,
+    artifact: str,
+    request: Request,
+) -> FileResponse:
+    provider = _job_provider(name)
     try:
-        cif, output = design_jobs.output_cif(job_id, output_id, owner_id=owner_id)
-        session = _job_document_session(job_id, output_id, cif, output["label"])
-        reference = StudioDocument.from_cif(
-            design_jobs.input_cif(job_id, owner_id=owner_id),
-            "design input",
-            condition_provider=condition_provider,
-            validation_provider=validation_provider,
-        )
-        alignment: dict[str, float | int] = {}
-        response = _apply(
-            session["session_id"],
-            lambda document: alignment.update(document.align_to(reference)),
-        )
+        path, media_type = provider.artifact(job_id, output_id, artifact, owner_id=_owner_id(request))
     except KeyError:
-        raise HTTPException(status_code=404, detail="design output not found") from None
+        raise HTTPException(status_code=404, detail="job artifact not found") from None
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
-    return {
-        "id": output["id"],
-        "label": output["label"],
-        "kind": output["kind"],
-        "rank": output["rank"],
-        "metrics": _public_metrics(output["metrics"]),
-        "alignment": alignment,
-        **response,
-    }
+    return FileResponse(path, media_type=media_type, filename=path.name)
 
 
 @app.post("/api/sessions")

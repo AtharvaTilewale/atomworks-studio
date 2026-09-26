@@ -1,6 +1,6 @@
 import initCifCore, { inspect_cif } from "./wasm/annotation_studio_core.js";
 import { api, apiText } from "./api";
-import { initializeDesignController } from "./studio/design-controller";
+import { initializeDesignController, type OpenedDesignDocument } from "./studio/design-controller";
 import { applyCapabilities, element, escapeHtml } from "./dom";
 import type { StudioExample } from "./examples";
 import { SelectionController } from "./selection-controller";
@@ -24,6 +24,7 @@ import type {
   StructureSummary,
   StudioSchema,
 } from "./types";
+import type { components } from "./generated/api";
 import { MolecularViewer } from "./viewers";
 import "./style.css";
 
@@ -77,6 +78,7 @@ let designController: {
   updateSession: () => void;
   applyPreset: (metricsTags: string[], search?: StudioExample["search"]) => string[];
 } | null = null;
+let quantumController: { updateSession: () => void } | null = null;
 let viewerToolbarController: ViewerToolbarController | null = null;
 let analysisController: AnalysisController | null = null;
 let annotationController: AnnotationController | null = null;
@@ -92,6 +94,7 @@ const selectionController = new SelectionController(
 function persistSession(response: SessionResponse, message?: string): void {
   persistSessionStorage(response, message);
   designController?.updateSession();
+  quantumController?.updateSession();
 }
 
 function log(message: string): void {
@@ -229,6 +232,46 @@ async function mutate(path: string, body?: unknown): Promise<void> {
   } catch (error) {
     if (sessionId === targetSession) log(`Error: ${String(error)}`);
   }
+}
+
+type JobDocument = Pick<OpenedDesignDocument, "label" | "session_id" | "editor_path" | "structure"> & {
+  kind: string;
+};
+
+/** Make a job's input or output document the active editor session. */
+async function openJobDocument(jobDocument: JobDocument): Promise<void> {
+  sessionId = jobDocument.session_id;
+  currentName = jobDocument.structure.name;
+  persistSession({
+    session_id: jobDocument.session_id,
+    editor_path: jobDocument.editor_path,
+    structure: jobDocument.structure,
+  });
+  await refreshFromServer(jobDocument.structure, false);
+  if (jobDocument.kind === "refolded") {
+    const confidence = jobDocument.structure.scalar_fields.find(
+      (field) => field.name === "b_factor" || /plddt|confidence/i.test(field.name),
+    );
+    if (confidence) {
+      await annotationController?.display(confidence);
+      annotationController?.setDetail(`${confidence.label} colored on the refolded structure.`);
+    }
+  }
+  enableSessionControls(true);
+  notifyHost("changed");
+  log(`Opened ${jobDocument.kind} structure ${jobDocument.label}.`);
+}
+
+/** Load the quantum panel only on deployments whose API offers enabled quantum jobs. */
+async function initializeQuantumPanel(): Promise<void> {
+  const providers = await api<Array<components["schemas"]["ProviderSummary"]>>("/api/providers");
+  if (!providers.some((provider) => provider.name === "quantum" && provider.jobs && provider.enabled)) return;
+  const { initializeQuantumController } = await import("./studio/quantum-controller");
+  quantumController = await initializeQuantumController({
+    getSessionId: () => sessionId,
+    openDocument: openJobDocument,
+    log,
+  });
 }
 
 async function initialize(): Promise<void> {
@@ -380,28 +423,7 @@ async function initialize(): Promise<void> {
   designController = await initializeDesignController({
     request: api,
     getSessionId: () => sessionId,
-    openDocument: async (designDocument) => {
-      sessionId = designDocument.session_id;
-      currentName = designDocument.structure.name;
-      persistSession({
-        session_id: designDocument.session_id,
-        editor_path: designDocument.editor_path,
-        structure: designDocument.structure,
-      });
-      await refreshFromServer(designDocument.structure, false);
-      if (designDocument.kind === "refolded") {
-        const confidence = designDocument.structure.scalar_fields.find(
-          (field) => field.name === "b_factor" || /plddt|confidence/i.test(field.name),
-        );
-        if (confidence) {
-          await annotationController?.display(confidence);
-          annotationController?.setDetail(`${confidence.label} colored on the refolded structure.`);
-        }
-      }
-      enableSessionControls(true);
-      notifyHost("changed");
-      log(`Opened ${designDocument.kind} structure ${designDocument.label}.`);
-    },
+    openDocument: openJobDocument,
     compareDocuments: async (designDocuments) => {
       const outputColors = ["magenta", "orange", "green", "yellow"] as const;
       const structures = await Promise.all(designDocuments.map(async (designDocument, index) => {
@@ -427,6 +449,8 @@ async function initialize(): Promise<void> {
     log,
   });
   designController.updateSession();
+  // Not awaited: the quantum schema can take seconds to inspect, and no other control depends on it.
+  void initializeQuantumPanel().catch((error) => log(`Could not load the quantum panel: ${String(error)}`));
   const pendingExample = sessionStorage.getItem(PENDING_EXAMPLE_KEY);
   if (pendingExample) {
     sessionStorage.removeItem(PENDING_EXAMPLE_KEY);

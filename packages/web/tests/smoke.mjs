@@ -12,6 +12,10 @@ if (viewerMode !== "patinae" && viewerMode !== "molstar") {
 }
 const expectDesignEnabled = process.env.EXPECT_DESIGN_ENABLED === "1";
 const runDesignJob = expectDesignEnabled && process.env.RUN_DESIGN_JOB !== "0";
+const expectQuantumEnabled = process.env.EXPECT_QUANTUM_ENABLED === "1";
+const runQuantumJob = expectQuantumEnabled && process.env.RUN_QUANTUM_JOB !== "0";
+// For an API running tests/fake_aq.py with FAKE_AQ_RUN=slow: the second stage runs until it is cancelled.
+const runQuantumCancel = runQuantumJob && process.env.RUN_QUANTUM_CANCEL === "1";
 const browser = await chromium.launch({
   executablePath: chromiumExecutable(),
   headless: true,
@@ -39,9 +43,12 @@ try {
   const page = await context.newPage();
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
+  const requested = [];
+  page.on("request", (request) => requested.push(request.url()));
 
   const studioUrl = new URL(baseUrl);
   studioUrl.searchParams.set("viewer", viewerMode);
+  const providersLoaded = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/v1/providers");
   await page.goto(studioUrl.toString(), { waitUntil: "networkidle" });
   await page.waitForFunction(() => document.querySelector("#status")?.textContent?.includes("Ready."));
   await page.waitForFunction(
@@ -51,13 +58,30 @@ try {
     (await page.locator("#design-availability").textContent()) ?? "",
     expectDesignEnabled ? /ready/ : /not configured/,
   );
+  const providers = await (await providersLoaded).json();
+  assert.equal(
+    providers.some((provider) => provider.name === "quantum" && provider.jobs && provider.enabled),
+    expectQuantumEnabled,
+    "EXPECT_QUANTUM_ENABLED matches /api/providers",
+  );
+  if (expectQuantumEnabled) {
+    await page.waitForFunction(
+      () => document.querySelector("#quantum-availability")?.getAttribute("data-state") !== "checking",
+    );
+    assert.match((await page.locator("#quantum-availability").textContent()) ?? "", /ready/);
+    assert.equal(await page.locator("#quantum-menu").isVisible(), true, "an enabled quantum provider gets a tab");
+    assert.ok(
+      requested.some((url) => url.includes("quantum-controller")),
+      "the quantum panel is loaded as its own chunk",
+    );
+  }
   assert.ok(await page.locator("#viewer canvas").isVisible(), "molecular viewer canvas is visible");
   assert.equal(
     await page.locator("#viewer").getAttribute("data-backend"),
     viewerMode,
   );
   assert.deepEqual(await page.locator(".viewer-menu > summary").allTextContents(), [
-    "Style", "Select", "Analyze", "AtomWorks Studio", "RFD4-Proteina", "View", "•••",
+    "Style", "Select", "Analyze", "AtomWorks Studio", "RFD4-Proteina", "AtomWorks-Quantum", "View", "•••",
   ]);
   assert.deepEqual(await page.locator("#selection-syntax option").allTextContents(), [
     "Patinae", "AtomWorks", "Path",
@@ -244,6 +268,18 @@ try {
   assert.equal(await page.locator("#annotation-list").isHidden(), true);
   assert.equal(await page.locator("#workspace").getAttribute("data-studio-tab"), "rfd4");
   assert.equal(await page.locator("#design-card #submit-design").count(), 1);
+  if (expectQuantumEnabled) {
+    await page.locator("#quantum-menu > summary").click();
+    await page.waitForFunction(
+      () => document.querySelector("#workspace")?.getAttribute("data-studio-tab") === "quantum",
+    );
+    assert.equal(await page.locator("#quantum-card").isVisible(), true);
+    assert.equal(await page.locator("#design-card").isHidden(), true, "RFD4 controls are separate from quantum");
+    assert.equal(await page.locator("#annotation-list").isHidden(), true);
+    assert.ok(await page.locator("#quantum-model option").count(), "installed quantum models are offered");
+    assert.equal(await page.locator("#submit-quantum").isEnabled(), true);
+    await assertNoSevereAccessibilityIssues(page, "the quantum panel");
+  }
   await page.locator("#atomworks-studio-menu > summary").click();
   assert.deepEqual(await page.locator("#charge-action option").allTextContents(), ["Set", "Add delta"]);
   assert.equal(await page.locator("#annotation-search").count(), 1);
@@ -497,6 +533,82 @@ try {
     await page.locator("#previous-design").click();
   }
 
+  if (runQuantumJob) {
+    if (!(await page.locator("#quantum-menu").evaluate((menu) => menu.hasAttribute("open")))) {
+      await page.locator("#quantum-menu > summary").click();
+    }
+    const calculation = page.locator("#quantum-calculation");
+    const parameterFields = async () => [
+      await page.locator("#quantum-fmax-row").isVisible(),
+      await page.locator("#quantum-steps-row").isVisible(),
+    ];
+    await calculation.selectOption("singlepoint");
+    assert.deepEqual(await parameterFields(), [false, false], "a single point takes no fmax or steps");
+    await calculation.selectOption("md");
+    assert.deepEqual(await parameterFields(), [false, true], "MD takes steps only");
+    await calculation.selectOption("optimize");
+    await page.locator("#quantum-fmax").fill("0.05");
+    await page.locator("#quantum-steps").fill("50");
+    // Typed values stay while the first stage is still an optimization.
+    await calculation.selectOption("optimize-frequencies");
+    assert.deepEqual(await parameterFields(), [true, true]);
+    const isSubmission = (request) => request.method() === "POST" && request.url().endsWith("/providers/quantum/jobs");
+    const [submission] = await Promise.all([
+      page.waitForRequest(isSubmission),
+      page.locator("#submit-quantum").click(),
+    ]);
+    assert.deepEqual(submission.postDataJSON(), {
+      schema: "atomworks-quantum.job/1",
+      charge: 0,
+      multiplicity: 1,
+      calculator: await page.locator("#quantum-model").inputValue(),
+      stages: [{ task: "optimize", fmax: 0.05, steps: 50 }, { task: "frequencies" }],
+    });
+    const waitForQuantumStatus = (pattern, timeout = 30_000) => page.waitForFunction(
+      (source) => new RegExp(source).test(document.querySelector("#quantum-job-status")?.textContent ?? ""),
+      pattern.source,
+      { timeout },
+    );
+    if (runQuantumCancel) {
+      await waitForQuantumStatus(/^Stage 2\/2/);
+      await page.locator("#cancel-quantum").click();
+      // Resubmit at once, while the cancelled job's finished stages are still being collected, and hold the
+      // POST back so that collection would end before it returns: the new job must stay cancellable.
+      await page.route("**/providers/quantum/jobs", async (route) => {
+        await new Promise((resolve) => setTimeout(resolve, 5_000));
+        await route.continue();
+      });
+      await page.locator("#submit-quantum").click();
+      await waitForQuantumStatus(/^Stage 2\/2/);
+      await page.unroute("**/providers/quantum/jobs");
+      assert.equal(await page.locator("#cancel-quantum").isEnabled(), true, "a resubmitted job can be cancelled");
+      assert.equal(await page.locator("#submit-quantum").isEnabled(), false);
+      await page.locator("#cancel-quantum").click();
+      await waitForQuantumStatus(/^Cancelled · 1 result$/);
+      assert.match((await page.locator("#quantum-progress-log").textContent()) ?? "", /\[aq\] job cancelled/);
+    } else {
+      await waitForQuantumStatus(/^(Completed|Failed|Cancelled|Submission failed)/, 60_000);
+      assert.match(await page.locator("#quantum-job-status").innerText(), /^Completed/);
+    }
+    const quantumResults = page.locator(".quantum-result");
+    assert.ok(await quantumResults.count() >= 2, "the quantum input and its outputs are listed");
+    const firstOutput = quantumResults.nth(1);
+    assert.match(await firstOutput.innerText(), /-?\d+\.\d{4} eV/);
+    const artifactHref = await firstOutput.locator(".artifact-link").first().getAttribute("href");
+    assert.ok(artifactHref, "quantum outputs link their artifacts");
+    assert.equal((await page.request.get(new URL(artifactHref, baseUrl).toString())).ok(), true);
+    await firstOutput.getByRole("button", { name: "Align to input" }).click();
+    await page.waitForFunction(
+      () => document.querySelector("#quantum-job-status")?.textContent?.startsWith("Aligned"),
+    );
+    assert.equal(await firstOutput.evaluate((row) => row.classList.contains("active")), true);
+    await assertNoSevereAccessibilityIssues(page, "the quantum results");
+    await quantumResults.first().getByRole("button", { name: "Open" }).click();
+    await page.waitForFunction(
+      () => document.querySelector("#structure-summary")?.textContent?.includes("SAM_hbonds"),
+    );
+  }
+
   const sessionId = await page.evaluate(() => sessionStorage.getItem("annotation-studio-session"));
   assert.ok(sessionId);
   const sessionResponse = await page.request.get(new URL(`/api/sessions/${sessionId}`, baseUrl).toString());
@@ -553,6 +665,15 @@ try {
   assert.match(await page.locator("#structure-summary").innerText(), /132/);
   const screenshot = await page.screenshot({ animations: "disabled" });
   assert.ok(screenshot.byteLength > 10_000, "responsive viewer screenshot is non-empty");
+  if (!expectQuantumEnabled) {
+    // Checked last, long after /api/providers answered, so a panel loaded by mistake has had time to appear.
+    assert.equal(await page.locator("#quantum-menu").isVisible(), false, "no quantum tab without the provider");
+    assert.deepEqual(
+      requested.filter((url) => url.includes("quantum-controller") || url.includes("/providers/quantum/jobs")),
+      [],
+      "the quantum panel is not loaded without an enabled quantum provider",
+    );
+  }
   assert.deepEqual(errors, []);
   console.log(
     `Browser smoke passed (${viewerMode}): viewer, deep-link embedding, annotations, and AtomWorks stayed in sync.`,

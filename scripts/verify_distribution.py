@@ -40,6 +40,7 @@ def main() -> None:
         "Python API": STUDIO_ROOT / "packages" / "api" / "pyproject.toml",
         "Editing core": STUDIO_ROOT / "packages" / "editing" / "pyproject.toml",
         "RFD4 provider": STUDIO_ROOT / "providers" / "rfd4" / "pyproject.toml",
+        "Quantum provider": STUDIO_ROOT / "providers" / "quantum" / "pyproject.toml",
         "PyMOL plugin": STUDIO_ROOT / "packages" / "pymol-plugin" / "pyproject.toml",
     }
     for label, path in python_manifests.items():

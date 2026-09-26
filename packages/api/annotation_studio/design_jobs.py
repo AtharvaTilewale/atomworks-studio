@@ -10,19 +10,20 @@ import math
 import os
 import re
 import shlex
-import shutil
-import subprocess
-import time
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from threading import RLock
 from typing import Any, Literal
 
 import yaml
 from pydantic import BaseModel, Field, field_validator
 
-from .contracts import CapacityExceededError
+# IdempotencyConflictError, ANSI_ESCAPE, and summarize_metrics moved to the provider-neutral
+# modules; they remain importable from here for durable_jobs and existing callers.
+from .contracts import IdempotencyConflictError as IdempotencyConflictError
+from .process_jobs import ANSI_ESCAPE as ANSI_ESCAPE
+from .process_jobs import ProcessJobRunner, job_progress
+from .process_jobs import summarize_metrics as summarize_metrics
 
+RFD4_LABEL = "RFD4-Proteina"
 SAFE_NAME = re.compile(r"^[A-Za-z0-9_.-]+$")
 ALLOWED_CONFIG_KEYS = {
     "batch_size",
@@ -46,46 +47,6 @@ REFOLDING_METRIC_TAGS = {
     "sm_binder_refolding",
     "unconditional_refolding",
 }
-ANSI_ESCAPE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
-
-
-class IdempotencyConflictError(ValueError):
-    """The same owner reused an idempotency key for a different submission."""
-
-
-def _job_progress(record: dict[str, Any], log_path: Path | None, log_tail: str) -> dict[str, Any]:
-    status = record["status"]
-    phase = {
-        "queued": "Waiting for GPU",
-        "completed": "Completed",
-        "failed": "Failed",
-        "cancelled": "Cancelled",
-    }.get(status, "Starting RFD4")
-    if status == "running":
-        lowered = log_tail.lower()
-        milestones = (
-            ("generation complete", "Collecting outputs"),
-            ("saved per_example_metrics", "Collecting outputs"),
-            ("metrics-pool", "Computing metrics"),
-            ("validation [", "Sampling designs"),
-            ("steps/s=", "Sampling designs"),
-            ("torch.compile", "Compiling kernels"),
-            ("compiling autoencoder", "Compiling kernels"),
-            ("loading checkpoint", "Loading models"),
-        )
-        latest = max(
-            ((lowered.rfind(marker), label) for marker, label in milestones),
-            default=(-1, phase),
-        )
-        if latest[0] >= 0:
-            phase = latest[1]
-    stop_time = time.time() if status in {"queued", "running"} else record["updated_at"]
-    return {
-        "phase": phase,
-        "elapsed_seconds": max(0, round(stop_time - record["created_at"])),
-        "log_updated_at": log_path.stat().st_mtime if log_path and log_path.is_file() else None,
-        "indeterminate": status in {"queued", "running"},
-    }
 
 
 class SearchOptions(BaseModel):
@@ -155,9 +116,7 @@ def refolding_oracles_from_environment() -> tuple[str, ...]:
     requested_oracles = {item.strip() for item in requested.split(",")}
     selected = tuple(oracle for oracle in REFOLDING_ORACLES if oracle in requested_oracles)
     if len(selected) > 1:
-        raise RuntimeError(
-            "a local RFD4 daemon has one model directory; configure exactly one refolding runtime"
-        )
+        raise RuntimeError("a local RFD4 daemon has one model directory; configure exactly one refolding runtime")
     return selected
 
 
@@ -453,20 +412,80 @@ def collect_outputs(output_dir: Path) -> list[dict[str, Any]]:
     return outputs
 
 
-def summarize_metrics(outputs: list[dict[str, Any]]) -> dict[str, dict[str, float]]:
-    numeric: dict[str, list[float]] = {}
-    for output in outputs:
-        for key, value in output["metrics"].items():
-            if isinstance(value, int | float) and not isinstance(value, bool):
-                numeric.setdefault(key, []).append(float(value))
-    return {
-        key: {"min": min(values), "max": max(values), "mean": sum(values) / len(values)}
-        for key, values in numeric.items()
-    }
+class RFD4JobHooks:
+    """RFD4 config, command, outputs, and progress for ProcessJobRunner."""
+
+    provider = "local-rfd4"
+    id_prefix = "design"
+
+    def __init__(self, project_root: Path, command: list[str]) -> None:
+        self.project_root = project_root
+        self.command_prefix = command
+
+    def prepare(self, job_dir: Path, cif: str, request: DesignJobRequest) -> dict[str, Any]:
+        del cif
+        config = build_rfd4_config(
+            request,
+            input_path=job_dir / "input.cif",
+            output_dir=job_dir / "outputs",
+            run_name=job_dir.name,
+            project_root=self.project_root,
+        )
+        (job_dir / "config.yaml").write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
+        return request.model_dump(exclude={"config_yaml"})
+
+    def fingerprint(self, cif: str, name: str, request: DesignJobRequest) -> str:
+        return design_request_fingerprint(cif, name, request)
+
+    def command(self, job_dir: Path) -> list[str]:
+        return [*self.command_prefix, "--config-path", str(job_dir), "--config-name", "config"]
+
+    def env(self, job_dir: Path) -> dict[str, str]:
+        del job_dir
+        return {"PROJECT_ROOT": str(self.project_root)}
+
+    def collect(self, job_dir: Path, return_code: int) -> tuple[list[dict[str, Any]], str | None]:
+        if return_code != 0:
+            return [], f"RFD4 exited with status {return_code}"
+        outputs = collect_outputs(job_dir / "outputs")
+        if not outputs:
+            return [], "RFD4 completed without generated CIF outputs"
+        return outputs, None
+
+    def progress(self, record: dict[str, Any], log_path: Path | None, log_tail: str) -> dict[str, Any]:
+        status = record["status"]
+        phase = {
+            "queued": "Waiting for GPU",
+            "completed": "Completed",
+            "failed": "Failed",
+            "cancelled": "Cancelled",
+        }.get(status, "Starting RFD4")
+        if status == "running":
+            lowered = log_tail.lower()
+            milestones = (
+                ("generation complete", "Collecting outputs"),
+                ("saved per_example_metrics", "Collecting outputs"),
+                ("metrics-pool", "Computing metrics"),
+                ("validation [", "Sampling designs"),
+                ("steps/s=", "Sampling designs"),
+                ("torch.compile", "Compiling kernels"),
+                ("compiling autoencoder", "Compiling kernels"),
+                ("loading checkpoint", "Loading models"),
+            )
+            latest = max(
+                ((lowered.rfind(marker), label) for marker, label in milestones),
+                default=(-1, phase),
+            )
+            if latest[0] >= 0:
+                phase = latest[1]
+        return job_progress(record, log_path, phase)
 
 
-class ProcessDesignProvider:
+class ProcessDesignProvider(ProcessJobRunner):
     """Single-GPU provider that invokes RFD4 through an argv-only subprocess."""
+
+    program_label = "RFD4"
+    capacity_message = "the GPU queue is full; wait for an active job to finish"
 
     def __init__(
         self,
@@ -478,35 +497,16 @@ class ProcessDesignProvider:
         max_active_jobs: int = 1,
         retention_seconds: int = 7 * 24 * 60 * 60,
     ) -> None:
-        self.root = root
         self.project_root = project_root
         self.command = command
-        self.timeout_seconds = max(1, timeout_seconds)
-        self.max_active_jobs = max(1, max_active_jobs)
-        self.retention_seconds = max(60 * 60, retention_seconds)
-        self._lock = RLock()
-        self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="rfd4-design")
-        self._jobs: dict[str, dict[str, Any]] = {}
-        self._processes: dict[str, subprocess.Popen[str]] = {}
-        if self.root is not None:
-            self.root.mkdir(parents=True, exist_ok=True)
-            for record_path in self.root.glob("*/job.json"):
-                try:
-                    record = json.loads(record_path.read_text(encoding="utf-8"))
-                    if (
-                        record.get("id") != record_path.parent.name
-                        or record.get("status") not in {"queued", "running", "completed", "failed", "cancelled"}
-                        or not isinstance(record.get("updated_at"), int | float)
-                    ):
-                        continue
-                    if record.get("status") in {"queued", "running"}:
-                        record["status"] = "failed"
-                        record["error"] = "service restarted while the job was running"
-                        record_path.write_text(json.dumps(record, indent=2), encoding="utf-8")
-                    self._jobs[record["id"]] = record
-                except (KeyError, OSError, ValueError):
-                    continue
-            self._prune()
+        super().__init__(
+            RFD4JobHooks(project_root, command or []),
+            root=root,
+            working_directory=project_root,
+            timeout_seconds=timeout_seconds,
+            max_active_jobs=max_active_jobs,
+            retention_seconds=retention_seconds,
+        )
 
     @classmethod
     def from_environment(cls, default_project_root: Path) -> ProcessDesignProvider:
@@ -544,6 +544,7 @@ class ProcessDesignProvider:
         return {
             "enabled": self.enabled,
             "provider": "local-rfd4",
+            "label": RFD4_LABEL,
             "capabilities": {
                 "refolding_oracles": list(refolding_oracles),
                 "default_refolding_oracle": refolding_oracles[0] if refolding_oracles else None,
@@ -553,25 +554,8 @@ class ProcessDesignProvider:
             "metrics_tags": metrics_tags,
         }
 
-    def _write_record(self, record: dict[str, Any]) -> None:
-        if self.root is None:
-            return
-        path = self.root / record["id"] / "job.json"
-        temporary = path.with_suffix(".tmp")
-        temporary.write_text(json.dumps(record, indent=2), encoding="utf-8")
-        temporary.replace(path)
-
-    def _prune(self) -> None:
-        if self.root is None:
-            return
-        cutoff = time.time() - self.retention_seconds
-        for job_id, record in list(self._jobs.items()):
-            if record["status"] in {"completed", "failed", "cancelled"} and record["updated_at"] < cutoff:
-                try:
-                    shutil.rmtree(self.root / job_id)
-                except OSError:
-                    continue
-                self._jobs.pop(job_id, None)
+    def parse_request(self, payload: dict[str, Any]) -> DesignJobRequest:
+        return DesignJobRequest.model_validate(payload)
 
     def submit(
         self,
@@ -583,199 +567,18 @@ class ProcessDesignProvider:
         owner_id: str = "local",
         idempotency_key: str | None = None,
     ) -> dict[str, Any]:
-        if not self.enabled or self.root is None:
-            raise RuntimeError("design jobs are not configured on this deployment")
-        if request_uses_refolding(request) and request.refolding_oracle not in refolding_oracles_from_environment():
-            raise RuntimeError(
-                f"{request.refolding_oracle.upper()} refolding is not configured on this deployment"
-            )
-        with self._lock:
-            self._prune()
-            fingerprint = design_request_fingerprint(cif, name, request)
-            if idempotency_key:
-                existing = next(
-                    (
-                        record
-                        for record in self._jobs.values()
-                        if record.get("owner_id", "local") == owner_id
-                        and record.get("idempotency_key") == idempotency_key
-                    ),
-                    None,
-                )
-                if existing is not None:
-                    if existing.get("request_fingerprint") != fingerprint:
-                        raise IdempotencyConflictError(
-                            "Idempotency-Key was already used for a different design submission"
-                        )
-                    return copy.deepcopy(existing)
-            active_jobs = sum(record["status"] in {"queued", "running"} for record in self._jobs.values())
-            if active_jobs >= self.max_active_jobs:
-                raise CapacityExceededError("the GPU queue is full; wait for an active job to finish")
-            job_id = f"design-{int(time.time())}-{os.urandom(6).hex()}"
-            job_dir = self.root / job_id
-            input_path = job_dir / "input.cif"
-            output_dir = job_dir / "outputs"
-            config = build_rfd4_config(
-                request,
-                input_path=input_path,
-                output_dir=output_dir,
-                run_name=job_id,
-                project_root=self.project_root,
-            )
-            job_dir.mkdir(mode=0o700)
-            input_path.write_text(cif, encoding="utf-8")
-            (job_dir / "config.yaml").write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
-            now = time.time()
-            record = {
-                "id": job_id,
-                "provider": "local-rfd4",
-                "status": "queued",
-                "input_name": name,
-                "source_session_id": source_session_id,
-                "owner_id": owner_id,
-                "idempotency_key": idempotency_key,
-                "request_fingerprint": fingerprint,
-                "created_at": now,
-                "updated_at": now,
-                "request": request.model_dump(exclude={"config_yaml"}),
-                "outputs": [],
-                "metric_summary": {},
-                "error": None,
-            }
-            self._jobs[job_id] = record
-            self._write_record(record)
-            self._executor.submit(self._run, job_id)
-            return copy.deepcopy(record)
-
-    def _run(self, job_id: str) -> None:
-        if self.root is None or self.command is None:
-            return
-        job_dir = self.root / job_id
-        with self._lock:
-            record = self._jobs[job_id]
-            if record["status"] == "cancelled":
-                return
-            record["status"] = "running"
-            record["updated_at"] = time.time()
-            self._write_record(record)
-        command = [
-            *self.command,
-            "--config-path",
-            str(job_dir),
-            "--config-name",
-            "config",
-        ]
-        try:
-            with (job_dir / "job.log").open("w", encoding="utf-8") as log:
-                process = subprocess.Popen(
-                    command,
-                    cwd=self.project_root,
-                    env={**os.environ, "PROJECT_ROOT": str(self.project_root)},
-                    stdout=log,
-                    stderr=subprocess.STDOUT,
-                    text=True,
-                )
-                with self._lock:
-                    self._processes[job_id] = process
-                try:
-                    return_code = process.wait(timeout=self.timeout_seconds)
-                except subprocess.TimeoutExpired:
-                    process.kill()
-                    process.wait()
-                    raise RuntimeError(f"RFD4 exceeded its {self.timeout_seconds}s timeout") from None
-                finally:
-                    with self._lock:
-                        self._processes.pop(job_id, None)
-            if return_code != 0:
-                raise RuntimeError(f"RFD4 exited with status {return_code}")
-            outputs = collect_outputs(job_dir / "outputs")
-            if not outputs:
-                raise RuntimeError("RFD4 completed without generated CIF outputs")
-            status = "completed"
-            error = None
-        except Exception as exception:
-            # A background job must always reach a terminal state for polling clients.
-            outputs = []
-            status = "failed"
-            error = str(exception)
-        with self._lock:
-            record = self._jobs[job_id]
-            if record["status"] == "cancelled":
-                self._write_record(record)
-                return
-            record.update(
-                {
-                    "status": status,
-                    "updated_at": time.time(),
-                    "outputs": outputs,
-                    "metric_summary": summarize_metrics(outputs),
-                    "error": error,
-                }
-            )
-            self._write_record(record)
-
-    def get(self, job_id: str, *, owner_id: str = "local") -> dict[str, Any]:
-        with self._lock:
-            if job_id not in self._jobs:
-                raise KeyError(job_id)
-            if self._jobs[job_id].get("owner_id", "local") != owner_id:
-                raise KeyError(job_id)
-            record = copy.deepcopy(self._jobs[job_id])
-        log_path = self.root / job_id / "job.log" if self.root is not None else None
-        raw_log = (
-            log_path.read_text(encoding="utf-8", errors="replace")[-4000:] if log_path and log_path.is_file() else ""
+        # The runner reports an unconfigured deployment before request-specific errors.
+        if (
+            self.enabled
+            and request_uses_refolding(request)
+            and request.refolding_oracle not in refolding_oracles_from_environment()
+        ):
+            raise RuntimeError(f"{request.refolding_oracle.upper()} refolding is not configured on this deployment")
+        return super().submit(
+            cif,
+            name,
+            request,
+            source_session_id=source_session_id,
+            owner_id=owner_id,
+            idempotency_key=idempotency_key,
         )
-        record["log_tail"] = ANSI_ESCAPE.sub("", raw_log)
-        record["progress"] = _job_progress(record, log_path, record["log_tail"])
-        return record
-
-    def cancel(self, job_id: str, *, owner_id: str = "local") -> dict[str, Any]:
-        """Cancel a queued or running job and terminate only its owned subprocess."""
-
-        with self._lock:
-            if job_id not in self._jobs:
-                raise KeyError(job_id)
-            record = self._jobs[job_id]
-            if record.get("owner_id", "local") != owner_id:
-                raise KeyError(job_id)
-            if record["status"] in {"completed", "failed", "cancelled"}:
-                return copy.deepcopy(record)
-            record["status"] = "cancelled"
-            record["updated_at"] = time.time()
-            record["error"] = None
-            process = self._processes.get(job_id)
-            self._write_record(record)
-            result = copy.deepcopy(record)
-        if process is not None and process.poll() is None:
-            process.terminate()
-        return result
-
-    def output_cif(
-        self,
-        job_id: str,
-        output_id: str,
-        *,
-        owner_id: str = "local",
-    ) -> tuple[str, dict[str, Any]]:
-        record = self.get(job_id, owner_id=owner_id)
-        output = next((item for item in record["outputs"] if item["id"] == output_id), None)
-        if output is None:
-            raise KeyError(output_id)
-        path = Path(output["cif_path"])
-        if self.root is None or not path.resolve().is_relative_to((self.root / job_id).resolve()):
-            raise ValueError("job output path escaped its workspace")
-        return path.read_text(encoding="utf-8"), output
-
-    def input_cif(self, job_id: str, *, owner_id: str = "local") -> str:
-        self.get(job_id, owner_id=owner_id)
-        if self.root is None:
-            raise KeyError(job_id)
-        return (self.root / job_id / "input.cif").read_text(encoding="utf-8")
-
-    def close(self) -> None:
-        with self._lock:
-            processes = list(self._processes.values())
-        for process in processes:
-            if process.poll() is None:
-                process.terminate()
-        self._executor.shutdown(wait=False, cancel_futures=True)

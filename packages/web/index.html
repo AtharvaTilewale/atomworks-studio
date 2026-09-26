@@ -160,11 +160,14 @@
                 </div>
               </div>
             </details>
-            <details id="atomworks-studio-menu" class="viewer-menu studio-menu" data-menu="studio">
+            <details id="atomworks-studio-menu" class="viewer-menu studio-menu" data-menu="studio" data-studio-tab="atomworks">
               <summary>AtomWorks Studio</summary>
             </details>
-            <details id="rfd4-proteina-menu" class="viewer-menu studio-menu" data-menu="rfd4">
+            <details id="rfd4-proteina-menu" class="viewer-menu studio-menu" data-menu="rfd4" data-studio-tab="rfd4">
               <summary>RFD4-Proteina</summary>
+            </details>
+            <details id="quantum-menu" class="viewer-menu studio-menu" data-menu="quantum" data-studio-tab="quantum" hidden>
+              <summary>AtomWorks-Quantum</summary>
             </details>
             <details class="viewer-menu" data-menu="view">
               <summary>View</summary>
@@ -401,6 +404,40 @@
             <div id="design-documents" class="document-list"></div>
             <div id="design-metric-summary" class="metric-summary"></div>
           </details>
+
+          <section id="quantum-card" class="card" data-studio-panel="quantum">
+            <h2>Quantum calculation</h2>
+            <p id="quantum-availability" class="muted gpu-status" data-state="checking">Checking the quantum service…</p>
+            <label>Calculation<select id="quantum-calculation"></select></label>
+            <p id="quantum-calculation-note" class="menu-note"></p>
+            <label>Model<select id="quantum-model"></select></label>
+            <p id="quantum-model-note" class="menu-note"></p>
+            <div class="inline-fields">
+              <label>Total charge<input id="quantum-charge" type="number" step="1" value="0" /></label>
+              <label>Multiplicity<input id="quantum-multiplicity" type="number" min="1" step="1" value="1" /></label>
+            </div>
+            <div class="inline-fields">
+              <label id="quantum-fmax-row">Force threshold (eV/Å)<input id="quantum-fmax" type="number" min="0" step="0.005" value="0.02" /></label>
+              <label id="quantum-steps-row">Steps<input id="quantum-steps" type="number" min="1" step="1" value="1000" /></label>
+            </div>
+            <div class="action-row">
+              <button id="submit-quantum" disabled>Submit calculation</button>
+              <button id="cancel-quantum" class="secondary" disabled>Cancel job</button>
+            </div>
+            <div id="quantum-job-status" class="muted" aria-live="polite"></div>
+            <div id="quantum-progress" class="design-progress" hidden>
+              <div class="design-progress-row">
+                <strong id="quantum-progress-phase">Queued</strong>
+                <span id="quantum-progress-elapsed">0s</span>
+              </div>
+              <div id="quantum-progress-track" class="design-progress-track"><span></span></div>
+              <details>
+                <summary>Live aq log</summary>
+                <pre id="quantum-progress-log"></pre>
+              </details>
+            </div>
+            <div id="quantum-results" class="quantum-results"></div>
+          </section>
 
           <section class="card" data-studio-panel="atomworks">
             <div class="card-title-row">

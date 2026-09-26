@@ -130,6 +130,12 @@ persist in `~/.atomworks-studio/pymol_extensions`. The plugin automatically
 migrates the former `~/.atomworks/pymol_extensions` file and replaces the
 legacy `rfproteina.pymol.editors` module path.
 
+### AtomWorks-Quantum results
+
+Install `providers/quantum[pymol]` and register `atomworks_studio_quantum.pymol`
+from **Main -> Extensions...** to get `aq_load_result`, which opens
+atomworks-quantum result directories; see `providers/quantum/README.md`.
+
 ### Open the Panel
 
 Start PyMOL with the conda environment active, then open the panel via:

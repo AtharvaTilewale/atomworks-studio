@@ -25,6 +25,7 @@ from .design_jobs import (
     AF3_ENVIRONMENT_KEYS,
     ANSI_ESCAPE,
     REFOLDING_METRIC_TAGS,
+    RFD4_LABEL,
     DesignJobRequest,
     IdempotencyConflictError,
     SearchOptions,
@@ -911,6 +912,7 @@ class DurableDesignProvider:
         return {
             "enabled": True,
             "provider": "durable-rfd4",
+            "label": RFD4_LABEL,
             "capabilities": {
                 "durable": True,
                 "refolding_oracles": refolding_oracles,
@@ -934,6 +936,9 @@ class DurableDesignProvider:
                 *(sorted(REFOLDING_METRIC_TAGS) if refolding_oracles else []),
             ],
         }
+
+    def parse_request(self, payload: dict[str, Any]) -> DesignJobRequest:
+        return DesignJobRequest.model_validate(payload)
 
     def submit(
         self,
@@ -1032,6 +1037,10 @@ class DurableDesignProvider:
     def input_cif(self, job_id: str, *, owner_id: str = "local") -> str:
         row = self.repository.get(job_id, owner_id=owner_id)
         return self.object_store.get(row["input_object_key"]).decode()
+
+    def artifact(self, job_id: str, output_id: str, name: str, *, owner_id: str = "local") -> tuple[Path, str]:
+        del job_id, output_id, owner_id
+        raise KeyError(name)
 
     def operational_metrics(self) -> dict[str, float]:
         return self.repository.operational_metrics()

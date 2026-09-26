@@ -133,7 +133,8 @@ Provider-neutral protocols live in `annotation_studio.contracts`:
 
 - `ConditionProvider` describes editable conditions and their value schemas.
 - `ValidationProvider` validates a document against model-specific rules.
-- `DesignProvider` submits, polls, and cancels generation jobs.
+- `JobProvider` parses, submits, polls, and cancels jobs and serves their
+  outputs and artifacts (`DesignProvider` is its former name).
 
 ### StandardAnnotation editing contract
 
@@ -160,14 +161,21 @@ randomly rotates, and writes `C_INTCRD` values.
 
 The API imports no model implementation in its document core. Optional provider
 packages register through the `atomworks_studio.providers` Python entry-point
-group; `providers/rfd4` is the reference implementation. Keep GPU runtimes,
-credentials, retries, and worker scaling behind the `DesignProvider` boundary.
+group, and Studio loads all of them: one supplies the document (condition and
+validation) providers, and any number add named job providers through
+`create_job_provider`. `providers/rfd4` is the reference document provider; the
+RFD4 design jobs are always registered as the job provider `rfd4`. A job
+provider that runs a local command builds on
+`annotation_studio.process_jobs.ProcessJobRunner`. Keep GPU runtimes,
+credentials, retries, and worker scaling behind the `JobProvider` boundary.
 
-Start with the [API provider guide](../packages/api/README.md), then verify a
+Start with the [API provider guide](../packages/api/README.md), which lists the
+provider exports, selection variables, and generic job routes, then verify a
 new provider with:
 
 ```bash
-uv run python scripts/run_pytest.py -q tests/test_providers.py tests/test_design_jobs.py
+PYTHONPATH=external/RFD4-Proteina-dev/src uv run python scripts/run_pytest.py -q \
+  tests/test_providers.py tests/test_design_jobs.py tests/test_process_jobs.py tests/test_job_routes.py
 ```
 
 If a provider adds browser-visible API fields, regenerate and commit the client

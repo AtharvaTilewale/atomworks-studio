@@ -5,6 +5,7 @@ import sys
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from typing import cast
 
 import pytest
 from annotation_studio.contracts import (
@@ -67,6 +68,19 @@ def test_document_state_preserves_undo_across_serialization() -> None:
     assert restored.summary()["undo_depth"] == 1
     assert restored.undo() is True
     assert int(restored.array.charge[0]) == original_charge
+
+
+def test_durable_provider_serves_the_generic_job_routes(tmp_path: Path) -> None:
+    # /api/providers/rfd4/... calls parse_request, artifact and the schema label; none of them needs the database.
+    provider = DurableDesignProvider(
+        cast(PostgresJobRepository, None),
+        LocalObjectStore(tmp_path / "objects"),
+        required_revision=None,
+    )
+    assert provider.schema()["label"] == "RFD4-Proteina"
+    assert provider.parse_request({"num_designs": 2}) == DesignJobRequest(num_designs=2)
+    with pytest.raises(KeyError):
+        provider.artifact("job", "output", "result", owner_id="alice@example.org")
 
 
 @pytest.fixture

@@ -29,7 +29,7 @@ export type ApiRequestInit = RequestInit & { timeoutMs?: number };
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 
-function versionedApiPath(path: string): string {
+export function versionedApiPath(path: string): string {
   return path.startsWith("/api/") && !path.startsWith("/api/v1/")
     ? `/api/v1/${path.slice("/api/".length)}`
     : path;

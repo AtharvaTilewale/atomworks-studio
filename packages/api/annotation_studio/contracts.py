@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
+from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Literal, Protocol
 
@@ -23,6 +24,10 @@ class SessionNotFoundError(KeyError):
 
 class CapacityExceededError(RuntimeError):
     """A bounded local or shared resource has reached its configured limit."""
+
+
+class IdempotencyConflictError(ValueError):
+    """The same owner reused an idempotency key for a different submission."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -101,13 +106,21 @@ NEUTRAL_CONDITION_PROVIDER = NeutralConditionProvider()
 NEUTRAL_VALIDATION_PROVIDER = NeutralValidationProvider()
 
 
-class DesignProvider(Protocol):
-    """Submits designs through a process or remote service boundary."""
+class JobProvider(Protocol):
+    """Runs one provider's jobs through a process or remote service boundary.
+
+    The schema includes at least "enabled", "provider", and "label". parse_request raises
+    ValueError for an invalid request. artifact returns an output file and its media type.
+    Lookups raise KeyError for jobs, outputs, and artifacts that do not exist or belong to
+    another owner, and ValueError for output files outside the job's workspace.
+    """
 
     @property
     def enabled(self) -> bool: ...
 
     def schema(self) -> dict[str, Any]: ...
+
+    def parse_request(self, payload: dict[str, Any]) -> Any: ...
 
     def submit(
         self,
@@ -134,4 +147,10 @@ class DesignProvider(Protocol):
 
     def input_cif(self, job_id: str, *, owner_id: str = "local") -> str: ...
 
+    def artifact(self, job_id: str, output_id: str, name: str, *, owner_id: str = "local") -> tuple[Path, str]: ...
+
     def close(self) -> None: ...
+
+
+# The original name of the job contract, from when RFD4 was the only job provider.
+DesignProvider = JobProvider

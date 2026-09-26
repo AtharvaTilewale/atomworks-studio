@@ -1,7 +1,7 @@
 {
   "name": "atomworks-annotation-studio",
   "displayName": "AtomWorks Annotation Studio",
-  "description": "Create, inspect, and submit RFD4-Proteina annotated CIFs with Mol*, Patinae, and native AtomWorks.",
+  "description": "Create, inspect, and edit annotated CIFs with Mol*, Patinae, and native AtomWorks, and run the jobs of the installed Studio providers.",
   "icon": "icon.png",
   "version": "0.1.0",
   "publisher": "rfd4-proteina-team",
@@ -31,10 +31,11 @@
   ],
   "keywords": [
     "mmCIF",
-    "protein design",
-    "RFD4",
     "AtomWorks",
-    "Molstar"
+    "Molstar",
+    "Patinae",
+    "protein design",
+    "computational chemistry"
   ],
   "main": "./dist/extension.js",
   "contributes": {
