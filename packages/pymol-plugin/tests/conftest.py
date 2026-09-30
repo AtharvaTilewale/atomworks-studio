@@ -72,6 +72,8 @@ def loaded_cif(request: pytest.FixtureRequest) -> tuple[str, str]:
         pytest.skip(f"test CIF missing: {path}")
     # Set before load so ``_load_array_into_pymol`` picks up the policy.
     STATE.hide_nans = hide_nans
-    config = ParseConfig.from_preset("minimal", build_assembly=["1"], load_standard_annotations=True)
+    config = ParseConfig.from_preset(
+        "minimal", build_assembly=["1"], load_standard_annotations=True, return_atom_array_plus=True
+    )
     obj_name = load_structure(path, config=config, obj_name=path.stem)
     return str(path), obj_name

@@ -8,13 +8,13 @@ package = "atomworks"
 version = "2.1.1"
 repository = "https://github.com/baker-laboratory/atomworks-dev.git"
 branch = "dev"
-revision = "82fd08ae51688f48ff2949ae16ee320d87d434a1"
+revision = "cf8daa068edf2cadf7baffbb2ec46049758a7f0c"
 submodule = "external/atomworks-dev"
 
 [rfd4]
 repository = "https://github.com/baker-laboratory/RFD4-Proteina-dev.git"
 branch = "main"
-revision = "26094e08e6f979ee6da53d51bc34357ffc062025"
+revision = "538209c763cdbe5b28450f6abf0b9d7936e91efd"
 submodule = "external/RFD4-Proteina-dev"
 runtime_variable = "ANNOTATION_STUDIO_RFD4_ROOT"
 

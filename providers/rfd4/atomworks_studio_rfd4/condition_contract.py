@@ -1,22 +1,33 @@
-"""Adapt the shared StandardAnnotation editing contract to Studio's UI schema.
+"""Own Studio's authoring schema over upstream scientific annotation definitions.
 
-The annotation classes own semantic authoring metadata (value type, mask-only
-behavior, aliases, level, and body order).  This module contains only Studio
-presentation policy such as labels, count units, and the few custom widgets.
+Value storage, aliases, levels and body order remain scientific contracts.
+Widget kinds, coupled edits, labels and authoring scopes belong to Studio.
+The annotation adapter also accepts the earlier separate-mask format.
 """
 
 from __future__ import annotations
 
+import pickle
 import re
 from enum import IntEnum
+from functools import cache
 from types import MappingProxyType
 
 import numpy as np
-from annotation_studio.contracts import ConditionDefault, ConditionDefinition, ConditionKind, ConditionValue, CountUnit
 from atomworks.io.utils.standard_annotations.base import STANDARD_ANNOTATIONS, Level
 from atomworks.ml.conditions import C_CRD, C_DIS, C_IDX, C_SEQ
 from atomworks.ml.conditions.base import ConditionBase
-from rfproteina.conditions import C_CENTROID, C_CRDGRP, C_IDXGRP, C_INTCRD, C_RAS
+from atomworks_studio_editing.annotations import editing_type, is_boolean, is_structure_derived
+from atomworks_studio_editing.contracts import (
+    ConditionDefault,
+    ConditionDefinition,
+    ConditionKind,
+    ConditionValue,
+    CountUnit,
+)
+
+from atomworks_studio_rfd4.internal_coordinate import edit_absolute_coordinates, edit_coordinate_group
+from atomworks_studio_rfd4.model import C_CATH, C_CENTROID, C_CRDGRP, C_IDXGRP, C_INTCRD, C_RAS, source_root
 
 _KEY_OVERRIDES: dict[type[ConditionBase], str] = {C_RAS: "rasa"}
 _LABEL_OVERRIDES: dict[type[ConditionBase], str] = {
@@ -27,6 +38,7 @@ _LABEL_OVERRIDES: dict[type[ConditionBase], str] = {
     C_INTCRD: "Internal coordinate",
     C_CENTROID: "Chain centroid",
     C_DIS: "Distance restraints",
+    C_CATH: "CATH fold",
 }
 _COUNT_UNIT_OVERRIDES: dict[type[ConditionBase], CountUnit] = {
     C_IDXGRP: "groups",
@@ -38,6 +50,7 @@ _DEFAULT_OVERRIDES: dict[type[ConditionBase], ConditionDefault] = {
     C_IDX: True,
     C_IDXGRP: -1,
     C_CRDGRP: -1,
+    C_CATH: C_CATH.NULL_VALUE,
 }
 
 
@@ -46,8 +59,7 @@ def editable_condition_classes() -> tuple[type[ConditionBase], ...]:
 
     The value semantics still come entirely from the StandardAnnotation
     contract. Studio adds one capability boundary: its pair editor currently
-    supports distance restraints only, and writable strings need a dedicated
-    text editor before they can be exposed safely.
+    supports distance restraints only, while text conditions use a validated text editor.
     """
     return tuple(
         annotation
@@ -57,7 +69,7 @@ def editable_condition_classes() -> tuple[type[ConditionBase], ...]:
 
 
 def _supports_studio_editor(condition: type[ConditionBase]) -> bool:
-    if condition.editing_type is None:
+    if editing_type(condition) is None:
         return False
     if condition.n_body != 1:
         return condition is C_DIS
@@ -72,12 +84,14 @@ def condition_key(condition: type[ConditionBase]) -> str:
     """Return a stable snake-case UI key without duplicating semantic aliases."""
     if condition in _KEY_OVERRIDES:
         return _KEY_OVERRIDES[condition]
+    if condition.name.startswith("sequence-probability-"):
+        return condition.name.replace("-", "_").lower()
     with_word_boundaries = re.sub(r"(?<!^)(?=[A-Z])", "_", condition.name)
     return with_word_boundaries.replace("-", "_").lower()
 
 
 def enum_type(condition: type[ConditionBase]) -> type[IntEnum] | None:
-    edit_type = condition.editing_type
+    edit_type = editing_type(condition)
     return edit_type if isinstance(edit_type, type) and issubclass(edit_type, IntEnum) else None
 
 
@@ -88,11 +102,11 @@ def condition_kind(condition: type[ConditionBase]) -> ConditionKind:
         return "operation"
     if condition.n_body == 2:
         return "pair"
-    if condition.is_mask or condition.editing_is_mask_only:
+    if is_boolean(condition) or is_structure_derived(condition):
         return "mask"
     if enum_type(condition) is not None:
         return "enum"
-    edit_type = condition.editing_type
+    edit_type = editing_type(condition)
     if isinstance(edit_type, np.dtype) and edit_type.subdtype is not None:
         _, shape = edit_type.subdtype
         if shape == (3,):
@@ -101,6 +115,8 @@ def condition_kind(condition: type[ConditionBase]) -> ConditionKind:
         return "integer"
     if edit_type is float:
         return "scalar"
+    if edit_type is str:
+        return "text"
     raise TypeError(f"{condition.name} requires a custom Studio editor for {edit_type!r}")
 
 
@@ -153,13 +169,48 @@ def build_condition_definitions() -> tuple[ConditionDefinition, ...]:
                 default=default,
                 invert_mask=condition is C_IDX,
                 condition=condition,
+                group_editor=condition in (C_IDXGRP, C_CRDGRP),
+                reserved_group_ids=(-1, 0) if condition is C_CRDGRP else (),
                 enum_values=enum_values,
+                normalize_value=normalize_cath_label if condition is C_CATH else None,
+                whole_residues=condition.name.startswith("sequence-probability-") or condition is C_CATH,
+                active_mask=getattr(C_CRDGRP, "is_internal", None) if condition is C_INTCRD else None,
+                mutate=(
+                    {C_CRD: edit_absolute_coordinates, C_CRDGRP: edit_coordinate_group}.get(condition)
+                    if hasattr(C_CRDGRP, "is_internal")
+                    else None
+                ),
             )
         )
     keys = [definition.key for definition in definitions]
     if len(keys) != len(set(keys)):
         raise ValueError(f"Condition editing contract produces duplicate Studio keys: {keys}")
     return tuple(definitions)
+
+
+@cache
+def _cat_vocabulary() -> frozenset[str]:
+    path = source_root().parents[1] / "data" / "cath_label_mapping.pkl"
+    with path.open("rb") as handle:
+        vocabulary = pickle.load(handle)
+    return frozenset(
+        {
+            "x.x.x",
+            *(code + ".x" * (2 - depth) for depth, level in enumerate(("C", "A", "T")) for code in vocabulary[level]),
+        }
+    )
+
+
+def normalize_cath_label(value: object) -> str:
+    """Validate the model's CAT vocabulary and retain its C.A.T.x storage format."""
+    if not isinstance(value, str):
+        raise ValueError("CATH requires a C.A.T label such as '1.x.x' or '2.60.40'")
+    value = value.strip()
+    if len(value.split(".")) == 4 and value.endswith(".x"):
+        value = value[:-2]
+    if value not in _cat_vocabulary():
+        raise ValueError(f"Unknown CAT label {value!r}; use a model C/A/T label or 'x.x.x' to clear")
+    return value + ".x"
 
 
 CONDITION_DEFINITIONS = build_condition_definitions()

@@ -9,18 +9,29 @@ description = "RFD4 provider adapter for AtomWorks Annotation Studio"
 requires-python = ">=3.12,<=3.12.10"
 license = "BSD-3-Clause"
 dependencies = [
-    "atomworks-annotation-studio>=0.1.0,<0.2",
+    "atomworks-studio-editing>=0.1.0,<0.2",
     "numpy>=1.26,<3",
 ]
 
 # The RFD4 PyMOL condition editors (atomworks_studio_rfd4.pymol) are an optional extra:
-# they need the model-neutral plugin plus the full rfproteina runtime (GPU/Brev only).
+# they need PyMOL and the RFD4 source definitions, without an inference runtime.
 [project.optional-dependencies]
+service = ["atomworks-annotation-studio>=0.1.0,<0.2"]
 pymol = [
     "atomworks-studio-pymol>=0.1.0,<0.2",
 ]
+# CPU dependencies of the canonical pre-save pipeline; no inference stack or weights.
+validation = [
+    "rootutils>=1.0.7,<1.1",
+    "environs>=11,<12",
+    "hydra-core>=1.3,<1.4",
+    "lightning-fabric>=2.5,<3",
+    "networkx>=3,<4",
+    "toolz>=0.12,<2",
+]
 
 [tool.uv.sources]
+atomworks-studio-editing = { workspace = true }
 atomworks-annotation-studio = { workspace = true }
 atomworks-studio-pymol = { workspace = true }
 

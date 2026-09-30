@@ -1,16 +1,17 @@
-import { api, apiBlob } from "../api";
+import { api } from "../api";
 import { element } from "../dom";
 import { STUDIO_EXAMPLES, type StudioExample } from "../examples";
-import type { SessionResponse } from "../types";
+import type { SessionResponse, StudioSchema } from "../types";
 import { inspect_cif } from "../wasm/annotation_studio_core.js";
+import { prepareCifDownload } from "./authoring-actions";
 
 export interface SessionFileControllerOptions {
   getSessionId: () => string | null;
-  getCurrentName: () => string;
   onOpened: (response: SessionResponse) => Promise<void>;
   onCombined: (response: SessionResponse, filename: string) => Promise<void>;
   applyExamplePreset: (example: StudioExample) => string[];
   log: (message: string) => void;
+  runViewerUpdate: (operation: () => Promise<void>) => Promise<void>;
 }
 
 export class SessionFileController {
@@ -18,8 +19,43 @@ export class SessionFileController {
   private readonly combineInput = element<HTMLInputElement>("combine-input");
   private openGeneration = 0;
   private openQueue: Promise<void> = Promise.resolve();
+  private loadFields: StudioSchema["loading"]["fields"] = {};
 
   constructor(private readonly options: SessionFileControllerOptions) {}
+
+  initializeLoading(schema: StudioSchema["loading"]): void {
+    this.loadFields = schema.fields;
+    const container = element("parse-fields");
+    for (const [name, field] of Object.entries(schema.fields)) {
+      const label = document.createElement("label"); label.textContent = field.label;
+      const input = document.createElement(field.kind === "choice" ? "select" : "input");
+      input.id = `parse-${name}`;
+      if (input instanceof HTMLSelectElement) {
+        for (const choice of field.choices ?? []) input.add(new Option(choice, choice));
+      } else {
+        input.type = field.kind === "boolean" ? "checkbox" : field.kind === "integer" ? "number" : "text";
+        if (field.kind === "integer") { input.min = "0"; input.step = "1"; }
+        if (field.kind === "boolean") label.className = "checkbox";
+      }
+      label.append(input); container.append(label);
+    }
+    const warning = document.createElement("p");
+    warning.textContent = "Loading without saved annotations discards the existing conditions in this CIF.";
+    container.append(warning);
+    const annotations = element<HTMLInputElement>("parse-load_standard_annotations");
+    annotations.addEventListener("change", () => { warning.hidden = annotations.checked; });
+    const preset = element<HTMLSelectElement>("parse-preset");
+    const apply = () => {
+      for (const [name, value] of Object.entries(schema.presets[preset.value])) {
+        const input = element<HTMLInputElement | HTMLSelectElement>(`parse-${name}`);
+        if (input instanceof HTMLInputElement && input.type === "checkbox") input.checked = Boolean(value);
+        else input.value = Array.isArray(value) ? value.join(",") : String(value ?? "");
+      }
+      element<HTMLInputElement>("parse-assembly").value = "1";
+      warning.hidden = annotations.checked;
+    };
+    preset.addEventListener("change", apply); apply();
+  }
 
   bind(): void {
     this.fileInput.addEventListener("change", () => {
@@ -27,7 +63,10 @@ export class SessionFileController {
       if (file) void this.openFile(file);
     });
     this.combineInput.addEventListener("change", () => void this.combineFile());
-    element("download").addEventListener("click", () => void this.download());
+    element("download").addEventListener("click", () => {
+      const sessionId = this.options.getSessionId();
+      if (sessionId) void this.options.runViewerUpdate(() => this.download(sessionId));
+    });
     for (const button of document.querySelectorAll<HTMLButtonElement>(".example-load")) {
       button.addEventListener("click", () => {
         const example = STUDIO_EXAMPLES.find((candidate) => candidate.id === button.dataset.example);
@@ -73,10 +112,14 @@ export class SessionFileController {
   private appendParseOptions(form: FormData): void {
     form.append("parse_preset", element<HTMLSelectElement>("parse-preset").value);
     form.append("assembly", element<HTMLInputElement>("parse-assembly").value.trim() || "asym");
-    const model = element<HTMLInputElement>("parse-model").value;
-    if (model) form.append("model", model);
-    form.append("hydrogen_policy", element<HTMLSelectElement>("parse-hydrogens").value);
-    form.append("remove_waters", String(element<HTMLInputElement>("parse-remove-waters").checked));
+    const options: Record<string, unknown> = {};
+    for (const [name, field] of Object.entries(this.loadFields)) {
+      const input = element<HTMLInputElement>(`parse-${name}`);
+      if (!input.checkValidity()) throw new Error(`Invalid ${field.label}`);
+      options[name] = field.kind === "boolean" ? input.checked
+        : field.kind === "integer" ? (input.value === "" ? null : Number(input.value)) : input.value;
+    }
+    form.append("advanced_options", JSON.stringify(options));
   }
 
   private async loadExample(
@@ -130,18 +173,28 @@ export class SessionFileController {
     }
   }
 
-  private async download(): Promise<void> {
-    const sessionId = this.options.getSessionId();
-    if (!sessionId) return;
+  private async download(sessionId: string): Promise<void> {
+    if (sessionId !== this.options.getSessionId()) return;
+    const button = element<HTMLButtonElement>("download");
+    button.disabled = true;
     try {
-      const blob = await apiBlob(`/api/sessions/${sessionId}/cif`);
+      this.options.log("Validating structure before saving…");
+      const result = await prepareCifDownload(sessionId, () => sessionId === this.options.getSessionId());
+      if (!result) {
+        this.options.log("Save cancelled.");
+        return;
+      }
+      const blob = new Blob([result.cif], { type: "chemical/x-mmcif" });
       const anchor = document.createElement("a");
       anchor.href = URL.createObjectURL(blob);
-      anchor.download = `${this.options.getCurrentName()}_annotated.cif`;
+      anchor.download = `${result.name}_annotated.cif`;
       anchor.click();
       URL.revokeObjectURL(anchor.href);
+      this.options.log(result.issues.length ? "Saved with validation issues." : "Validation passed. Structure saved.");
     } catch (error) {
       this.options.log(`Download failed: ${String(error)}`);
+    } finally {
+      button.disabled = this.options.getSessionId() === null;
     }
   }
 }

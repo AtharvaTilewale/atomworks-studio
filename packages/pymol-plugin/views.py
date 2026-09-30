@@ -14,7 +14,8 @@ from collections.abc import Callable
 import numpy as np
 from atomworks.io.utils.atom_array_plus import AtomArrayPlus
 from atomworks.io.utils.standard_annotations import S_ATM
-from atomworks.ml.utils.visualize import (
+from atomworks_studio_editing.annotations import has_stored_mask
+from atomworks_studio_pymol.display import (
     _DISPLAY_PLACEHOLDER,
     display_atom_ids,
     get_atom_array_style_cmd,
@@ -137,7 +138,7 @@ def _default_view(arr: AtomArrayPlus, obj_name: str) -> None:
 
     # Delete first so the selection never lingers when atomize is absent/empty.
     cmd.delete(f"atomize_{obj_name}")
-    if S_ATM.has_mask(arr):
+    if has_stored_mask(S_ATM, arr):
         atomize_mask = S_ATM.mask(arr, default="raise")
         if atomize_mask.any():
             atom_ids = display_atom_ids(arr)[np.where(atomize_mask)[0]]

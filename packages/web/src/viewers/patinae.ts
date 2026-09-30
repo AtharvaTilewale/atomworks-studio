@@ -26,6 +26,7 @@ import {
   type ViewerSelection,
   type ViewerStructure,
   type ViewerTarget,
+  type ViewerMarker,
 } from "./contract";
 
 function flattenMeasurements(groups: MeasurementInfo[]): ViewerMeasurement[] {
@@ -76,6 +77,7 @@ export class PatinaeAdapter implements ViewerAdapter {
   private viewer: PatinaeViewer | null = null;
   private atomIdentities: AtomIdentity[] = [];
   private cif: string | null = null;
+  private markerNames: string[] = [];
   private name = "structure";
   private displayCommands = [
     "hide everything",
@@ -228,6 +230,25 @@ export class PatinaeAdapter implements ViewerAdapter {
     else this.clearSelection();
   }
 
+  async showMarkers(markers: ViewerMarker[]): Promise<void> {
+    if (!this.viewer) return;
+    this.viewer.removeMeasurements(this.markerNames);
+    this.markerNames = [];
+    const requests: MeasurementRequest[] = [];
+    markers.forEach((marker, index) => {
+      for (const axis of [0, 1, 2]) {
+        const start: [number, number, number] = [...marker.position];
+        const end: [number, number, number] = [...marker.position];
+        start[axis] -= 0.6; end[axis] += 0.6;
+        const name = `studio_centroid_${index}_${axis}`;
+        this.markerNames.push(name);
+        requests.push({ kind: "distance", name, points: [start, end],
+          label: axis === 0 ? marker.label : "", color: rgba(marker.color) });
+      }
+    });
+    if (requests.length) this.viewer.addMeasurements(requests);
+  }
+
   setSelection(atomIndices: number[]): void {
     if (!this.viewer) return;
     const indices = [...new Set(atomIndices)].sort((left, right) => left - right);
@@ -316,7 +337,8 @@ export class PatinaeAdapter implements ViewerAdapter {
   }
 
   listMeasurements(): ViewerMeasurement[] {
-    return flattenMeasurements(this.viewer?.getMeasurementList?.() ?? []);
+    return flattenMeasurements((this.viewer?.getMeasurementList?.() ?? [])
+      .filter((measurement) => !this.markerNames.includes(measurement.name)));
   }
 
   async addMeasurement(request: ViewerMeasurementRequest): Promise<ViewerMeasurement[]> {

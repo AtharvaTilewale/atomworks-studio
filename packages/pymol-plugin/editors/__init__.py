@@ -16,6 +16,7 @@ The dependency direction is intentionally one-way::
 from collections.abc import Callable
 
 from atomworks.io.utils.standard_annotations.base import StandardAnnotationBase
+from atomworks_studio_editing.annotations import editing_type, is_boolean, is_structure_derived
 from atomworks_studio_pymol.editors.widgets import BaseAnnotationEditor, MaskEditor, PairValueEditor, ScalarEditor
 
 _editor_registry: dict[type[StandardAnnotationBase], Callable[..., BaseAnnotationEditor]] = {}
@@ -90,14 +91,14 @@ def _auto_editor_for(annotation_cls: type[StandardAnnotationBase]) -> Callable[.
         One of the standard editor classes.
     """
 
-    if annotation_cls.editing_type is None:
+    if editing_type(annotation_cls) is None:
         raise TypeError(f"{annotation_cls.name} does not declare an editing_type")
     if annotation_cls.n_body != 1:
-        if annotation_cls.n_body == 2 and annotation_cls.editing_type is float and not annotation_cls.is_mask:
+        if annotation_cls.n_body == 2 and editing_type(annotation_cls) is float and not is_boolean(annotation_cls):
             return PairValueEditor
         raise TypeError(f"{annotation_cls.name} requires a custom {annotation_cls.n_body}-body editor")
-    if annotation_cls.is_mask or annotation_cls.editing_is_mask_only:
+    if is_boolean(annotation_cls) or is_structure_derived(annotation_cls):
         return MaskEditor
-    if annotation_cls.editing_type in {int, float}:
+    if editing_type(annotation_cls) in {int, float}:
         return ScalarEditor
-    raise TypeError(f"{annotation_cls.name} requires a custom editor for {annotation_cls.editing_type!r}")
+    raise TypeError(f"{annotation_cls.name} requires a custom editor for {editing_type(annotation_cls)!r}")

@@ -9,7 +9,8 @@
     "build": "pnpm build:core && tsc --noEmit && vite build",
     "preview": "vite preview",
     "test:unit": "node --experimental-strip-types --test tests/*.test.ts",
-    "test:e2e": "node tests/smoke.mjs"
+    "test:e2e": "node tests/smoke.mjs",
+    "test:editor": "node tests/editor-qol.mjs"
   },
   "dependencies": {
     "@baker-laboratory/patinae-viewer": "file:vendor/patinae-viewer-0.4.5-studio.1.tgz",

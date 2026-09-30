@@ -7,8 +7,9 @@ import pytest
 from annotation_studio.core import StudioDocument
 from annotation_studio.rfd4_provider import CONDITION_PROVIDER, VALIDATION_PROVIDER
 from atomworks.ml.conditions import C_CRD
+from atomworks_studio_editing.mutations import set_condition_mask
 from atomworks_studio_rfd4.internal_coordinate import set_internal_coordinate_conditioning
-from rfproteina.conditions import C_CRDGRP, C_INTCRD
+from atomworks_studio_rfd4.model import C_CRDGRP, C_INTCRD
 
 FIXTURE = Path(__file__).parent / "fixtures" / "SAM_hbonds.cif"
 
@@ -32,8 +33,7 @@ def test_internal_coordinate_authoring_sets_masks_and_group_only() -> None:
     original_coords = array.coord.copy()
     absolute_mask = np.zeros(len(array), dtype=bool)
     absolute_mask[selected] = True
-    C_CRD.set_mask(array, absolute_mask)
-    C_CRD.set_annotation(array, original_coords.copy())
+    set_condition_mask(array, C_CRD, selected, True)
     previous_groups = C_CRDGRP.annotation(array, default="generate").copy()
 
     assert not C_INTCRD.has_annotation(array)
@@ -41,7 +41,8 @@ def test_internal_coordinate_authoring_sets_masks_and_group_only() -> None:
 
     assert not C_CRD.mask(array)[selected].any()
     assert np.isnan(C_CRD.annotation(array)[selected]).all()
-    assert C_INTCRD.mask(array)[selected].all()
+    membership = C_CRDGRP.is_internal(array) if hasattr(C_CRDGRP, "is_internal") else C_INTCRD.mask(array)
+    assert membership[selected].all()
 
     groups = C_CRDGRP.annotation(array)
     assert np.unique(groups[selected]).size == 1

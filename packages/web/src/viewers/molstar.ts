@@ -9,6 +9,12 @@ import {
   setStructureOverpaint,
 } from "molstar/lib/mol-plugin-state/helpers/structure-overpaint";
 import { Color } from "molstar/lib/mol-util/color";
+import { Shape } from "molstar/lib/mol-model/shape";
+import { ShapeRepresentation } from "molstar/lib/mol-repr/shape/representation";
+import { Mesh } from "molstar/lib/mol-geo/geometry/mesh/mesh";
+import { MeshBuilder } from "molstar/lib/mol-geo/geometry/mesh/mesh-builder";
+import { addSphere } from "molstar/lib/mol-geo/geometry/mesh/builder/sphere";
+import { Vec3 } from "molstar/lib/mol-math/linear-algebra";
 import "molstar/lib/mol-plugin-ui/skin/dark.scss";
 
 import {
@@ -26,6 +32,7 @@ import {
   type ViewerMeasurement,
   type ViewerMeasurementRequest,
   type ViewerStructure,
+  type ViewerMarker,
 } from "./contract";
 
 const COMPARISON_COLORS = {
@@ -56,6 +63,7 @@ export class MolstarAdapter implements ViewerAdapter {
   private viewer: MolstarViewer | null = null;
   private selectedAtomIndices: number[] = [];
   private measurements: ViewerMeasurement[] = [];
+  private markerRepresentation: ShapeRepresentation<ViewerMarker[], Mesh, typeof Mesh.Params> | null = null;
 
   constructor(private readonly context: ViewerAdapterContext) {}
 
@@ -273,7 +281,31 @@ export class MolstarAdapter implements ViewerAdapter {
     }
   }
 
+  async showMarkers(markers: ViewerMarker[]): Promise<void> {
+    if (!this.viewer) return;
+    if (this.markerRepresentation) {
+      this.viewer.plugin.canvas3d?.remove(this.markerRepresentation);
+      this.markerRepresentation.destroy();
+      this.markerRepresentation = null;
+    }
+    if (!markers.length) return;
+    const representation = ShapeRepresentation<ViewerMarker[], Mesh, typeof Mesh.Params>((_ctx, data) => {
+      const builder = MeshBuilder.createState();
+      data.forEach((marker, index) => {
+        builder.currentGroup = index;
+        addSphere(builder, Vec3.create(...marker.position), 0.6, 2);
+      });
+      return Shape.create("Chain centroid targets", data, MeshBuilder.getMesh(builder),
+        (group) => Color(data[group].color), () => 1, (group) => data[group].label);
+    }, Mesh.Utils);
+    await this.viewer.plugin.runTask(representation.createOrUpdate({}, markers));
+    this.viewer.plugin.canvas3d?.add(representation);
+    this.markerRepresentation = representation;
+  }
+
   destroy(): void {
+    this.markerRepresentation?.destroy();
+    this.markerRepresentation = null;
     this.viewer?.dispose();
     this.viewer = null;
     this.measurements = [];

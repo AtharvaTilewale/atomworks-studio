@@ -10,7 +10,6 @@ import logging
 
 import numpy as np
 from atomworks.io.utils.chain import create_chain_id_generator
-from atomworks_studio_editing.structure_mutations import assign_chain_id
 from atomworks_studio_pymol.bridge import (
     reload_structure_in_pymol,
     selection_to_indices,
@@ -142,18 +141,16 @@ class ChainWizard:
             return
         if result is None:
             return
-        obj_name, arr, indices = result
+        obj_name, _arr, indices = result
 
         chain_id = self._selected_chain_id()
         if chain_id is None:
             QtWidgets.QMessageBox.warning(self._widget, "No chain", "Pick a chain from the dropdown first.")
             return
 
-        self._state.push_snapshot(obj_name)
         try:
-            assign_chain_id(arr, indices, chain_id)
+            self._state.document(obj_name).assign_chain(indices, chain_id)
         except Exception as e:
-            self._state.pop_snapshot(obj_name)
             QtWidgets.QMessageBox.critical(self._widget, "Add to chain failed", str(e))
             return
 
@@ -172,11 +169,9 @@ class ChainWizard:
         unavailable = list(np.unique(arr.chain_id).astype(str))
         new_chain_id = next(create_chain_id_generator(unavailable))
 
-        self._state.push_snapshot(obj_name)
         try:
-            assign_chain_id(arr, indices, new_chain_id)
+            self._state.document(obj_name).assign_chain(indices, new_chain_id)
         except Exception as e:
-            self._state.pop_snapshot(obj_name)
             QtWidgets.QMessageBox.critical(self._widget, "New chain failed", str(e))
             return
 

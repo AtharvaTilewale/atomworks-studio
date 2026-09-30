@@ -14,23 +14,18 @@ from collections.abc import Callable
 
 import numpy as np
 from atomworks.enums import ChainType
-from atomworks.io.config import ParseConfig, PrepareConfig
-from atomworks.io.parser import prepare_atom_array
+from atomworks.io.config import ParseConfig
 from atomworks.io.utils.atom_array_plus import AtomArrayPlus
 from atomworks.io.utils.io_utils import to_cif_file
 from atomworks.io.utils.standard_annotations.base import STANDARD_ANNOTATIONS
 from atomworks.ml.conditions import C_CRD, C_CTR, C_DIS, C_IDX, C_NTR, C_SEQ
 from atomworks.ml.conditions.base import CONDITIONS, ConditionBase
-from atomworks.ml.utils.expandable_segment import (
-    collapse_expandable_segments,
-    insert_expandable_segment,
-    realize_expandable_segments,
-)
-from atomworks.ml.utils.visualize import count_hidden_nan_atoms
+from atomworks_studio_editing.annotations import editing_type, has_stored_mask
+from atomworks_studio_editing.loading import LOAD_FIELDS, build_load_config
+from atomworks_studio_editing.validation import validate_atom_array_for_save
 from atomworks_studio_pymol.bond_wizard import BondWizard
 from atomworks_studio_pymol.bridge import (
     combine_visible,
-    delete_atoms,
     deletion_would_create_res_id_gap,
     load_structure,
     reload_structure_in_pymol,
@@ -38,6 +33,7 @@ from atomworks_studio_pymol.bridge import (
 )
 from atomworks_studio_pymol.chain_wizard import ChainWizard
 from atomworks_studio_pymol.charge_wizard import ChargeWizard
+from atomworks_studio_pymol.display import count_hidden_nan_atoms
 from atomworks_studio_pymol.editors import editor_for, is_excluded
 from atomworks_studio_pymol.extensions import add_extension, read_extensions, remove_extension
 from atomworks_studio_pymol.state import STATE, PluginState
@@ -96,40 +92,8 @@ def get_main_panel() -> "MainPanel | None":
     return _panel_instance
 
 
-def _check_missing_atoms(arr: AtomArrayPlus) -> list[str]:
-    """Return a violation string if prepare_atom_array would add atoms to *arr*."""
-    try:
-        config = PrepareConfig(
-            add_missing_atoms=True,
-            remove_ccds=(),
-            remove_waters=False,
-            fix_ligands_at_symmetry_centers=False,
-            fix_arginines=False,
-            add_id_and_entity_annotations=False,
-            convert_mse_to_met=False,
-            long_bond_policy="keep",
-            struct_conn_distance_policy="keep",
-            hydrogen_policy="remove",
-        )
-        prepared = prepare_atom_array(arr.copy(), config=config)
-        n_added = len(prepared) - len(arr)
-        if n_added > 0:
-            return [
-                (
-                    f"[missing_atoms] Structure is missing {n_added} heavy atoms that would be "
-                    "added by prepare_atom_array. Check for incomplete residues."
-                )
-            ]
-        return []
-    except Exception as e:
-        logger.warning("Missing-atom check failed: %s", e)
-        return []
-
-
 def _check_atom_array_invariants(arr: AtomArrayPlus) -> list[str]:
-    violations: list[str] = []
-    violations.extend(_check_missing_atoms(arr))
-    return violations
+    return [f"[{issue['check']}] {issue['message']}" for issue in validate_atom_array_for_save(arr)]
 
 
 def _builtin_annotation_summary(arr: AtomArrayPlus) -> str:
@@ -146,28 +110,28 @@ def _builtin_annotation_summary(arr: AtomArrayPlus) -> str:
     def _residue_count(atom_mask: np.ndarray) -> int:
         return int(atom_mask[struc.get_residue_starts(arr)].sum())
 
-    if C_SEQ.has_mask(arr):
+    if has_stored_mask(C_SEQ, arr):
         n = _residue_count(C_SEQ.mask(arr, default="generate"))
         if n > 0:
             lines.append(f"Sequence conditioning: {n} residues")
 
-    if C_CRD.has_mask(arr):
+    if has_stored_mask(C_CRD, arr):
         crd_mask = C_CRD.mask(arr, default="generate")
         if crd_mask.any():
             lines.append(f"Coordinate conditioning: {int(crd_mask.sum())} atoms")
 
-    if C_IDX.has_mask(arr):
+    if has_stored_mask(C_IDX, arr):
         # mask=False means unindexed.
         is_unindexed = ~C_IDX.mask(arr, default="generate")
         if is_unindexed.any():
             lines.append(f"Index conditioning: {int(is_unindexed.sum())} atoms unindexed")
 
-    if C_NTR.has_mask(arr):
+    if has_stored_mask(C_NTR, arr):
         n = _residue_count(C_NTR.mask(arr, default="generate"))
         if n > 0:
             lines.append(f"N-terminus: {n} residues marked")
 
-    if C_CTR.has_mask(arr):
+    if has_stored_mask(C_CTR, arr):
         n = _residue_count(C_CTR.mask(arr, default="generate"))
         if n > 0:
             lines.append(f"C-terminus: {n} residues marked")
@@ -215,21 +179,9 @@ def open_main_panel() -> None:
 # ---------------------------------------------------------------------------
 
 
-_LONG_BOND_POLICIES = [
-    "keep",
-    "filter",
-    "warn",
-    "raise",
-    "filter_nonstandard_only",
-    "warn_nonstandard_only",
-    "raise_nonstandard_only",
-]
-
 _PRESET_CONFIGS: dict[str, ParseConfig] = {
-    "rcsb": ParseConfig.from_preset("rcsb", build_assembly=["1"]),
-    "minimal_with_annotations": ParseConfig.from_preset(
-        "minimal", build_assembly=["1"], load_standard_annotations=True
-    ),
+    "rcsb": build_load_config("rcsb"),
+    "minimal_with_annotations": build_load_config("minimal"),
 }
 
 
@@ -322,11 +274,11 @@ class LoadCIFDialog:
 
         # Literal dropdowns
         self._cmb_long_bond = QtWidgets.QComboBox()
-        self._cmb_long_bond.addItems(_LONG_BOND_POLICIES)
+        self._cmb_long_bond.addItems(LOAD_FIELDS["long_bond_policy"]["choices"])
         adv_layout.addRow("long_bond_policy", self._cmb_long_bond)
 
         self._cmb_struct_conn = QtWidgets.QComboBox()
-        self._cmb_struct_conn.addItems(_LONG_BOND_POLICIES)
+        self._cmb_struct_conn.addItems(LOAD_FIELDS["struct_conn_distance_policy"]["choices"])
         adv_layout.addRow("struct_conn_distance_policy", self._cmb_struct_conn)
 
         self._cmb_hydrogen = QtWidgets.QComboBox()
@@ -481,18 +433,12 @@ class LoadCIFDialog:
     @property
     def config(self) -> ParseConfig:
         """Return a :py:class:`~atomworks.io.config.ParseConfig` from the current widget state."""
-        assembly_text = self._edit_assembly.text().strip()
-        if not assembly_text:
-            build_assembly = None
-        elif assembly_text in ("first", "all"):
-            build_assembly = assembly_text
-        else:
-            build_assembly = [s.strip() for s in assembly_text.split(",") if s.strip()]
-
         ccds_text = self._edit_remove_ccds.text().strip()
         remove_ccds = tuple(s.strip() for s in ccds_text.split(",") if s.strip()) if ccds_text else ()
 
-        return ParseConfig(
+        return build_load_config(
+            "rcsb" if self._rb_rcsb.isChecked() else "minimal",
+            assembly=self._edit_assembly.text(),
             load_standard_annotations=self._chk_load_sa.isChecked(),
             add_missing_atoms=self._chk_add_missing.isChecked(),
             remove_waters=self._chk_remove_waters.isChecked(),
@@ -503,7 +449,6 @@ class LoadCIFDialog:
             long_bond_policy=self._cmb_long_bond.currentText(),
             struct_conn_distance_policy=self._cmb_struct_conn.currentText(),
             hydrogen_policy=self._cmb_hydrogen.currentText(),
-            build_assembly=build_assembly,
             altloc=self._cmb_altloc.currentText(),
             altloc_seed=None if self._chk_seed_none.isChecked() else int(self._spin_seed.value()),
             model=None if self._chk_all_models.isChecked() else int(self._spin_model.value()),
@@ -986,41 +931,31 @@ class MainPanel:
         if not dlg.exec_():
             return
 
-        self._state.push_snapshot(obj_name)
         try:
+            document = self._state.document(obj_name)
             if dlg.new_chain:
                 if not dlg.new_chain_id:
                     raise ValueError("Chain ID is required when inserting as a new chain.")
-                self._state.set_array(
-                    obj_name,
-                    insert_expandable_segment(
-                        self._state.get_synced_array(obj_name),
-                        seg_min=dlg.seg_min,
-                        seg_max=dlg.seg_max,
-                        new_chain=True,
-                        new_chain_id=dlg.new_chain_id,
-                        new_chain_type=dlg.new_chain_type,
-                    ),
+                document.insert_segment(
+                    dlg.seg_min,
+                    dlg.seg_max,
+                    new_chain=True,
+                    chain_id=dlg.new_chain_id,
+                    chain_type=dlg.new_chain_type,
                 )
             else:
                 indices = selection_to_indices("sele", self._state.index_maps[obj_name])
                 if not indices:
-                    self._state.pop_snapshot(obj_name)
                     QtWidgets.QMessageBox.warning(self._widget, "No selection", "Make a selection in PyMOL first.")
                     return
-                atom_idx = int(indices[0] if dlg.insert_before else indices[-1])
-                self._state.set_array(
-                    obj_name,
-                    insert_expandable_segment(
-                        self._state.get_synced_array(obj_name),
-                        seg_min=dlg.seg_min,
-                        seg_max=dlg.seg_max,
-                        atom_idx=atom_idx,
-                        insert_before=dlg.insert_before,
-                    ),
+                document.insert_segment(
+                    dlg.seg_min,
+                    dlg.seg_max,
+                    int(indices[0] if dlg.insert_before else indices[-1]),
+                    before=dlg.insert_before,
                 )
+            self._state.set_array(obj_name, document.array)
         except Exception as e:
-            self._state.pop_snapshot(obj_name)
             QtWidgets.QMessageBox.critical(self._widget, "Segment Insert Error", str(e))
             return
 
@@ -1032,11 +967,11 @@ class MainPanel:
             QtWidgets.QMessageBox.warning(self._widget, "No active object", "Load a structure first.")
             return
 
-        self._state.push_snapshot(obj_name)
         try:
-            self._state.set_array(obj_name, realize_expandable_segments(self._state.get_synced_array(obj_name)))
+            document = self._state.document(obj_name)
+            document.realize_segments()
+            self._state.set_array(obj_name, document.array)
         except Exception as e:
-            self._state.pop_snapshot(obj_name)
             QtWidgets.QMessageBox.critical(self._widget, "Realize Segments Error", str(e))
             return
         reload_structure_in_pymol(obj_name)
@@ -1047,11 +982,11 @@ class MainPanel:
             QtWidgets.QMessageBox.warning(self._widget, "No active object", "Load a structure first.")
             return
 
-        self._state.push_snapshot(obj_name)
         try:
-            self._state.set_array(obj_name, collapse_expandable_segments(self._state.get_synced_array(obj_name)))
+            document = self._state.document(obj_name)
+            document.collapse_segments()
+            self._state.set_array(obj_name, document.array)
         except Exception as e:
-            self._state.pop_snapshot(obj_name)
             QtWidgets.QMessageBox.critical(self._widget, "Collapse Segments Error", str(e))
             return
         reload_structure_in_pymol(obj_name)
@@ -1069,12 +1004,7 @@ class MainPanel:
             )
             return
 
-        self._state.push_snapshot(obj_name)
-        new_res_id = arr.res_id.copy()
-        for chain_iid in np.unique(arr.chain_iid):
-            mask = arr.chain_iid == chain_iid
-            new_res_id[mask] = arr.res_id[mask] - arr.res_id[mask].min() + 1
-        arr.res_id = new_res_id
+        self._state.document(obj_name).reset_residue_ids()
         reload_structure_in_pymol(obj_name)
 
     def _delete_selection(self) -> None:
@@ -1108,8 +1038,13 @@ class MainPanel:
                 return
             close_gaps = reply == QtWidgets.QMessageBox.No
 
-        self._state.push_snapshot(obj_name)
-        self._state.set_array(obj_name, delete_atoms(arr, keep, close_res_id_gaps=close_gaps))
+        try:
+            document = self._state.document(obj_name)
+            document.delete_atoms(indices, close_residue_gaps=close_gaps)
+            self._state.set_array(obj_name, document.array)
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self._widget, "Delete Error", str(e))
+            return
         reload_structure_in_pymol(obj_name)
 
     def _undo(self) -> None:
@@ -1266,7 +1201,7 @@ class AnnotationWizard:
         self._annotation_classes.append(None)
 
         for cls in CONDITIONS:
-            if cls.editing_type is None or is_excluded(cls):
+            if editing_type(cls) is None or is_excluded(cls):
                 continue
             self._list.addItem(cls.name)
             self._annotation_classes.append(cls)
@@ -1280,7 +1215,7 @@ class AnnotationWizard:
         for cls in STANDARD_ANNOTATIONS:
             if issubclass(cls, ConditionBase):
                 continue  # already listed under Conditions
-            if cls.editing_type is None or is_excluded(cls):
+            if editing_type(cls) is None or is_excluded(cls):
                 continue
             self._list.addItem(cls.name)
             self._annotation_classes.append(cls)

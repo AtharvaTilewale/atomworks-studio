@@ -23,6 +23,7 @@ from atomworks_studio_quantum.pymol.results import electronic_state_text, find_r
 _PARSE_CONFIG = ParseConfig(
     add_missing_atoms=False,
     load_standard_annotations=True,
+    return_atom_array_plus=True,
     remove_waters=False,
     remove_ccds=(),
     add_bond_types_from_struct_conn=("covale", "disulf", "metalc"),

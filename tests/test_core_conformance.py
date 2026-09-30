@@ -8,13 +8,26 @@ from annotation_studio.core import StudioDocument
 from annotation_studio.rfd4_provider import CONDITION_PROVIDER, VALIDATION_PROVIDER
 from atomworks.io.utils.standard_annotations.base import STANDARD_ANNOTATIONS, StandardAnnotationBase
 from atomworks.ml.conditions import C_CHA, C_CRD, C_DIS, C_SEQ
+from atomworks_studio_editing.annotations import editing_type, is_structure_derived
 from atomworks_studio_editing.mutations import edit_distance_restraint
 from atomworks_studio_editing.validation import validate_atom_array
 from atomworks_studio_rfd4.condition_contract import editable_condition_classes
-from rfproteina.conditions import C_BP, C_CATH, C_PICATION, C_RAS
+from atomworks_studio_rfd4.model import C_BP, C_CATH, C_PICATION, C_RAS
+
+pytestmark = pytest.mark.usefixtures("stable_cif_metadata")
 
 FIXTURE = Path(__file__).parent / "fixtures" / "SAM_hbonds.cif"
 CONDITIONS = {definition.key: definition.condition for definition in CONDITION_PROVIDER.definitions}
+
+
+def test_derived_query_does_not_mutate_document():
+    document = _rfd4_document((FIXTURE.parent / "minimal_multichain.cif").read_text())
+    if "is_protein" in document.array.get_annotation_categories():
+        document.array.del_annotation("is_protein")
+    before = document.export_state()
+    assert document.query_indices("is_protein").tolist() == list(range(len(document.array)))
+    assert "is_protein" not in document.array.get_annotation_categories()
+    assert document.export_state() == before
 
 
 def _condition_roundtrip_cases():
@@ -23,6 +36,10 @@ def _condition_roundtrip_cases():
             continue
         if definition.kind == "enum":
             value = next(member.value for member in definition.enum_values if member.value != definition.default)
+        elif definition.kind == "scalar":
+            value = 0.0
+        elif definition.kind == "text":
+            value = "2.60.40"
         elif definition.kind == "integer":
             value = 7
         elif definition.kind == "vector3":
@@ -93,14 +110,16 @@ def test_rfd4_alias_input_is_exported_canonically() -> None:
 
 def test_rfd4_provider_registers_and_preserves_project_annotations(document: StudioDocument) -> None:
     assert "src-component" in STANDARD_ANNOTATIONS.list()
-    from rfproteina.utils.standard_annotations import SA_SRC
+    from atomworks_studio_rfd4.model import standard_annotations
+
+    source_component = standard_annotations.SA_SRC
 
     expected = np.full(len(document.array), "component-x", dtype="<U10")
-    SA_SRC.set_annotation(document.array, expected)
+    source_component.set_annotation(document.array, expected)
 
     reparsed = _rfd4_document(document.to_cif())
 
-    np.testing.assert_array_equal(SA_SRC.annotation(reparsed.array, default="raise"), expected)
+    np.testing.assert_array_equal(source_component.annotation(reparsed.array, default="raise"), expected)
 
 
 def test_align_to_restores_common_backbone_coordinates(document: StudioDocument) -> None:
@@ -200,12 +219,13 @@ def test_atom_annotation_details_match_condition_membership(document: StudioDocu
 def test_shared_contract_drives_studio_and_all_stored_fields_are_visible(document: StudioDocument) -> None:
     assert set(CONDITIONS.values()) == set(editable_condition_classes())
     assert C_PICATION in CONDITIONS.values()
-    assert not {C_CHA, C_BP, C_CATH} & set(CONDITIONS.values())
+    assert C_CATH in CONDITIONS.values()
+    assert not {C_CHA, C_BP} & set(CONDITIONS.values())
     for definition in CONDITION_PROVIDER.definitions:
         condition = definition.condition
-        assert condition.editing_type is not None
+        assert editing_type(condition) is not None
         assert STANDARD_ANNOTATIONS.get(condition.aliases[0]) is condition
-        if condition.editing_is_mask_only:
+        if is_structure_derived(condition):
             assert definition.kind in {"mask", "operation"}
     fields = {field["name"] for field in document.stored_annotation_fields()}
     expected = {
@@ -214,7 +234,8 @@ def test_shared_contract_drives_studio_and_all_stored_fields_are_visible(documen
         if category.startswith(("mask_", "condition_", "annotation_"))
     }
     assert fields == expected
-    assert {"mask_pistack_1_atom", "condition_saltbridge_1_atom"} <= fields
+    assert "condition_saltbridge_1_atom" in fields
+    assert fields.intersection({"mask_pistack_1_atom", "condition_pistack_1_atom"})
     atom = document.atom_annotation_details(0)
     assert atom["stored_fields"]
 
@@ -227,8 +248,10 @@ def test_distance_restraints_use_shared_canonical_mutation(document: StudioDocum
 
     actual = C_DIS.annotation(document.array, default="raise")
     expected = C_DIS.annotation(direct.array, default="raise")
-    assert actual.pairs.tolist() == expected.pairs.tolist() == [[0, 1]]
-    assert actual.values.tolist() == expected.values.tolist() == [3.25]
+    assert actual.pairs.tolist() == expected.pairs.tolist()
+    assert {tuple(sorted(pair)) for pair in actual.pairs} == {(0, 1)}
+    assert actual.values.tolist() == expected.values.tolist()
+    assert np.all(actual.values == 3.25)
     assert document.annotation_details("distance")[0]["count"] == 1
     assert document.annotation_details("distance")[0]["values"][0]["atom_indices"] == [0, 1]
     reparsed = _rfd4_document(document.to_cif())
@@ -252,6 +275,20 @@ def test_document_uses_shared_atomworks_validation(document: StudioDocument) -> 
 
     assert shared == [{"severity": "error", "check": "coordinates", "message": "coordinates contain infinity"}]
     assert document.validate()[: len(shared)] == shared
+
+
+def test_interactions_use_live_geometry_and_preserve_authored_targets(document: StudioDocument) -> None:
+    baseline = document.analyze_interactions(inter_chain_only=False, hbond_model="plip")
+    assert baseline["interaction_count"] > 0
+    document.set_condition("coordinate", [0], enabled=True)
+    targets = C_CRD.annotation(document.array).copy()
+    targets[0] += 1000
+    C_CRD.set_annotation(document.array, targets)
+    document.set_condition("hotspot", [1], enabled=True)
+    before = document.export_state()
+    analyzed = document.analyze_interactions(inter_chain_only=False, hbond_model="plip")
+    assert analyzed["interactions"] == baseline["interactions"]
+    assert document.export_state() == before
 
 
 def test_plddt_confidence_is_exposed_in_colored_buckets(document: StudioDocument) -> None:

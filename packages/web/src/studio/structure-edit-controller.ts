@@ -150,7 +150,7 @@ export class StructureEditController {
     try {
       const result = await api<{ issues: StructureSummary["validation"] }>(
         `/api/sessions/${sessionId}/validate?full=true`,
-        { method: "POST" },
+        { method: "POST", timeoutMs: 150_000 },
       );
       this.options.log(
         result.issues.length

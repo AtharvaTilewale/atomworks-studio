@@ -115,6 +115,8 @@ export type AnnotationGroup = {
   color?: AnnotationColor;
 };
 
+export type ViewerMarker = { label: string; position: [number, number, number]; color: number };
+
 export type AnnotationColor = {
   name: string;
   value: number;
@@ -159,6 +161,7 @@ export interface ViewerAdapter {
   addMeasurement?(request: ViewerMeasurementRequest): Promise<ViewerMeasurement[]>;
   showInteractions?(interactions: ViewerInteraction[]): Promise<void>;
   clearMeasurements?(): Promise<void>;
+  showMarkers?(markers: ViewerMarker[]): Promise<void>;
   destroy(): void;
 }
 

@@ -8,6 +8,7 @@ from annotation_studio.core import StudioDocument
 from annotation_studio.identity import reset_current_owner, set_current_owner
 from annotation_studio.main import DocumentStore, SessionNotFoundError, app
 from annotation_studio.rfd4_provider import CONDITION_PROVIDER, VALIDATION_PROVIDER
+from atomworks_studio_rfd4.model import C_CRDGRP, C_INTCRD, C_PISTACK
 from fastapi.testclient import TestClient
 from pytest import MonkeyPatch
 
@@ -170,7 +171,7 @@ def test_full_condition_api_and_download_roundtrip() -> None:
         {"condition": "C_RAS", "atom_indices": [0], "value": 3},
         {"condition": "hbond", "atom_indices": [1], "value": 1},
         {"condition": "index_group", "atom_indices": [0], "value": 7, "scope": "residue"},
-        {"condition": "coordinate_group", "atom_indices": [0], "value": 2},
+        {"condition": "coordinate_group", "atom_indices": [2], "value": 2},
         {
             "condition": "chain_centroid",
             "atom_indices": [0],
@@ -191,7 +192,8 @@ def test_full_condition_api_and_download_roundtrip() -> None:
     atom = client.get(f"/api/sessions/{session_id}/atoms/0/annotations")
     assert atom.status_code == 200, atom.text
     assert "hotspot" in {item["name"] for item in atom.json()["annotations"]}
-    stored = client.get(f"/api/sessions/{session_id}/annotation-fields/mask_pistack_1_atom")
+    pistack_field = getattr(C_PISTACK, "mask_name", C_PISTACK.full_name)
+    stored = client.get(f"/api/sessions/{session_id}/annotation-fields/{pistack_field}")
     assert stored.status_code == 200, stored.text
     assert stored.json()["annotation"]["values"]
 
@@ -203,7 +205,9 @@ def test_full_condition_api_and_download_roundtrip() -> None:
 
     download = client.get(f"/api/sessions/{session_id}/cif")
     assert download.status_code == 200
-    assert "_atom_site.mask_hotspot_1_atom" in download.text
+    assert any(
+        field in download.text for field in ("_atom_site.mask_hotspot_1_atom", "_atom_site.condition_hotspot_1_atom")
+    )
     assert "_condition_ChainCentroid_1_atom" in download.text
 
     reupload = client.post(
@@ -241,7 +245,8 @@ def test_internal_coordinate_operation_clears_absolute_coords() -> None:
     download = client.get(f"/api/sessions/{session_id}/cif")
     assert download.status_code == 200
     # Editors serialize the mask/group contract only. RFD4 writes values during featurization.
-    assert "_atom_site.mask_InternalCoordinate_1_atom" in download.text
+    membership_field = getattr(C_INTCRD, "mask_name", C_CRDGRP.full_name)
+    assert f"_atom_site.{membership_field}" in download.text
     assert "_condition_InternalCoordinate_1_atom.val0" not in download.text
 
     reupload = client.post(
@@ -375,6 +380,8 @@ def test_bond_inspection_ccd_inference_and_distance_restraints() -> None:
             "atom1": 0,
             "atom2": 1,
             "distance": 3.25,
+            "atom1_label": "B_1/S;M 1/N0",
+            "atom2_label": "B_1/S;M 1/C0",
             "current_distance": restraints.json()["restraints"][0]["current_distance"],
         }
     ]
@@ -505,3 +512,15 @@ def test_combine_and_reset_residue_routes() -> None:
     assert combined.json()["structure"]["atom_count"] == 2 * original
     reset = client.post(f"/api/sessions/{first}/reset-residue-ids")
     assert reset.status_code == 200, reset.text
+
+
+def test_cath_condition_is_validated_and_roundtrips_through_http() -> None:
+    session_id = _session()
+    request = {"condition": "C_CATH", "atom_indices": [0], "scope": "residue", "value": "2.60.40"}
+    response = client.post(f"/api/sessions/{session_id}/conditions", json=request)
+    assert response.status_code == 200, response.text
+    bad = client.post(f"/api/sessions/{session_id}/conditions", json={**request, "value": "999.999.999"})
+    assert bad.status_code == 422, bad.text
+    downloaded = client.get(f"/api/sessions/{session_id}/cif")
+    assert downloaded.status_code == 200
+    assert "2.60.40.x" in downloaded.text

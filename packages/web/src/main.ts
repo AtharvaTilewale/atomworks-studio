@@ -5,6 +5,7 @@ import { applyCapabilities, element, escapeHtml } from "./dom";
 import type { StudioExample } from "./examples";
 import { SelectionController } from "./selection-controller";
 import { AnalysisController } from "./studio/analysis-controller";
+import { mutateWithConfirmation } from "./studio/authoring-actions";
 import { AnnotationController } from "./studio/annotation-controller";
 import { ConditionController } from "./studio/condition-controller";
 import {
@@ -71,6 +72,7 @@ function notifyHost(type: "ready" | "changed"): void {
 }
 
 let molecularViewer: MolecularViewer;
+let viewerUpdateQueue: Promise<void> = Promise.resolve();
 let sessionId: string | null = null;
 let currentName = "structure";
 let lastSummary: StructureSummary | null = null;
@@ -136,6 +138,7 @@ function renderSummary(summary: StructureSummary): void {
   sequenceController?.render(summary.sequence);
   annotationController?.render(summary.annotations, summary.stored_fields, summary.scalar_fields);
   structureEditController?.updateKnownChains(summary.chain_ids);
+  conditionController?.update(summary);
   element<HTMLButtonElement>("undo").disabled = summary.undo_depth === 0;
   if (summary.validation.length) {
     log(summary.validation.map((issue) => `${issue.check}: ${issue.message}`).join("\n"));
@@ -175,6 +178,7 @@ async function loadViewerCif(cif: string, name: string): Promise<void> {
 
 async function handleAtomPicked(atomIndex: number, label?: string): Promise<void> {
   if (!sessionId) return;
+  if (await conditionController?.handleAtomPicked(atomIndex)) return;
   if (await analysisController?.handleAtomPicked(atomIndex, label)) return;
   const scope = pickScope.value as SelectionScope;
   try {
@@ -211,27 +215,58 @@ async function refreshFromServer(summary?: StructureSummary, preserveSelection =
     annotationController?.reset();
     selectionController.clear();
   }
+  await refreshCentroidMarkers();
 }
 
-async function mutate(path: string, body?: unknown): Promise<void> {
-  if (!sessionId) return;
+async function refreshCentroidMarkers(): Promise<void> {
+  const colors = [0xffd54f, 0x4dd0e1, 0xce93d8, 0xffa726, 0x66bb6a, 0xef5350, 0x42a5f5];
+  const chains = Object.values(lastSummary?.condition_editors.centroids ?? {}).flat();
+  await molecularViewer.setMarkers(conditionController?.markersVisible ? chains.flatMap((entry, index) =>
+    entry.target ? [{ label: entry.chain, position: entry.target as [number, number, number], color: colors[index % colors.length] }] : [],
+  ) : []);
+}
+
+function runViewerUpdate(operation: () => Promise<void>): Promise<void> {
+  const update = viewerUpdateQueue.then(async () => {
+    viewerModeSelect.disabled = true;
+    try {
+      await operation();
+    } finally {
+      viewerModeSelect.disabled = false;
+    }
+  });
+  viewerUpdateQueue = update.catch(() => undefined);
+  return update;
+}
+
+function mutate(path: string, body?: unknown): Promise<void> {
+  if (!sessionId) return Promise.resolve();
   const targetSession = sessionId;
-  try {
-    const response = await api<SessionResponse>(`/api/sessions/${targetSession}${path}`, {
-      method: "POST",
-      headers: body === undefined ? undefined : { "Content-Type": "application/json" },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
+  return runViewerUpdate(async () => {
     if (sessionId !== targetSession) return;
-    persistSession(response);
-    const structural = /^\/(?:delete|segments|reset-residue-ids)/.test(path);
-    if (structural) await molecularViewer.clearAllVisuals();
-    await refreshFromServer(response.structure, !structural);
-    log("Annotation Studio state updated.");
-    notifyHost("changed");
-  } catch (error) {
-    if (sessionId === targetSession) log(`Error: ${String(error)}`);
-  }
+    try {
+      const response = await mutateWithConfirmation<SessionResponse>(
+        `/api/sessions/${targetSession}${path}`, body, () => sessionId === targetSession,
+      );
+      if (!response || sessionId !== targetSession) return;
+      conditionController?.acceptMutation(path, response);
+      persistSession(response);
+      const structural = /^\/(?:delete|segments|reset-residue-ids)/.test(path);
+      if (structural) await molecularViewer.clearAllVisuals();
+      const annotationEdit = path === "/internal-coords"
+        || /^\/(?:conditions|groups|centroids|distance-restraints)(?:\/|$)/.test(path);
+      if (annotationEdit && response.edit_result?.changed !== false) {
+        selectionController.clear();
+      }
+      await refreshFromServer(response.structure, !structural);
+      const message = response.edit_result?.message ?? "Annotation Studio state updated.";
+      conditionController?.setFeedback(message);
+      log(message);
+      notifyHost("changed");
+    } catch (error) {
+      if (sessionId === targetSession) log(`Error: ${String(error)}`);
+    }
+  });
 }
 
 type JobDocument = Pick<OpenedDesignDocument, "label" | "session_id" | "editor_path" | "structure"> & {
@@ -299,6 +334,7 @@ async function initialize(): Promise<void> {
     getSessionId: () => sessionId,
     getSummary: () => lastSummary,
     requestedMode: () => requestedViewerMode(query),
+    runViewerUpdate,
     log,
   });
   analysisController = new AnalysisController({
@@ -312,12 +348,16 @@ async function initialize(): Promise<void> {
     onSelectionUiChange: updateSelectionUi,
   });
   annotationController = new AnnotationController({
+    runViewerUpdate,
     viewer: () => molecularViewer,
     selection: selectionController,
     getSessionId: () => sessionId,
     log,
   });
-  conditionController = new ConditionController({ selection: selectionController, mutate });
+  conditionController = new ConditionController({
+    selection: selectionController, mutate, getRevision: () => lastSummary?.revision, getSessionId: () => sessionId,
+    onMarkersChanged: () => void runViewerUpdate(refreshCentroidMarkers).catch((error) => log(String(error))),
+  });
   sequenceController = new SequenceController({
     selection: selectionController,
     mutate,
@@ -330,8 +370,8 @@ async function initialize(): Promise<void> {
     log,
   });
   sessionFileController = new SessionFileController({
+    runViewerUpdate,
     getSessionId: () => sessionId,
-    getCurrentName: () => currentName,
     onOpened: async (response) => {
       sessionId = response.session_id;
       currentName = response.structure.name;
@@ -353,6 +393,7 @@ async function initialize(): Promise<void> {
     log,
   });
   conditionController.initialize(schema);
+  sessionFileController.initializeLoading(schema.loading);
   structureEditController.initializeBondTypes(schema.bond_types);
   viewerToolbarController.bind();
   analysisController.bind();

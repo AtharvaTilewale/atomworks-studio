@@ -3,6 +3,12 @@ SHELL := /usr/bin/env bash
 
 .PHONY: bootstrap format lint typecheck test build run accept-local accept-tools accept-brev
 
+.PHONY: rfd4
+RFD4_ENV ?= atomworks-studio-rfd4
+RFD4_PYMOLRC ?=
+rfd4:
+	bash scripts/setup_rfd4_pymol.sh "$(RFD4_ENV)" "$(RFD4_PYMOLRC)"
+
 bootstrap:
 	git submodule update --init --recursive external/RFD4-Proteina-dev external/atomworks-dev
 	bash scripts/build_patinae_viewer.sh

@@ -2,33 +2,32 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
+from typing import TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from annotation_studio.design_jobs import ProcessDesignProvider
+
+import numpy as np
 from atomworks.io.utils.atom_array_plus import AtomArrayPlus
-
-from atomworks_studio_rfd4._bootstrap import install_lightweight_rfproteina_stub
-
-# The stub below is what lets rfproteina.conditions import without RFD4's torch-heavy
-# package init on main. RFPROTEINA_LIGHTWEIGHT_IMPORT is set only as a harmless fallback
-# for RFD4 revisions that still honor it (main ignores it).
-os.environ.setdefault("RFPROTEINA_LIGHTWEIGHT_IMPORT", "1")
-install_lightweight_rfproteina_stub()
-
-# Imports below intentionally follow the runtime setup above (env + rfproteina stub).
-from annotation_studio.contracts import (  # noqa: E402
+from atomworks.ml.conditions import C_CRD
+from atomworks_studio_editing.contracts import (
     ConditionDefinition,
     ConditionOperation,
     ConditionProvider,
     ValidationProvider,
 )
-from annotation_studio.design_jobs import ProcessDesignProvider  # noqa: E402
-from rfproteina.conditions_reporting import sync_index_groups  # noqa: E402
-from rfproteina.utils import standard_annotations as _rfd4_standard_annotations  # noqa: E402, F401
 
-from .condition_contract import CONDITION_DEFINITIONS, CONDITION_DEFINITIONS_BY_NAME  # noqa: E402
-from .interactive_validation import validate_rfd4  # noqa: E402
-from .internal_coordinate import set_internal_coordinate_conditioning  # noqa: E402
+from atomworks_studio_rfd4.reporting import sync_index_groups
+
+from .condition_contract import CONDITION_DEFINITIONS, CONDITION_DEFINITIONS_BY_NAME
+from .interactive_validation import validate_rfd4
+from .internal_coordinate import (
+    clear_internal_coordinate_targets,
+    separate_coordinate_groups,
+    set_internal_coordinate_conditioning,
+)
+from .model import C_CRDGRP, C_INTCRD, conditions
 
 
 class RFD4ConditionProvider(ConditionProvider):
@@ -37,9 +36,48 @@ class RFD4ConditionProvider(ConditionProvider):
     definitions: tuple[ConditionDefinition, ...] = CONDITION_DEFINITIONS
     definitions_by_name = CONDITION_DEFINITIONS_BY_NAME
 
+    def condition_edit_is_noop(self, operation: str, before: AtomArrayPlus, after: AtomArrayPlus) -> bool:
+        definition = self.definitions_by_name.get(operation)
+        key = definition.key if definition is not None else operation
+        if definition is not None and definition.group_editor and key != "coordinate_group":
+            return np.array_equal(
+                definition.condition.annotation(before, default="generate"),
+                definition.condition.annotation(after, default="generate"),
+            )
+        if key not in {"coordinate", "coordinate_group", "set_internal_coordinate_conditioning"}:
+            return False
+        return all(
+            np.array_equal(
+                condition.annotation(before, default="generate"),
+                condition.annotation(after, default="generate"),
+                equal_nan=True,
+            )
+            for condition in (C_CRD, C_CRDGRP, C_INTCRD)
+        )
+
+    def discarded_target_count(self, before: AtomArrayPlus, after: AtomArrayPlus) -> int:
+        original = C_INTCRD.annotation(before, default="generate")
+        edited = C_INTCRD.annotation(after, default="generate")
+        return int((np.isfinite(original).any(axis=1) & ~np.isfinite(edited).any(axis=1)).sum())
+
+    def prepare_combination(self, arrays: list[AtomArrayPlus]) -> list[AtomArrayPlus]:
+        return separate_coordinate_groups(arrays)
+
     def after_condition_update(self, name: str, array: AtomArrayPlus) -> None:
         if name == "index":
             sync_index_groups(array)
+        if name.startswith("sequence_probability_") or (
+            name == "sequence" and hasattr(conditions, "SEQUENCE_PROBABILITY_CONDITIONS")
+        ):
+            from .sequence_probability import (
+                canonicalize_sequence_probabilities,
+                check_sequence_probability_conditioning_violations,
+            )
+
+            candidate = canonicalize_sequence_probabilities({"atom_array": array.copy()})["atom_array"]
+            issues = check_sequence_probability_conditioning_violations(candidate)
+            if issues:
+                raise ValueError("\n".join(issue.message for issue in issues))
 
 
 class RFD4ValidationProvider(ValidationProvider):
@@ -54,10 +92,15 @@ VALIDATION_PROVIDER = RFD4ValidationProvider()
 
 # Named coupled operations exposed by the API. Internal-coordinate values are
 # deliberately left for RFD4 featurization to materialize.
-CONDITION_OPERATIONS: dict[str, ConditionOperation] = {"internal_coordinate": set_internal_coordinate_conditioning}
+CONDITION_OPERATIONS: dict[str, ConditionOperation] = {
+    "internal_coordinate": set_internal_coordinate_conditioning,
+    "clear_internal_targets": clear_internal_coordinate_targets,
+}
 
 
 def create_design_provider(project_root: Path) -> ProcessDesignProvider:
     """Create the process-isolated RFD4 design provider."""
+
+    from annotation_studio.design_jobs import ProcessDesignProvider
 
     return ProcessDesignProvider.from_environment(project_root)

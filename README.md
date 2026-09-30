@@ -53,6 +53,14 @@ in-process document model, so saved files round-trip into the website and RFD4.
 The plugin is a fully local application: it does not start, connect to, or
 depend on the Studio website or FastAPI service.
 
+```bash
+make rfd4
+conda activate atomworks-studio-rfd4
+pymol
+```
+
+Then choose **Plugin → AtomWorks Studio**. Setup includes RFD4 editors and CPU save validation.
+
 [Install and use the PyMOL plugin →](packages/pymol-plugin/README.md)
 
 ### VS Code and Cursor extension
@@ -145,6 +153,7 @@ editor.
 - [Production deployment runbook](deploy/README.md)
 - [Authenticated Brev pilot status](deploy/brev/PILOT_STATUS.md)
 - [Architecture](docs/ARCHITECTURE.md) and [feature parity](docs/PARITY.md)
+- [Unified editor extraction and acceptance](docs/REFACTOR.md) and [ConditionSpec ownership](docs/INPUTS.md)
 - [Source provenance](docs/PROVENANCE.md)
 
 AtomWorks, RFD4-Proteina, and Patinae remain revision-pinned upstream

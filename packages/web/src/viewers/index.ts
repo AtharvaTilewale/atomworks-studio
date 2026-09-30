@@ -16,6 +16,7 @@ import type {
   ViewerSelection,
   ViewerStructure,
   ViewerTarget,
+  ViewerMarker,
 } from "./contract";
 import {
   normalizeViewerMeasurementRequest,
@@ -63,6 +64,7 @@ export class MolecularViewer {
   private annotationGroups: AnnotationGroup[] = [];
   private interactionOverlays: ViewerInteraction[] = [];
   private measurementRequests: ViewerMeasurementRequest[] = [];
+  private markers: ViewerMarker[] = [];
 
   constructor(
     private readonly container: HTMLElement,
@@ -127,6 +129,7 @@ export class MolecularViewer {
       interactionOverlays: this.interactionOverlays,
       measurementRequests: this.measurementRequests,
     });
+    await this.adapter.showMarkers?.(this.markers);
   }
 
   async initialize(): Promise<void> {
@@ -168,6 +171,7 @@ export class MolecularViewer {
     this.interactionOverlays = [];
     this.measurementRequests = [];
     this.updateAnnotationDiagnostics();
+    await this.setMarkers([]);
     await this.adapter?.loadCifs(this.structures);
     this.container.dataset.comparisonStructures = String(this.structures.length);
   }
@@ -266,7 +270,14 @@ export class MolecularViewer {
   async clearAllVisuals(): Promise<void> {
     this.interactionOverlays = [];
     this.measurementRequests = [];
+    await this.setMarkers([]);
     await this.adapter?.clearMeasurements?.();
+  }
+
+  async setMarkers(markers: ViewerMarker[]): Promise<void> {
+    this.markers = markers;
+    await this.adapter?.showMarkers?.(markers);
+    this.container.dataset.centroidMarkers = String(markers.length);
   }
 
   async showAnnotation(groups: AnnotationGroup[]): Promise<void> {

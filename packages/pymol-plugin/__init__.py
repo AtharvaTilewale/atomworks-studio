@@ -45,7 +45,7 @@ def _register_unavailable_menu() -> None:
     try:
         from pymol.plugins import addmenuitemqt
 
-        addmenuitemqt("AtomWorks [NOT INSTALLED]", _show_install_error)
+        addmenuitemqt("AtomWorks Studio [NOT INSTALLED]", _show_install_error)
     except Exception:
         print(
             "AtomWorks plugin: atomworks is not installed in this Python environment.\n"
@@ -110,12 +110,12 @@ def _register_plugin(app: object | None) -> None:
     try:
         from atomworks_studio_pymol.panel import open_main_panel
 
-        addmenuitemqt("AtomWorks", open_main_panel)
+        addmenuitemqt("AtomWorks Studio", open_main_panel)
     except Exception as e:
         logger.warning("AtomWorks: could not register Qt menu item: %s", e)
         return
     logger.info("AtomWorks PyMOL plugin loaded successfully.")
-    print("AtomWorks plugin loaded. Use Plugin → AtomWorks or type aw_load in the console.")
+    print("AtomWorks Studio loaded. Use Plugin → AtomWorks Studio or type aw_load in the console.")
 
 
 # When executed by PyMOL's traditional startup-file loader, initialize directly.

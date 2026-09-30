@@ -14,6 +14,7 @@ import logging
 import numpy as np
 from atomworks.io.utils.atom_array_plus import AnnotationList2D
 from atomworks.io.utils.standard_annotations.base import StandardAnnotationBase
+from atomworks_studio_editing.annotations import default_mask, set_annotation_mask
 from atomworks_studio_editing.mutations import set_condition_mask
 from atomworks_studio_pymol.bridge import (
     _pymol_resi_to_res_id_ins_code,
@@ -162,8 +163,8 @@ class MaskEditor(_QtWidgets.QWidget, BaseAnnotationEditor):
         if not obj_name or obj_name not in self._state.arrays:
             return
         arr = self._state.get_synced_array(obj_name)
-        default_mask = self._annotation_cls.default_mask(arr)
-        self._annotation_cls.set_mask(arr, default_mask)
+        mask = default_mask(self._annotation_cls, arr)
+        set_annotation_mask(self._annotation_cls, arr, mask)
         self._reload_or_recolor()
 
     def apply_to_selection(self) -> None:
@@ -257,7 +258,7 @@ class ScalarEditor(_QtWidgets.QWidget, BaseAnnotationEditor):
 
         mask[indices] = mask_val
         try:
-            self._annotation_cls.set_mask(arr, mask)
+            set_annotation_mask(self._annotation_cls, arr, mask)
         except Exception as e:
             logger.warning("Could not set mask: %s", e)
 
@@ -575,7 +576,7 @@ class PairValueEditor(_QtWidgets.QWidget, BaseAnnotationEditor):
         obj_name = self._state.active
         if not obj_name or obj_name not in self._state.arrays:
             return
-        arr = self._state.get_synced_array(obj_name)
+        self._state.get_synced_array(obj_name)
         resolved = self._resolve_picked(obj_name)
         if resolved is None:
             _QtWidgets.QMessageBox.warning(
@@ -583,10 +584,9 @@ class PairValueEditor(_QtWidgets.QWidget, BaseAnnotationEditor):
             )
             return
         idx1, idx2 = resolved
-        c1, c2 = arr.coord[idx1], arr.coord[idx2]
-        if np.any(np.isnan(c1)) or np.any(np.isnan(c2)):
-            return
-        self._value_spin.setValue(round(float(np.linalg.norm(c1 - c2)), 2))
+        distance = self._state.document(obj_name).atom_distance(idx1, idx2)
+        if distance is not None:
+            self._value_spin.setValue(round(distance, 2))
 
     # -- Pair management -------------------------------------------------
 
@@ -686,10 +686,9 @@ class PairValueEditor(_QtWidgets.QWidget, BaseAnnotationEditor):
         pairs_arr = np.array(resolved_pairs, dtype=int)
         values_arr = np.array(resolved_values, dtype=float)
         from atomworks.ml.conditions import C_DIS
-        from atomworks_studio_editing.mutations import replace_distance_restraints
 
         if self._annotation_cls is C_DIS:
-            replace_distance_restraints(arr, pairs_arr, values_arr)
+            self._state.document(obj_name).replace_distance_restraints(resolved_pairs, resolved_values)
         else:
             self._annotation_cls.set_annotation(arr, AnnotationList2D(len(arr), pairs=pairs_arr, values=values_arr))
         self._reload_or_recolor(structural_change=True)

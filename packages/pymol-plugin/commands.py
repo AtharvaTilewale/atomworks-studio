@@ -15,13 +15,10 @@ Examples::
 
 import logging
 
-import numpy as np
 from atomworks.io.config import ParseConfig
 from atomworks.io.utils.io_utils import to_cif_file
-from atomworks.ml.utils.expandable_segment import insert_expandable_segment
 from atomworks_studio_pymol.bridge import (
     combine_visible,
-    delete_atoms,
     load_structure,
     reload_structure_in_pymol,
     selection_to_indices,
@@ -64,20 +61,11 @@ def _aw_insert_segment(
         return
 
     before = insert_before.strip() in ("1", "true", "True", "yes")
-    STATE.push_snapshot(target, interactive=False)
     try:
-        STATE.set_array(
-            target,
-            insert_expandable_segment(
-                STATE.get_synced_array(target, interactive=False),
-                seg_min=int(seg_min),
-                seg_max=int(seg_max),
-                atom_idx=int(indices[0]),
-                insert_before=before,
-            ),
-        )
+        document = STATE.document(target, interactive=False)
+        document.insert_segment(int(seg_min), int(seg_max), int(indices[0]), before=before)
+        STATE.set_array(target, document.array)
     except Exception as e:
-        STATE.pop_snapshot(target)
         print(f"AtomWorks: segment insertion failed: {e}")
         return
 
@@ -96,11 +84,9 @@ def _aw_delete_selection(selection: str = "sele", obj_name: str = "") -> None:
         print(f"AtomWorks: selection '{selection}' matched no atoms in '{target}'.")
         return
 
-    STATE.push_snapshot(target, interactive=False)
-    arr = STATE.get_synced_array(target, interactive=False)
-    keep = np.ones(len(arr), dtype=bool)
-    keep[indices] = False
-    STATE.set_array(target, delete_atoms(arr, keep, close_res_id_gaps=False))
+    document = STATE.document(target, interactive=False)
+    document.delete_atoms(indices, close_residue_gaps=False)
+    STATE.set_array(target, document.array)
     reload_structure_in_pymol(target)
     print(f"AtomWorks: deleted {len(indices)} atoms from '{target}'")
 

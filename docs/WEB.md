@@ -80,6 +80,13 @@ annotation operations supported by the active provider:
 Conditions are stored in the CIF, not in browser-only state. The API applies
 the same AtomWorks mutation primitives used by the PyMOL plugin.
 
+Applying or removing a condition clears the editing selection after success,
+matching the native plugin. Failed or cancelled edits keep the selection.
+Click an annotation row to inspect its active atoms; this clears unrelated
+selection markers. The collapsed **Raw CIF fields (includes defaults)** section
+is for inspecting serialized values, including unset/default entries, and is
+separate from the active-constraint summaries.
+
 ## Analyze a design
 
 Use **Analyze** to add distance, angle, or dihedral measurements and to inspect

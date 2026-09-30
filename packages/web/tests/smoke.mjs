@@ -240,7 +240,6 @@ try {
   assert.equal(await page.locator("#sequence-toggle").innerText(), "Show sequence");
   await page.locator("#sequence-toggle").click();
   assert.equal(await page.locator("#sequence-view").isVisible(), true);
-  const selectedBeforeMutation = await page.locator("#selection-count").innerText();
   await page.locator("#atomworks-studio-menu > summary").click();
   await page.waitForFunction(
     () => document.querySelector("#workspace")?.getAttribute("data-studio-tab") === "atomworks",
@@ -291,17 +290,215 @@ try {
   if (await page.locator("#condition option").count()) {
     await page.locator("#apply-condition").click();
     await page.waitForFunction(
-      () => document.querySelector("#status")?.textContent?.includes("state updated"),
+      () => /state updated|Applied/.test(document.querySelector("#status")?.textContent ?? ""),
     );
+    await page.waitForFunction(() => document.querySelector("#selection-count")?.textContent?.startsWith("0 atoms"));
+    if (await page.locator('#condition option[value="cath_label"]').count()) {
+      await sequenceResidues.first().click();
+      await page.locator("#condition").selectOption("cath_label");
+      assert.equal(await page.locator("#condition-value-input").getAttribute("type"), "text");
+      const selectedForCondition = await page.locator("#selection-count").innerText();
+      await page.locator("#condition-value-input").fill("invalid-cath");
+      const rejected = page.waitForResponse((response) => response.url().endsWith("/conditions")
+        && response.request().method() === "POST");
+      await page.locator("#apply-condition").click();
+      assert.equal((await rejected).status(), 422);
+      await page.waitForFunction(() => !document.querySelector("#viewer-mode")?.disabled);
+      assert.equal(await page.locator("#selection-count").innerText(), selectedForCondition,
+        "a rejected annotation keeps its selection for correction");
+      await page.locator("#condition-value-input").fill("2.60.40");
+      const updated = page.waitForResponse((response) =>
+        response.url().endsWith("/conditions") && response.request().method() === "POST" &&
+        response.request().postDataJSON()?.condition === "cath_label",
+      );
+      await page.locator("#apply-condition").click();
+      const response = await updated;
+      assert.equal(response.status(), 200);
+      const payload = await response.json();
+      assert.ok(payload.structure.condition_counts.cath_label > 0);
+      const expectedAtoms = (await sequenceResidues.first().getAttribute("data-atoms")).split(",").map(Number);
+      const annotated = (await (await page.request.get(new URL(
+        `/api/v1/sessions/${payload.session_id}/annotations/cath_label`, baseUrl,
+      ).toString())).json()).annotation;
+      assert.deepEqual(annotated.values.flatMap((value) => value.atom_indices), expectedAtoms,
+        "a residue-level annotation belongs only to the chosen residue");
+      await page.waitForFunction(() => !document.querySelector("#viewer-mode")?.disabled);
+      assert.match(await page.locator("#selection-count").innerText(), /^0 atoms/);
+      await sequenceResidues.last().click();
+      assert.doesNotMatch(await page.locator("#selection-count").innerText(), /^0 atoms/);
+      const cathRow = page.locator("#annotation-list > .annotation-row").filter({ hasText: annotated.label });
+      await cathRow.click();
+      await page.waitForFunction(
+        (count) => document.querySelector("#viewer")?.getAttribute("data-annotation-atoms") === String(count)
+          && document.querySelector("#annotation-detail")?.textContent?.includes("2.60.40"),
+        expectedAtoms.length,
+      );
+      assert.match(await page.locator("#selection-count").innerText(), /^0 atoms/,
+        "inspecting a constraint removes unrelated editing-selection highlights");
+      if (process.env.ANNOTATION_SCREENSHOT_DIR) {
+        await page.screenshot({ path: resolve(process.env.ANNOTATION_SCREENSHOT_DIR, `${viewerMode}-annotation-inspection.png`) });
+      }
+      assert.equal(await page.locator("#annotation-list details").evaluate((details) => details.open), false);
+      assert.equal(await page.locator(".annotation-field-row").first().isVisible(), false,
+        "raw default values are separate from active constraints");
+
+      // Delayed inspection of an earlier row must not replace the latest clicked annotation.
+      const otherName = payload.structure.annotations.find((item) => item.name !== "cath_label")?.name;
+      assert.ok(otherName);
+      const otherAnnotation = (await (await page.request.get(new URL(
+        `/api/v1/sessions/${payload.session_id}/annotations/${otherName}`, baseUrl,
+      ).toString())).json()).annotation;
+      const inspectUrl = new URL(`/api/v1/sessions/${payload.session_id}/annotations/cath_label`, baseUrl).toString();
+      let releaseInspection;
+      let markInspectionReceived;
+      const inspectionReceived = new Promise((resolve) => { markInspectionReceived = resolve; });
+      const delayedInspection = new Promise((resolve) => { releaseInspection = resolve; });
+      await page.route(inspectUrl, async (route) => {
+        const result = await route.fetch();
+        markInspectionReceived();
+        await delayedInspection;
+        await route.fulfill({ response: result });
+      });
+      await cathRow.click();
+      await inspectionReceived;
+      await page.locator("#annotation-list > .annotation-row").filter({ hasText: otherAnnotation.label }).click();
+      await page.waitForFunction((label) => document.querySelector("#annotation-detail")?.textContent?.startsWith(label), otherAnnotation.label);
+      const oldInspectionFinished = page.waitForResponse(inspectUrl);
+      releaseInspection();
+      await oldInspectionFinished;
+      await page.waitForTimeout(400);
+      assert.match(await page.locator("#annotation-detail").innerText(), new RegExp(`^${otherAnnotation.label}`));
+      assert.equal(Number(await page.locator("#viewer").getAttribute("data-annotation-atoms")),
+        new Set(otherAnnotation.values.flatMap((value) => value.atom_indices)).size);
+      await page.unroute(inspectUrl);
+
+      // Edits refresh the inspected view while clearing the editing selection.
+      await sequenceResidues.first().click();
+      await page.locator("#enabled").uncheck();
+      await page.locator("#apply-condition").click();
+      await page.waitForFunction(() => document.querySelector("#selection-count")?.textContent?.startsWith("0 atoms")
+        && !document.querySelector("#viewer-mode")?.disabled);
+      const refreshedAnnotation = (await (await page.request.get(new URL(
+        `/api/v1/sessions/${payload.session_id}/annotations/${otherName}`, baseUrl,
+      ).toString())).json()).annotation;
+      assert.equal(Number(await page.locator("#viewer").getAttribute("data-annotation-atoms")),
+        new Set(refreshedAnnotation?.values.flatMap((value) => value.atom_indices) ?? []).size);
+      await page.locator("#enabled").check();
+    }
   } else {
     assert.equal(await page.locator("#apply-condition").isDisabled(), true);
     assert.match(await page.locator("#condition-feedback").innerText(), /installed provider/);
   }
-  assert.equal(
-    await page.locator("#selection-count").innerText(),
-    selectedBeforeMutation,
-    "non-structural mutations preserve the active selection",
-  );
+  await page.waitForFunction(() => !document.querySelector("#viewer-mode")?.disabled);
+  assert.match(await page.locator("#selection-count").innerText(), /^0 atoms/, "applied conditions clear selection");
+  // Exercise the actual save button and browser dialogs with controlled validation findings.
+  // API parity tests separately verify the real model findings; this isolates the UI save decision.
+  await page.waitForFunction(() => !document.querySelector("#viewer-mode")?.disabled);
+  const authoringSession = await page.evaluate(() => sessionStorage.getItem("annotation-studio-session"));
+  assert.ok(authoringSession);
+  const authoringUrl = new URL(`/api/v1/sessions/${authoringSession}`, baseUrl).toString();
+  const authoringResponse = await (await page.request.get(authoringUrl)).json();
+  const checkedCif = await (await page.request.get(`${authoringUrl}/cif`)).text();
+  const saveRequests = [];
+  const saveDownloads = [];
+  const trackSaveRequest = (request) => {
+    if (request.url() === `${authoringUrl}/export` || request.url() === `${authoringUrl}/cif`) {
+      saveRequests.push([request.method(), request.url()]);
+    }
+  };
+  const trackDownload = (download) => saveDownloads.push(download);
+  page.on("request", trackSaveRequest);
+  page.on("download", trackDownload);
+  await page.route(`${authoringUrl}/export`, async (route) => {
+    await route.fulfill({
+      json: {
+        cif: checkedCif,
+        name: "checked_snapshot",
+        revision: authoringResponse.structure.revision,
+        issues: [{ check: "pipeline", message: "Controlled upstream validation finding", severity: "error" }],
+      },
+    });
+  });
+  for (const accept of [false, true]) {
+    const dialogShown = page.waitForEvent("dialog");
+    const downloadStarted = accept ? page.waitForEvent("download") : null;
+    const clicked = page.locator("#download").click();
+    const dialog = await dialogShown;
+    assert.equal(dialog.type(), "confirm");
+    assert.match(dialog.message(), /\[pipeline\] Controlled upstream validation finding/);
+    assert.match(dialog.message(), /Save anyway\?/);
+    if (accept) await dialog.accept();
+    else await dialog.dismiss();
+    await clicked;
+    await page.waitForFunction(
+      (accepted) => document.querySelector("#status")?.textContent?.includes(
+        accepted ? "Saved with validation issues." : "Save cancelled.",
+      ),
+      accept,
+    );
+    if (downloadStarted) await downloadStarted;
+    assert.equal(saveDownloads.length, accept ? 1 : 0, "Cancel prevents downloading; Save anyway downloads once");
+  }
+  assert.equal(saveDownloads[0].suggestedFilename(), "checked_snapshot_annotated.cif");
+  const savedStream = await saveDownloads[0].createReadStream();
+  assert.ok(savedStream);
+  const savedChunks = [];
+  for await (const chunk of savedStream) savedChunks.push(chunk);
+  assert.equal(Buffer.concat(savedChunks).toString(), checkedCif, "the download contains the exact checked snapshot");
+  assert.deepEqual(saveRequests, [
+    ["POST", `${authoringUrl}/export`],
+    ["POST", `${authoringUrl}/export`],
+  ], "saving never fetches an unchecked CIF after validation");
+  await page.unroute(`${authoringUrl}/export`);
+  page.off("request", trackSaveRequest);
+  page.off("download", trackDownload);
+
+  if (await page.locator('#condition option[value="coordinate"]').count()) {
+    // A controlled server preview proves that inline edit confirmation retries only with consent.
+    const editRequests = [];
+    await page.route(`${authoringUrl}/conditions`, async (route) => {
+      const body = route.request().postDataJSON();
+      editRequests.push(body);
+      if (body.allow_target_discard) {
+        await route.fulfill({ json: authoringResponse });
+      } else {
+        await route.fulfill({
+          status: 409,
+          json: { detail: {
+            code: "target_discard_confirmation_required",
+            lost_target_count: 4,
+            revision: authoringResponse.structure.revision,
+          } },
+        });
+      }
+    });
+    await sequenceResidues.first().click();
+    const selectionBeforeConfirmation = await page.locator("#selection-count").innerText();
+    await page.locator("#condition").selectOption("coordinate");
+    await page.locator("#enabled").check();
+    for (const accept of [false, true]) {
+      const dialogShown = page.waitForEvent("dialog");
+      const clicked = page.locator("#apply-condition").click();
+      const dialog = await dialogShown;
+      assert.equal(dialog.type(), "confirm");
+      assert.match(dialog.message(), /saved targets for 4 atoms/);
+      assert.match(dialog.message(), /outside the selection/);
+      if (accept) await dialog.accept();
+      else await dialog.dismiss();
+      await clicked;
+      await page.waitForFunction(() => !document.querySelector("#viewer-mode")?.disabled);
+      assert.equal(editRequests.length, accept ? 3 : 1, "cancelled coordinate edits never issue a retry");
+      if (!accept) assert.equal(await page.locator("#selection-count").innerText(), selectionBeforeConfirmation);
+      else assert.match(await page.locator("#selection-count").innerText(), /^0 atoms/);
+    }
+    assert.deepEqual(editRequests[1], editRequests[0], "confirming repeats the same original edit");
+    assert.deepEqual(editRequests[2], {
+      ...editRequests[1],
+      allow_target_discard: true,
+      expected_revision: authoringResponse.structure.revision,
+    }, "consent is bound to the revision used for the target-loss preview");
+    await page.unroute(`${authoringUrl}/conditions`);
+  }
   await page.locator("#atomworks-studio-menu > summary").click();
   const alternateViewer = viewerMode === "patinae" ? "molstar" : "patinae";
   await page.locator("#viewer-mode").selectOption(alternateViewer);
@@ -310,7 +507,7 @@ try {
     alternateViewer,
     { timeout: 30_000 },
   );
-  assert.equal(await page.locator("#selection-count").innerText(), selectedBeforeMutation);
+  assert.match(await page.locator("#selection-count").innerText(), /^0 atoms/);
   await page.locator("#viewer-mode").selectOption(viewerMode);
   await page.waitForFunction(
     (backend) => document.querySelector("#viewer")?.getAttribute("data-backend") === backend,
@@ -324,11 +521,37 @@ try {
   await page.locator("#atomworks-studio-menu > summary").click();
   if (await page.locator('#condition option[value="distance"]').count()) {
     await page.locator("#condition").selectOption("distance");
-    assert.equal(await page.locator("#condition-value-input").getAttribute("type"), "number");
+    assert.equal(await page.locator("#pair-distance").getAttribute("type"), "number");
     assert.equal(await page.locator("#scope").inputValue(), "atom");
     assert.equal(await page.locator("#scope").isDisabled(), true);
-    assert.equal(await page.locator("#apply-condition").isEnabled(), true);
+    assert.equal(await page.locator("#apply-condition").isHidden(), true);
+    assert.equal(await page.locator("#pair-use-selection").isEnabled(), true);
     assert.match(await page.locator("#condition-feedback").innerText(), /define one pair/);
+  }
+  if (await page.locator('#condition option[value="internal_coordinate"]').count()) {
+    await page.locator("#condition").selectOption("internal_coordinate");
+    let clearRequests = 0;
+    const trackClear = (request) => {
+      if (request.url().endsWith("/internal-coords/clear-targets")) clearRequests += 1;
+    };
+    page.on("request", trackClear);
+    page.once("dialog", (dialog) => dialog.dismiss());
+    await page.locator("#clear-internal-targets").click();
+    await page.waitForTimeout(100);
+    page.off("request", trackClear);
+    assert.equal(clearRequests, 0, "cancelling saved-target discard must not mutate the document");
+    let confirmedClear = null;
+    await page.route(`${authoringUrl}/internal-coords/clear-targets`, async (route) => {
+      confirmedClear = route.request().postDataJSON();
+      await route.fulfill({ json: authoringResponse });
+    });
+    page.once("dialog", (dialog) => dialog.accept());
+    await page.locator("#clear-internal-targets").click();
+    await page.waitForFunction(() => !document.querySelector("#viewer-mode")?.disabled);
+    assert.ok(confirmedClear, "confirming explicit target clearing sends the edit");
+    assert.equal(confirmedClear.expected_revision, authoringResponse.structure.revision);
+    assert.equal(confirmedClear.atom_indices.length, 2);
+    await page.unroute(`${authoringUrl}/internal-coords/clear-targets`);
   }
   await page.locator("#atomworks-studio-menu > summary").click();
   await page.locator('[data-menu="analyze"] > summary').click();
@@ -454,20 +677,29 @@ try {
   await page.locator("#atomworks-studio-menu > summary").click();
   assert.ok(await page.locator(".annotation-row").count(), "stored annotations are summarized");
   assert.ok(await page.locator(".annotation-field-row").count() >= 4);
-  const selectionBeforeOverlay = await page.locator("#selection-count").innerText();
-  await page.locator(".annotation-row").first().click();
+  const inspectionRow = page.locator("#annotation-list > .annotation-row").first();
+  const inspectionKey = await inspectionRow.getAttribute("data-view-key");
+  assert.ok(inspectionKey);
+  const inspectionResponse = page.waitForResponse((response) =>
+    new URL(response.url()).pathname.endsWith(`/${inspectionKey}`),
+  );
+  await inspectionRow.click();
+  const inspectionResult = await inspectionResponse;
+  assert.equal(inspectionResult.status(), 200);
+  const inspectedAnnotation = (await inspectionResult.json()).annotation;
+  assert.ok(inspectedAnnotation);
+  // An earlier inspection can leave the clear button enabled while this request is pending.
   await page.waitForFunction(
-    () =>
-      !document.querySelector("#clear-annotation-view")?.hasAttribute("disabled") ||
+    (label) =>
+      (document.querySelector("#selection-count")?.textContent?.startsWith("0 atoms") &&
+        document.querySelector("#annotation-detail")?.textContent?.startsWith(`${label}:`) &&
+        !document.querySelector("#viewer-mode")?.disabled) ||
       document.querySelector("#annotation-detail")?.textContent?.includes("Could not inspect annotation"),
+    inspectedAnnotation.label,
   );
   assert.doesNotMatch(await page.locator("#annotation-detail").innerText(), /Could not inspect annotation/);
   assert.equal(await page.locator("#clear-annotation-view").isEnabled(), true);
-  assert.equal(
-    await page.locator("#selection-count").innerText(),
-    selectionBeforeOverlay,
-    "annotation overlay does not replace the active selection",
-  );
+  assert.match(await page.locator("#selection-count").innerText(), /^0 atoms/, "inspection clears unrelated selection markers");
   await page.waitForFunction(
     () => Number(document.querySelector("#viewer")?.getAttribute("data-annotation-atoms")) > 0,
   );

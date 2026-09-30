@@ -36,7 +36,7 @@ try {
 
   await page.locator(".load-options > summary").click();
   await page.locator("#parse-assembly").fill("asym");
-  await page.locator("#parse-hydrogens").selectOption("remove");
+  await page.locator("#parse-hydrogen_policy").selectOption("remove");
   await page.locator("#file-input").setInputFiles(
     fileURLToPath(new URL("../../../examples/mcsa_ph2.cif", import.meta.url)),
   );

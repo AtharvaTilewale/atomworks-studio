@@ -16,14 +16,9 @@ from atomworks.io.utils.atom_array_plus import AtomArrayPlus
 # Import AtomWorks' non-condition definitions before condition_registry.apply()
 # sweeps the registry. The provider package registers RFD4-specific definitions.
 from atomworks.io.utils.standard_annotations import S_ATM  # noqa: F401
-from atomworks_studio_editing.validation import validate_atom_array
 from atomworks_studio_pymol.views import register_view
-from rfproteina.conditions_reporting import (
-    check_index_group_molecule_consistency,
-    check_index_group_res_id_gaps,
-    run_pipeline_validation,
-)
 
+from atomworks_studio_rfd4.interactive_validation import validate_rfd4
 from atomworks_studio_rfd4.pymol import condition_registry
 from atomworks_studio_rfd4.pymol.visualize import color_by_coord_group, color_by_index_group
 
@@ -33,8 +28,7 @@ from atomworks_studio_rfd4.pymol.visualize import color_by_coord_group, color_by
 
 
 def _run_pipeline_validation(arr: AtomArrayPlus) -> list[str]:
-    messages = [f"[{issue['check']}] {issue['message']}" for issue in validate_atom_array(arr)]
-    return [*messages, *run_pipeline_validation(arr)]
+    return [f"[{issue['check']}] {issue['message']}" for issue in validate_rfd4(arr, full_pipeline=True)]
 
 
 # ---------------------------------------------------------------------------
@@ -60,5 +54,3 @@ def register() -> None:
 
     # Pre-save validation hooks.
     register_pre_save_hook(_run_pipeline_validation)
-    register_pre_save_hook(check_index_group_res_id_gaps)
-    register_pre_save_hook(check_index_group_molecule_consistency)

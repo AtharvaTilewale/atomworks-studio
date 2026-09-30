@@ -8,7 +8,6 @@ Responsibilities:
 - Combining multiple visible objects into one merged AtomArrayPlus.
 """
 
-import copy
 import logging
 from pathlib import Path
 
@@ -19,16 +18,15 @@ from atomworks.io.parser import parse
 from atomworks.io.utils.atom_array_plus import (
     AtomArrayPlus,
     as_atom_array_plus,
-    concatenate_atom_array_plus,
 )
-from atomworks.io.utils.chain import create_chain_id_generator
 from atomworks.io.utils.io_utils import CIFWriteConfig, to_cif_string
-from atomworks.ml.utils.visualize import prepare_for_display
+from atomworks_studio_editing.annotations import normalize_annotation_aliases
 from atomworks_studio_editing.structure_mutations import (
     delete_atoms,
     deletion_would_create_res_id_gap,
     refresh_chain_derived_annotations,
 )
+from atomworks_studio_pymol.display import prepare_for_display
 from atomworks_studio_pymol.state import STATE
 from atomworks_studio_pymol.views import apply_current_view
 from biotite.structure import AtomArrayStack
@@ -308,6 +306,7 @@ def load_structure(
     if isinstance(array, AtomArrayStack):
         array = array[0]
     array = as_atom_array_plus(array)
+    normalize_annotation_aliases(array)
 
     refresh_chain_derived_annotations(array)
 
@@ -338,7 +337,6 @@ def reload_structure_in_pymol(obj_name: str) -> None:
 
     array = STATE.arrays[obj_name]
 
-    STATE.arrays.pop(obj_name, None)
     STATE.index_maps.pop(obj_name, None)
 
     try:
@@ -357,25 +355,6 @@ def reload_structure_in_pymol(obj_name: str) -> None:
 # ---------------------------------------------------------------------------
 # Chain conflict resolution for combine
 # ---------------------------------------------------------------------------
-
-
-def _resolve_chain_conflicts(names: list[str], arrays: list[AtomArrayPlus]) -> list[AtomArrayPlus]:
-    """Rename colliding chain IDs across *arrays*, processing in order."""
-    used: set[str] = set()
-    resolved = []
-    for name, arr in zip(names, arrays, strict=False):
-        arr = copy.deepcopy(arr)
-        chains = np.unique(arr.chain_id)
-        non_colliding = {c for c in chains if c not in used}
-        gen = create_chain_id_generator(used | non_colliding)
-        renames = {c: next(gen) for c in chains if c in used}
-        if renames:
-            print(f"AtomWorks: {name} chain renames: {renames}")
-            arr.chain_id = np.array([renames.get(c, c) for c in arr.chain_id])
-        used.update(non_colliding)
-        used.update(renames.values())
-        resolved.append(arr)
-    return resolved
 
 
 def combine_visible(new_name: str, *, allow_overwrite: bool = False) -> str:
@@ -406,13 +385,13 @@ def combine_visible(new_name: str, *, allow_overwrite: bool = False) -> str:
         raise RuntimeError("Need at least 2 visible tracked objects to combine.")
 
     names = [n for n, _ in visible]
-    arrays = _resolve_chain_conflicts(names, [arr for _, arr in visible])
-    merged = concatenate_atom_array_plus(arrays)
+    document = STATE.document(names[0]).clone()
+    document.combine([STATE.document(name) for name in names[1:]])
+    document.name = new_name
+    document.clear_history()
+    merged = document.array
 
-    # Recompute every chain-derived annotation after merging
-    refresh_chain_derived_annotations(merged)
-
-    STATE.snapshots.pop(new_name, None)
+    STATE.documents[new_name] = document
     STATE.set_array(new_name, merged)
     _load_array_into_pymol(merged, new_name, hide_nans=STATE.hide_nans, show_seq_gaps=STATE.show_seq_gaps)
     apply_current_view(merged, new_name)

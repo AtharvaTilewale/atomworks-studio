@@ -2,14 +2,52 @@
 
 from __future__ import annotations
 
-import copy
 import logging
+from collections.abc import MutableMapping
 from dataclasses import dataclass, field
 
 from atomworks.io.utils.atom_array_plus import AtomArrayPlus
+from atomworks_studio_editing.contracts import (
+    NEUTRAL_CONDITION_PROVIDER,
+    NEUTRAL_VALIDATION_PROVIDER,
+    ConditionProvider,
+    ValidationProvider,
+)
+from atomworks_studio_editing.document import StudioDocument
 from pymol import cmd
 
 logger = logging.getLogger("atomworks_studio_pymol")
+
+
+class _DocumentArrays(MutableMapping[str, AtomArrayPlus]):
+    """Array access for extensions, backed by the shared documents."""
+
+    def __init__(self, state: PluginState):
+        self.state = state
+        self.documents = state.documents
+
+    def __getitem__(self, name: str) -> AtomArrayPlus:
+        return self.documents[name].array
+
+    def __setitem__(self, name: str, array: AtomArrayPlus) -> None:
+        if name in self.documents:
+            self.documents[name].array = array
+        else:
+            self.documents[name] = StudioDocument(
+                array,
+                name,
+                condition_provider=self.state.condition_provider,
+                validation_provider=self.state.validation_provider,
+            )
+
+    def __delitem__(self, name: str) -> None:
+        del self.documents[name]
+
+    def __iter__(self):
+        return iter(self.documents)
+
+    def __len__(self) -> int:
+        return len(self.documents)
 
 
 @dataclass
@@ -20,17 +58,37 @@ class PluginState:
         arrays: Maps PyMOL object name → AtomArrayPlus (ground truth).
         index_maps: Maps PyMOL object name → {(chain_id, res_id, ins_code, atom_name): int}.
         versions: Maps PyMOL object name → int, bumped on every structural edit.
-        snapshots: Maps PyMOL object name → list of AtomArrayPlus snapshots (for undo).
+        documents: Shared documents containing arrays and bounded undo history.
         active: Name of the currently active object.
     """
 
-    arrays: dict = field(default_factory=dict)
+    documents: dict[str, StudioDocument] = field(default_factory=dict)
+    arrays: MutableMapping[str, AtomArrayPlus] = field(init=False)
     index_maps: dict = field(default_factory=dict)
     versions: dict = field(default_factory=dict)
-    snapshots: dict = field(default_factory=dict)
     active: str | None = None
     hide_nans: bool = True
     show_seq_gaps: bool = False
+    condition_provider: ConditionProvider = NEUTRAL_CONDITION_PROVIDER
+    validation_provider: ValidationProvider = NEUTRAL_VALIDATION_PROVIDER
+
+    def __post_init__(self) -> None:
+        self.arrays = _DocumentArrays(self)
+
+    def configure_documents(
+        self, condition_provider: ConditionProvider, validation_provider: ValidationProvider
+    ) -> None:
+        self.condition_provider = condition_provider
+        self.validation_provider = validation_provider
+        for document in self.documents.values():
+            document.condition_provider = condition_provider
+            document.validation_provider = validation_provider
+
+    def document(self, obj_name: str, *, interactive: bool = True) -> StudioDocument:
+        """Synchronize live coordinates before a shared document operation."""
+        if self.get_synced_array(obj_name, interactive=interactive) is None:
+            raise KeyError(f"No tracked structure: {obj_name}")
+        return self.documents[obj_name]
 
     def set_array(self, obj_name: str, array: AtomArrayPlus) -> None:
         """Replace the tracked array for *obj_name* and rebuild its index map to match.
@@ -133,26 +191,21 @@ class PluginState:
         array = self.get_synced_array(obj_name, interactive=interactive)
         if array is None:
             return
-        snapshots = self.snapshots.setdefault(obj_name, [])
-        snapshots.append(copy.deepcopy(array))
-        if len(snapshots) > 10:
-            snapshots.pop(0)
+        self.documents[obj_name].snapshot()
 
     def pop_snapshot(self, obj_name: str) -> AtomArrayPlus | None:
-        """Restore and return the most recent snapshot, or None."""
-        snapshots = self.snapshots.get(obj_name, [])
-        if not snapshots:
+        """Undo the document edit and rebuild the renderer's identity map."""
+        document = self.documents.get(obj_name)
+        if document is None or not document.undo():
             return None
-        snapshot = snapshots.pop()
-        self.set_array(obj_name, snapshot)
-        return snapshot
+        self.set_array(obj_name, document.array)
+        return document.array
 
     def clear_object(self, obj_name: str) -> None:
         """Remove all state for a tracked object."""
         self.arrays.pop(obj_name, None)
         self.index_maps.pop(obj_name, None)
         self.versions.pop(obj_name, None)
-        self.snapshots.pop(obj_name, None)
         if self.active == obj_name:
             self.active = next(iter(self.arrays), None)
 
@@ -161,7 +214,6 @@ class PluginState:
         self.arrays.clear()
         self.index_maps.clear()
         self.versions.clear()
-        self.snapshots.clear()
         self.active = None
 
 

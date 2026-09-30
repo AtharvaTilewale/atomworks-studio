@@ -11,6 +11,8 @@ from atomworks.io.utils.atom_array_plus import AnnotationList2D, AtomArrayPlus
 from atomworks.io.utils.standard_annotations.base import StandardAnnotationBase
 from atomworks.ml.conditions.definitions import Distance
 
+from atomworks_studio_editing.annotations import is_structure_derived, set_annotation_mask
+
 
 def set_condition_mask(
     atom_array: AtomArrayPlus,
@@ -24,9 +26,9 @@ def set_condition_mask(
     mask_value = not enabled if invert else enabled
     mask = np.asarray(condition.mask(atom_array, default="generate")).copy()
     mask[indices] = mask_value
-    condition.set_mask(atom_array, mask)
+    set_annotation_mask(condition, atom_array, mask)
 
-    if not mask_value or not condition.editing_is_mask_only:
+    if not mask_value or not is_structure_derived(condition):
         return
     ground_truth_value = getattr(condition, "ground_truth_value", None)
     source = ground_truth_value(atom_array) if ground_truth_value is not None else None

@@ -22,6 +22,7 @@ from atomworks_studio_pymol.state import PluginState
 from pymol import cmd
 from pymol.Qt import QtWidgets
 
+from atomworks_studio_rfd4 import CONDITION_PROVIDER
 from atomworks_studio_rfd4.pymol.visualize import (
     _PALETTE,
     _ensure_palette_registered,
@@ -159,31 +160,28 @@ class ChainCentroidEditor(QtWidgets.QWidget, BaseAnnotationEditor):
         chain_id = self._selected_chain()
         if active is None or chain_id is None:
             return
-        _obj_name, arr = active
-        if not self._annotation_cls.has_annotation(arr):
-            return
-        chain_mask = arr.chain_iid == chain_id
-        annot = self._annotation_cls.annotation(arr, default="raise")
-        value = annot[chain_mask][0] if chain_mask.any() else np.full(3, np.nan)
-        if np.isfinite(value).all():
-            self._spin_x.setValue(float(value[0]))
-            self._spin_y.setValue(float(value[1]))
-            self._spin_z.setValue(float(value[2]))
+        _obj_name, _arr = active
+        document = self._state.document(_obj_name)
+        document.condition_provider = CONDITION_PROVIDER
+        entry = next(item for item in document.chain_centroids(self._annotation_cls.name) if item["chain"] == chain_id)
+        if entry["target"] is not None:
+            for spin, value in zip((self._spin_x, self._spin_y, self._spin_z), entry["target"], strict=True):
+                spin.setValue(value)
 
     def _fill_with_current_centroid(self) -> None:
         active = self._active()
         chain_id = self._selected_chain()
         if active is None or chain_id is None:
             return
-        _obj_name, arr = active
-        chain_coords = arr.coord[arr.chain_iid == chain_id]
-        if np.isnan(chain_coords).all():
+        obj_name, _arr = active
+        document = self._state.document(obj_name)
+        document.condition_provider = CONDITION_PROVIDER
+        entry = next(item for item in document.chain_centroids(self._annotation_cls.name) if item["chain"] == chain_id)
+        if entry["current"] is None:
             QtWidgets.QMessageBox.warning(self, "No coordinates", "This chain has no resolved coordinates.")
             return
-        centroid = np.nanmean(chain_coords, axis=0)
-        self._spin_x.setValue(float(centroid[0]))
-        self._spin_y.setValue(float(centroid[1]))
-        self._spin_z.setValue(float(centroid[2]))
+        for spin, value in zip((self._spin_x, self._spin_y, self._spin_z), entry["current"], strict=True):
+            spin.setValue(value)
 
     # -- actions -------------------------------------------------------------
 
@@ -192,27 +190,20 @@ class ChainCentroidEditor(QtWidgets.QWidget, BaseAnnotationEditor):
         chain_id = self._selected_chain()
         if active is None or chain_id is None:
             return
-        obj_name, arr = active
-        chain_mask = arr.chain_iid == chain_id
-
-        self._state.push_snapshot(obj_name)
+        obj_name, _arr = active
+        document = self._state.document(obj_name)
+        document.condition_provider = CONDITION_PROVIDER
         try:
-            annot = self._annotation_cls.annotation(arr, default="generate").copy()
-            if value:
-                annot[chain_mask] = [self._spin_x.value(), self._spin_y.value(), self._spin_z.value()]
-            else:
-                annot[chain_mask] = np.nan
-            self._annotation_cls.set_annotation(arr, annot)
-
-            mask = self._annotation_cls.mask(arr, default="generate").copy()
-            mask[chain_mask] = value
-            self._annotation_cls.set_mask(arr, mask)
+            result = document.edit_chain_centroid(
+                self._annotation_cls.name,
+                chain_id,
+                [self._spin_x.value(), self._spin_y.value(), self._spin_z.value()] if value else None,
+            )
         except Exception as e:
-            self._state.pop_snapshot(obj_name)
             QtWidgets.QMessageBox.critical(self, "Apply failed", str(e))
             return
 
-        self._status.setText(f"{'Set' if value else 'Cleared'} centroid for chain {chain_id!r}.")
+        self._status.setText(result["message"])
         self._redraw_markers()
 
     # -- markers -------------------------------------------------------------

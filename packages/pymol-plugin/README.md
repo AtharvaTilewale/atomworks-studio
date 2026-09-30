@@ -41,94 +41,88 @@ This will be streamlined in a future version with native support for more PyMOL 
 
 ## Setup
 
-PyMOL and the plugin must use the same Python environment. From the Studio
-repository root, initialize the pinned AtomWorks dependency, create the supplied
-Conda environment, and install each local workspace package explicitly:
+For RFD4 authoring, run this once from your local Studio checkout (with Git and
+Conda/Miniforge installed):
+
+```bash
+make rfd4
+```
+
+This creates the dedicated `atomworks-studio-rfd4` environment, initializes and
+checks the pinned AtomWorks/RFD4 sources, installs the PyMOL editor and CPU
+validation dependencies, and checks that RFD4 accepts a valid structure and
+rejects an invalid one. It then registers the plugin and enables the RFD4 editors.
+No model weights, inference service, website, or environment-variable setup is needed.
+The dependency clones use the same SSH or HTTPS transport as your Studio clone.
+If a previous setup failed while cloning, rerun `make rfd4`; it refreshes cached
+dependency URLs before retrying.
+
+### Start PyMOL
+
+```bash
+conda activate atomworks-studio-rfd4
+pymol
+```
+
+Choose **Plugin → AtomWorks Studio**. Use **Load CIF**, annotate through the panel, then
+**Save Active As**. RFD4 validation runs automatically on save in the same
+environment. You do not need to paste Python into the PyMOL console.
+
+The browser and PyMOL editors share the document operations for group actions,
+chain centroids, pair restraints, and condition edits, as well as the load presets
+and parser options. Both keep scientific storage and validation in the same
+Python editing layer; renderer code only presents the result.
+
+### Migrating an existing installation
+
+`make rfd4` creates a separate environment; it does not update your old environment.
+It replaces the startup line written by the old `atomworks setup pymol` command,
+retains unrelated PyMOL settings, and backs up an existing `~/.pymolrc` to
+`~/.pymolrc.before-atomworks-studio`. The guarded startup hook only loads Studio
+when Studio is installed in the active PyMOL environment. Existing extension
+registrations are migrated, including the old RFD4 editor module name.
+
+You can rerun `make rfd4` to update the Studio packages and native dependencies
+in this environment. The environment uses the pthreads build of OpenBLAS so
+NumPy/SciPy and PyTorch can load together on macOS without conflicting OpenMP
+runtimes. If setup reports `OMP: Error #15`, rerun `make rfd4` from an updated
+checkout; no `KMP_DUPLICATE_LIB_OK` override is needed.
+The checkout must stay in place because the packages are installed in editable mode.
+A changed dependency submodule is rejected rather than silently replaced.
+
+For an existing environment where you have already installed the Studio packages,
+register the menu from your **terminal** with:
+
+```bash
+python -m atomworks_studio_pymol install
+```
+
+### Model-neutral installation
+
+The base plugin can also be installed without RFD4:
 
 ```bash
 git submodule update --init external/atomworks-dev
 conda env create -f packages/pymol-plugin/pymol_env.yaml
 conda activate atomworks
-python -m pip install \
-  -e external/atomworks-dev \
-  -e packages/editing \
-  -e packages/pymol-plugin
-```
-
-Contributors should use the editable install and test workflow in the
-[development guide](../../docs/DEVELOPMENT.md#pymol).
-
-The plugin depends on `atomworks[ml]` (structure/CIF IO and model conditions) and
-`atomworks-studio-editing` (the shared annotated-CIF editing primitives), both
-installed from the checked-out Studio workspace. The plugin does not import
-`atomworks.pymol_plugin` or `rfproteina.pymol`; its package namespace is
-`atomworks_studio_pymol`.
-
-### Local runtime boundary
-
-The PyMOL plugin runs entirely inside the Python process that runs PyMOL.
-`AtomArrayPlus` is the in-memory source of truth, and annotated CIF files are
-read and written directly on the local filesystem. The plugin does **not**
-require the Studio website, Node.js, Uvicorn, `packages/api`, a browser, or a
-running Studio service. You do not need to run `make run` to use it.
-
-The website is only another compatible interface for files saved by the
-plugin. RFD4-specific editors are also optional and separately installed; the
-base plugin can load, edit, annotate, and save CIFs without RFD4.
-
-`CCD_MIRROR_PATH` and `PDB_MIRROR_PATH` are **optional**: they are only needed for
-features that resolve chemical components or fetch PDB entries (for example **Infer
-Bonds from CCD**). AtomWorks prints a one-time warning about them at import; it is
-safe to ignore unless you use those features.
-
-### Start PyMOL
-
-The package publishes the standard `pymol.plugins` entry point, so a PyMOL
-installation that discovers Python package entry points loads it automatically.
-Start PyMOL from the environment where the package was installed:
-
-```bash
+python -m pip install -e external/atomworks-dev -e packages/editing -e packages/pymol-plugin
+python -m atomworks_studio_pymol install
 pymol
 ```
 
-Conda PyMOL 3.1 does not discover Python package entry points, so the `~/.pymolrc`
-fallback below is **required** there. Use a package import rather than `run` with
-an absolute file path; that prevents a Homebrew PyMOL process from executing a
-file installed in an unrelated Conda environment.
+The plugin runs locally inside PyMOL and uses the shared Studio editing library.
+RFD4-specific editors live in Studio; scientific conditions and full pre-save
+validation come from the pinned RFD4 source. The CPU validation dependencies are
+installed by `make rfd4`; this environment is for authoring, not model inference.
 
-```text
-python
-from importlib.util import find_spec
-if find_spec("atomworks_studio_pymol") is not None:
-    from atomworks_studio_pymol import __init_plugin__
-    __init_plugin__()
-python end
-```
-
-This is the complete minimal `~/.pymolrc`. The guard lets another PyMOL
-installation share the file without trying to cross-load the Conda package.
-Launch the plugin-capable copy with `conda activate atomworks && pymol`, and
-verify it with:
-
-```bash
-python -c "import sys, pymol, atomworks_studio_pymol; print(sys.executable); print(pymol.__file__); print(atomworks_studio_pymol.__file__)"
-```
-
-### RFD4-specific editors
-
-The base plugin is model-neutral. RFD4-specific PyMOL editors are owned by the
-Studio provider package at `atomworks_studio_rfd4.pymol`, not by RFD4 itself.
-After installing the full RFD4 runtime into the same environment, install the
-Studio provider and register its editor module from **Main -> Extensions...**:
-
-```bash
-python -m pip install -e packages/api -e "providers/rfd4[pymol]"
-```
-
-Use the module path `atomworks_studio_rfd4.pymol.editors`. Registered extensions
-persist in `~/.atomworks-studio/pymol_extensions`. The plugin automatically
-migrates the former `~/.atomworks/pymol_extensions` file and replaces the
-legacy `rfproteina.pymol.editors` module path.
+Advanced configurations can still set `ANNOTATION_STUDIO_RFD4_ROOT` or
+`ANNOTATION_STUDIO_RFD4_VALIDATION_PYTHON`, but the standard installation needs
+neither. When `CLUSTER` selects an existing `.ipd/.env.<cluster>` file in the
+RFD4 checkout, validation uses that configuration. If `CLUSTER` is unset or its
+file is missing, the validation worker uses an empty explicit dotenv and imports
+the same scientific pipeline normally. Inherited settings such as `CLUSTER=local`
+therefore do not require a cluster configuration for desktop setup or saving.
+The worker leaves existing environment variables unchanged.
 
 ### AtomWorks-Quantum results
 
@@ -140,7 +134,7 @@ atomworks-quantum result directories; see `providers/quantum/README.md`.
 
 Start PyMOL with the conda environment active, then open the panel via:
 
-- **Menu**: Plugin → AtomWorks
+- **Menu**: Plugin → AtomWorks Studio
 - **Console**: `aw_load` (also loads a file directly)
 
 The panel has three tabs: **Main**, **Annotations**, and **Bonds**.

@@ -8,7 +8,6 @@ import logging
 
 import numpy as np
 from atomworks.io.utils.atom_array_plus import AtomArrayPlus
-from atomworks_studio_editing.structure_mutations import set_formal_charge
 from atomworks_studio_pymol.bridge import reload_structure_in_pymol, selection_to_indices
 from atomworks_studio_pymol.state import PluginState
 from pymol.Qt import QtWidgets
@@ -153,12 +152,9 @@ class ChargeWizard:
         if result is None:
             return
         obj_name, indices = result
-        self._state.push_snapshot(obj_name)
         try:
-            arr = self._state.get_synced_array(obj_name)
-            set_formal_charge(arr, indices, value=value)
+            self._state.document(obj_name).set_charge(indices, value=value)
         except Exception as e:
-            self._state.pop_snapshot(obj_name)
             QtWidgets.QMessageBox.critical(self._widget, "Set charge error", str(e))
             return
         reload_structure_in_pymol(obj_name)
@@ -169,12 +165,9 @@ class ChargeWizard:
         if result is None:
             return
         obj_name, indices = result
-        self._state.push_snapshot(obj_name)
         try:
-            arr = self._state.get_synced_array(obj_name)
-            set_formal_charge(arr, indices, delta=delta)
+            self._state.document(obj_name).set_charge(indices, delta=delta)
         except Exception as e:
-            self._state.pop_snapshot(obj_name)
             QtWidgets.QMessageBox.critical(self._widget, "Modify charge error", str(e))
             return
         reload_structure_in_pymol(obj_name)

@@ -1,14 +1,29 @@
 export type ConditionDefinition = {
   label: string;
-  kind: "mask" | "enum" | "integer" | "scalar" | "vector3" | "pair" | "operation";
+  kind: "mask" | "enum" | "integer" | "scalar" | "vector3" | "pair" | "operation" | "text";
   level: string;
-  default: number | boolean | null;
+  default: number | boolean | string | null;
   values?: Record<string, number>;
+  group_editor?: boolean;
 };
 
 export type StudioSchema = {
   conditions: Record<string, ConditionDefinition>;
   bond_types: string[];
+  loading: {
+    fields: Record<string, { label: string; kind: "boolean" | "integer" | "choice" | "text"; choices?: string[] }>;
+    presets: Record<string, Record<string, unknown>>;
+  };
+};
+
+export type Restraint = {
+  atom1: number; atom2: number; atom1_label: string; atom2_label: string;
+  distance: number; current_distance: number | null;
+};
+export type ConditionEditorState = {
+  groups: Record<string, Array<{ id: number; count: number; can_delete: boolean }>>;
+  centroids: Record<string, Array<{ chain: string; current: number[] | null; target: number[] | null }>>;
+  restraints: Restraint[];
 };
 
 export type AnnotationValue = {
@@ -52,6 +67,8 @@ export type SequenceChain = {
 };
 
 export type StructureSummary = {
+  revision: number;
+  condition_editors: ConditionEditorState;
   name: string;
   atom_count: number;
   chain_ids: string[];
@@ -68,6 +85,7 @@ export type SessionResponse = {
   session_id: string;
   editor_path?: string;
   structure: StructureSummary;
+  edit_result?: { message?: string; affected_count?: number; skipped_count?: number; group_id?: number; changed?: boolean };
 };
 
 export type SelectionScope = "atom" | "residue" | "chain";

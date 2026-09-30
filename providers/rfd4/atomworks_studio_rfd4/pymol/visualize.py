@@ -10,7 +10,8 @@ Only imported inside a running PyMOL process.
 import numpy as np
 from atomworks.io.utils.atom_array_plus import AtomArrayPlus
 from pymol import cmd
-from rfproteina.conditions import C_CRDGRP, C_IDXGRP
+
+from atomworks_studio_rfd4.model import C_CRDGRP, C_IDXGRP
 
 # Colours for named CoordinateGroup constants and cycling relative groups
 _CRDGRP_NAMED_COLORS = {

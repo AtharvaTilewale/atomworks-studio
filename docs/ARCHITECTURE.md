@@ -1,9 +1,14 @@
 # Architecture
 
-The FastAPI package owns annotated-CIF sessions and exposes versioned editor
-operations. It depends on AtomWorks contracts and mutation primitives, but not
-on RFD4 at import time. Optional provider packages register condition,
+The editing package owns annotated-CIF documents, inspection, mutation operations,
+and transactional undo. FastAPI owns sessions and exposes those operations over
+HTTP. The document package imports neither FastAPI nor renderer/model providers. Optional provider packages register condition,
 validation, and design capabilities.
+
+RFD4 owns ConditionSpec JSON/YAML and contig compilation, including inference
+input semantics. Studio owns interactive editing and visualization of the
+resulting annotated structures. There is no Studio copy of the compiler or
+JSON round-trip editor. See [ConditionSpec ownership](INPUTS.md).
 
 The browser, PWA, VS Code extension, and Patinae desktop plugin are clients of
 that single API. Browser viewer adapters implement the same structure,
@@ -11,8 +16,9 @@ selection, representation, camera, measurement, interaction, object, and
 teardown contract. They do not own document truth.
 
 The PyMOL plugin is deliberately outside that client/server boundary. It runs
-locally in PyMOL, keeps its authoritative `AtomArrayPlus` in process, and reads
-and writes annotated CIF files directly. It depends on AtomWorks and
+locally in PyMOL, keeps a shared `StudioDocument` per object in process, and reads
+and writes annotated CIF files directly. Renderer identity maps and coordinate
+synchronization remain in its bridge. It depends on AtomWorks and
 `atomworks-studio-editing`, not on the FastAPI or web packages. Interoperability
 with the website and RFD4 happens through the saved CIF format, not through a
 running Studio service.
@@ -52,3 +58,5 @@ PyTorch/compiled execution stack has no browser backend. A browser port is a
 separate model-runtime project. Keep remote GPU execution as the production
 path; prototype browser inference only after selecting a smaller model and
 proving full-model parity on representative browser/GPU combinations.
+
+See [the extraction inventory](REFACTOR.md) for ownership and acceptance gates.

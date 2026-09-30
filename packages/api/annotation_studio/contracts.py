@@ -1,21 +1,46 @@
-"""Stable provider contracts for model-specific Annotation Studio integrations."""
+"""Service and job contracts, plus compatibility exports for document providers."""
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable, Mapping
-from dataclasses import dataclass
 from pathlib import Path
-from types import MappingProxyType
-from typing import Any, Literal, Protocol
+from typing import Any, Protocol
 
-from atomworks.io.utils.atom_array_plus import AtomArrayPlus
-from atomworks.io.utils.standard_annotations.base import Level
-from atomworks.ml.conditions.base import ConditionBase
-
-ConditionKind = Literal["mask", "enum", "integer", "scalar", "vector3", "pair", "operation"]
-CountUnit = Literal["atoms", "residues", "chains", "groups", "pairs"]
-ConditionDefault = bool | int | float | None
-ConditionOperation = Callable[[AtomArrayPlus, Iterable[int], bool], None]
+from atomworks_studio_editing.contracts import (
+    NEUTRAL_CONDITION_PROVIDER as NEUTRAL_CONDITION_PROVIDER,
+)
+from atomworks_studio_editing.contracts import (
+    NEUTRAL_VALIDATION_PROVIDER as NEUTRAL_VALIDATION_PROVIDER,
+)
+from atomworks_studio_editing.contracts import (
+    ConditionDefault as ConditionDefault,
+)
+from atomworks_studio_editing.contracts import (
+    ConditionDefinition as ConditionDefinition,
+)
+from atomworks_studio_editing.contracts import (
+    ConditionKind as ConditionKind,
+)
+from atomworks_studio_editing.contracts import (
+    ConditionOperation as ConditionOperation,
+)
+from atomworks_studio_editing.contracts import (
+    ConditionProvider as ConditionProvider,
+)
+from atomworks_studio_editing.contracts import (
+    ConditionValue as ConditionValue,
+)
+from atomworks_studio_editing.contracts import (
+    CountUnit as CountUnit,
+)
+from atomworks_studio_editing.contracts import (
+    NeutralConditionProvider as NeutralConditionProvider,
+)
+from atomworks_studio_editing.contracts import (
+    NeutralValidationProvider as NeutralValidationProvider,
+)
+from atomworks_studio_editing.contracts import (
+    ValidationProvider as ValidationProvider,
+)
 
 
 class SessionNotFoundError(KeyError):
@@ -28,82 +53,6 @@ class CapacityExceededError(RuntimeError):
 
 class IdempotencyConflictError(ValueError):
     """The same owner reused an idempotency key for a different submission."""
-
-
-@dataclass(frozen=True, slots=True)
-class ConditionValue:
-    """One named value accepted by an enum-style condition."""
-
-    name: str
-    value: int
-
-
-@dataclass(frozen=True, slots=True)
-class ConditionDefinition:
-    """UI-neutral condition metadata and its AtomWorks condition object."""
-
-    key: str
-    label: str
-    kind: ConditionKind
-    level: Level
-    count_unit: CountUnit
-    default: ConditionDefault
-    invert_mask: bool
-    condition: type[ConditionBase]
-    enum_values: tuple[ConditionValue, ...] = ()
-
-    @property
-    def schema(self) -> dict[str, object]:
-        """Return the JSON-facing editor schema without duplicated stored state."""
-        schema: dict[str, object] = {
-            "kind": self.kind,
-            "level": self.level.value,
-            "default": self.default,
-            "label": self.label,
-        }
-        if self.enum_values:
-            schema["values"] = {member.name: member.value for member in self.enum_values}
-        return schema
-
-
-class ConditionProvider(Protocol):
-    """Supplies model-specific conditions without coupling the editor core."""
-
-    @property
-    def definitions(self) -> tuple[ConditionDefinition, ...]: ...
-
-    @property
-    def definitions_by_name(self) -> Mapping[str, ConditionDefinition]: ...
-
-    def after_condition_update(self, name: str, array: AtomArrayPlus) -> None: ...
-
-
-class ValidationProvider(Protocol):
-    """Runs model-specific checks after the editor's generic validation."""
-
-    def validate(self, array: AtomArrayPlus, *, full_pipeline: bool = False) -> list[dict[str, str]]: ...
-
-
-class NeutralConditionProvider:
-    """Condition provider for model-neutral document operations."""
-
-    definitions: tuple[ConditionDefinition, ...] = ()
-    definitions_by_name: Mapping[str, ConditionDefinition] = MappingProxyType({})
-
-    def after_condition_update(self, name: str, array: AtomArrayPlus) -> None:
-        del name, array
-
-
-class NeutralValidationProvider:
-    """Validation provider that adds no model-specific checks."""
-
-    def validate(self, array: AtomArrayPlus, *, full_pipeline: bool = False) -> list[dict[str, str]]:
-        del array, full_pipeline
-        return []
-
-
-NEUTRAL_CONDITION_PROVIDER = NeutralConditionProvider()
-NEUTRAL_VALIDATION_PROVIDER = NeutralValidationProvider()
 
 
 class JobProvider(Protocol):

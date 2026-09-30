@@ -25,6 +25,21 @@ to your account.
 
 ## Repository layout
 
+The PyMOL and browser condition editors use `StudioDocument` for group actions,
+centroid targets, pair-restraint replacement, undo, and saved-target confirmation.
+Group IDs, reserved values, atom counts, labels, current distances, and centroid
+calculations come from Python. Keep new scientific editing rules there; Qt and
+TypeScript controls should call the shared operations. Load-option values and
+presets likewise come from `atomworks_studio_editing.loading` and AtomWorks
+`ParseConfig`.
+
+`tests/test_editor_qol_parity.py` compares actual Qt handlers with HTTP requests
+and checks historical behavior explicitly. The browser interaction regression
+is `packages/web/tests/editor-qol.mjs`; run it from the repository root with
+`ANNOTATION_STUDIO_URL` and `VIEWER_MODE=molstar` or `VIEWER_MODE=patinae`, as with
+the existing browser smoke suite. Pair-table edits are staged until Apply and
+bound to the document revision; stale drafts cannot overwrite a changed structure.
+
 - `packages/api` — FastAPI service, document sessions, and provider contracts
 - `packages/web` — Vite PWA and Patinae/Mol* renderer adapters
 - `packages/core` — lossless annotated-CIF inspector compiled to WASM
@@ -223,22 +238,23 @@ of `cursor` when testing VS Code.
 
 ### PyMOL
 
-Create the supplied environment from the repository root and install the
-workspace packages into the same Python that runs PyMOL:
+From the repository root:
 
 ```bash
-git submodule update --init external/atomworks-dev
-conda env create -f packages/pymol-plugin/pymol_env.yaml
-conda activate atomworks
-python -m pip install \
-  -e external/atomworks-dev \
-  -e packages/editing \
-  -e "packages/pymol-plugin[test]"
+make rfd4
+conda activate atomworks-studio-rfd4
+pymol
 ```
 
-Conda PyMOL 3.1 needs the minimal guarded `~/.pymolrc` shown in the
-[PyMOL setup guide](../packages/pymol-plugin/README.md#start-pymol).
-Run plugin and cross-interface conformance through `make accept-tools`.
+Open **Plugin → AtomWorks Studio**. Setup installs editable Studio packages, pinned
+sources, and CPU save-validation dependencies, then registers the startup hook.
+See the [PyMOL setup guide](../packages/pymol-plugin/README.md#setup) for migration
+and model-neutral installation. Run plugin and cross-interface conformance
+through `make accept-tools`.
+
+For isolated setup testing, `make rfd4 RFD4_ENV=/absolute/test/env
+RFD4_PYMOLRC=/absolute/test/pymolrc` uses a separate environment prefix and startup
+file. Ordinary users do not need either option.
 
 ### Patinae desktop
 

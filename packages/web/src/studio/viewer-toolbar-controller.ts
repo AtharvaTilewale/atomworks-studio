@@ -34,6 +34,7 @@ export interface ViewerToolbarControllerOptions {
   getSessionId: () => string | null;
   getSummary: () => StructureSummary | null;
   requestedMode: () => ViewerMode | null;
+  runViewerUpdate: (operation: () => Promise<void>) => Promise<void>;
   log: (message: string) => void;
 }
 
@@ -232,24 +233,23 @@ export class ViewerToolbarController {
   }
 
   async switchRenderer(mode: ViewerMode): Promise<void> {
-    this.viewerModeSelect.disabled = true;
-    const viewer = this.options.viewer();
-    const previousMode = (viewer.initialized ? viewer.backend : this.options.requestedMode()) ?? "molstar";
-    try {
-      await viewer.switchBackend(mode);
-      localStorage.setItem(VIEWER_STORAGE_KEY, mode);
-      const url = new URL(window.location.href);
-      url.searchParams.set("viewer", mode);
-      history.replaceState(null, "", url);
-      this.refreshCapabilities();
-      this.renderDrawers();
-      this.options.log(`Switched renderer to ${mode === "patinae" ? "Patinae" : "Mol*"} without reloading.`);
-    } catch (error) {
-      this.viewerModeSelect.value = previousMode;
-      this.options.log(`Renderer switch failed: ${String(error)}`);
-    } finally {
-      this.viewerModeSelect.disabled = false;
-    }
+    await this.options.runViewerUpdate(async () => {
+      const viewer = this.options.viewer();
+      const previousMode = (viewer.initialized ? viewer.backend : this.options.requestedMode()) ?? "molstar";
+      try {
+        await viewer.switchBackend(mode);
+        localStorage.setItem(VIEWER_STORAGE_KEY, mode);
+        const url = new URL(window.location.href);
+        url.searchParams.set("viewer", mode);
+        history.replaceState(null, "", url);
+        this.refreshCapabilities();
+        this.renderDrawers();
+        this.options.log(`Switched renderer to ${mode === "patinae" ? "Patinae" : "Mol*"} without reloading.`);
+      } catch (error) {
+        this.viewerModeSelect.value = previousMode;
+        this.options.log(`Renderer switch failed: ${String(error)}`);
+      }
+    });
   }
 
   private parseMode(value: string | null): ViewerMode | null {

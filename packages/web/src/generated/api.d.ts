@@ -327,6 +327,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions/{session_id}/atom-distance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** V1 Atom Distance */
+        get: operations["v1_atom_distance_api_v1_sessions__session_id__atom_distance_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions/{session_id}/atoms/{atom_index}/annotations": {
         parameters: {
             query?: never;
@@ -373,6 +390,23 @@ export interface paths {
         put?: never;
         /** V1 Infer Bonds From Ccd */
         post: operations["v1_infer_bonds_from_ccd_api_v1_sessions__session_id__bonds_infer_ccd_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{session_id}/centroids": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** V1 Edit Centroid */
+        post: operations["v1_edit_centroid_api_v1_sessions__session_id__centroids_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -516,6 +550,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions/{session_id}/distance-restraints/replace": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** V1 Replace Restraints */
+        post: operations["v1_replace_restraints_api_v1_sessions__session_id__distance_restraints_replace_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{session_id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** V1 Export Cif */
+        post: operations["v1_export_cif_api_v1_sessions__session_id__export_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{session_id}/groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** V1 Edit Group */
+        post: operations["v1_edit_group_api_v1_sessions__session_id__groups_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions/{session_id}/interactions/analyze": {
         parameters: {
             query?: never;
@@ -544,6 +629,23 @@ export interface paths {
         put?: never;
         /** V1 Set Internal Coordinates */
         post: operations["v1_set_internal_coordinates_api_v1_sessions__session_id__internal_coords_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{session_id}/internal-coords/clear-targets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** V1 Clear Internal Targets */
+        post: operations["v1_clear_internal_targets_api_v1_sessions__session_id__internal_coords_clear_targets_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -727,6 +829,11 @@ export interface components {
         /** Body_v1_create_session_api_v1_sessions_post */
         Body_v1_create_session_api_v1_sessions_post: {
             /**
+             * Advanced Options
+             * @default {}
+             */
+            advanced_options: string;
+            /**
              * Assembly
              * @default 1
              */
@@ -763,6 +870,17 @@ export interface components {
              */
             bond_type: string;
         };
+        /** CentroidMutation */
+        CentroidMutation: {
+            /** Chain */
+            chain: string;
+            /** Condition */
+            condition: string;
+            /** Expected Revision */
+            expected_revision: number;
+            /** Value */
+            value?: number[] | null;
+        };
         /** ChainMutation */
         ChainMutation: {
             /** Atom Indices */
@@ -786,6 +904,11 @@ export interface components {
         };
         /** ConditionMutation */
         ConditionMutation: {
+            /**
+             * Allow Target Discard
+             * @default false
+             */
+            allow_target_discard: boolean;
             /** Atom Indices */
             atom_indices: number[];
             /** Condition */
@@ -795,6 +918,8 @@ export interface components {
              * @default true
              */
             enabled: boolean;
+            /** Expected Revision */
+            expected_revision?: number | null;
             /**
              * Scope
              * @default atom
@@ -802,10 +927,15 @@ export interface components {
              */
             scope: "atom" | "residue" | "chain";
             /** Value */
-            value?: number | number[] | null;
+            value?: number | string | number[] | null;
         };
         /** ConditionOperationMutation */
         ConditionOperationMutation: {
+            /**
+             * Allow Target Discard
+             * @default false
+             */
+            allow_target_discard: boolean;
             /** Atom Indices */
             atom_indices: number[];
             /**
@@ -813,6 +943,8 @@ export interface components {
              * @default true
              */
             enabled: boolean;
+            /** Expected Revision */
+            expected_revision?: number | null;
             /**
              * Scope
              * @default atom
@@ -882,6 +1014,46 @@ export interface components {
             /** Distance */
             distance?: number | null;
         };
+        /** ExportResponse */
+        ExportResponse: {
+            /** Cif */
+            cif: string;
+            /** Issues */
+            issues: {
+                [key: string]: string;
+            }[];
+            /** Name */
+            name: string;
+            /** Revision */
+            revision: number;
+        };
+        /** GroupMutation */
+        GroupMutation: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "new" | "add" | "remove" | "delete";
+            /**
+             * Allow Target Discard
+             * @default false
+             */
+            allow_target_discard: boolean;
+            /** Atom Indices */
+            atom_indices?: number[];
+            /** Condition */
+            condition: string;
+            /** Expected Revision */
+            expected_revision?: number | null;
+            /** Group Id */
+            group_id?: number | null;
+            /**
+             * Scope
+             * @default atom
+             * @enum {string}
+             */
+            scope: "atom" | "residue" | "chain";
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -927,6 +1099,18 @@ export interface components {
         RealizeMutation: {
             /** Seed */
             seed?: number | null;
+        };
+        /** RestraintsReplacement */
+        RestraintsReplacement: {
+            /** Expected Revision */
+            expected_revision: number;
+            /** Pairs */
+            pairs: [
+                number,
+                number
+            ][];
+            /** Values */
+            values: number[];
         };
         /** SearchOptions */
         SearchOptions: {
@@ -1603,6 +1787,42 @@ export interface operations {
             };
         };
     };
+    v1_atom_distance_api_v1_sessions__session_id__atom_distance_get: {
+        parameters: {
+            query: {
+                atom1: number;
+                atom2: number;
+            };
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     v1_get_atom_annotations_api_v1_sessions__session_id__atoms__atom_index__annotations_get: {
         parameters: {
             query?: never;
@@ -1719,6 +1939,43 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    v1_edit_centroid_api_v1_sessions__session_id__centroids_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CentroidMutation"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -2065,6 +2322,111 @@ export interface operations {
             };
         };
     };
+    v1_replace_restraints_api_v1_sessions__session_id__distance_restraints_replace_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RestraintsReplacement"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    v1_export_cif_api_v1_sessions__session_id__export_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExportResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    v1_edit_group_api_v1_sessions__session_id__groups_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupMutation"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     v1_analyze_interactions_api_v1_sessions__session_id__interactions_analyze_post: {
         parameters: {
             query?: never;
@@ -2103,6 +2465,43 @@ export interface operations {
         };
     };
     v1_set_internal_coordinates_api_v1_sessions__session_id__internal_coords_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConditionOperationMutation"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    v1_clear_internal_targets_api_v1_sessions__session_id__internal_coords_clear_targets_post: {
         parameters: {
             query?: never;
             header?: never;

@@ -16,11 +16,13 @@ from threading import RLock
 from typing import Any, Literal
 from urllib.parse import urlencode
 
+from atomworks_studio_editing.contracts import DocumentRevisionConflictError, TargetDiscardConfirmationRequiredError
+from atomworks_studio_editing.loading import load_options_schema
 from fastapi import Body, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.routing import APIRoute
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from .contracts import (
     NEUTRAL_CONDITION_PROVIDER,
@@ -542,10 +544,21 @@ class ScopedSelectionRequest(SelectionRequest):
     scope: Literal["atom", "residue", "chain"] = "atom"
 
 
-class ConditionMutation(ScopedSelectionRequest):
+class ConfirmableSelectionRequest(ScopedSelectionRequest):
+    allow_target_discard: bool = False
+    expected_revision: int | None = Field(default=None, ge=0)
+
+    @model_validator(mode="after")
+    def confirmation_has_revision(self):
+        if self.allow_target_discard and self.expected_revision is None:
+            raise ValueError("Confirming target loss requires the preview's expected_revision")
+        return self
+
+
+class ConditionMutation(ConfirmableSelectionRequest):
     condition: str
     enabled: bool = True
-    value: int | float | list[float] | None = None
+    value: int | float | str | list[float] | None = None
 
     @field_validator("condition")
     @classmethod
@@ -556,7 +569,10 @@ class ConditionMutation(ScopedSelectionRequest):
 
     @field_validator("value", mode="before")
     @classmethod
-    def strict_numeric_value(cls, value: object) -> object:
+    def strict_condition_value(cls, value: object, info: Any) -> object:
+        definition = condition_provider.definitions_by_name.get(info.data.get("condition", ""))
+        if definition is not None and definition.kind == "text" and isinstance(value, str):
+            return value
         values = value if isinstance(value, list) else [value]
         if value is not None and any(isinstance(item, bool) or not isinstance(item, int | float) for item in values):
             raise ValueError("condition value must contain only JSON numbers")
@@ -567,8 +583,35 @@ class SelectionResolve(ScopedSelectionRequest):
     pass
 
 
-class ConditionOperationMutation(ScopedSelectionRequest):
+class ConditionOperationMutation(ConfirmableSelectionRequest):
     enabled: bool = True
+
+
+class GroupMutation(ConfirmableSelectionRequest):
+    atom_indices: list[int] = Field(default_factory=list, max_length=1000000)
+    condition: str
+    action: Literal["new", "add", "remove", "delete"]
+    group_id: int | None = Field(default=None, strict=True)
+
+
+class CentroidMutation(BaseModel):
+    condition: str
+    chain: str
+    value: list[float] | None = None
+    expected_revision: int = Field(ge=0)
+
+
+class RestraintsReplacement(BaseModel):
+    pairs: list[tuple[int, int]]
+    values: list[float]
+    expected_revision: int = Field(ge=0)
+
+
+class ExportResponse(BaseModel):
+    cif: str
+    name: str
+    revision: int
+    issues: list[dict[str, str]]
 
 
 class SelectionQuery(BaseModel):
@@ -689,14 +732,35 @@ def _call[T](
 
 def _apply(session_id: str, operation: Callable[[StudioDocument], Any]) -> dict:
     try:
-        structure = _call(
+        previous_revision, result, structure = _call(
             session_id,
-            lambda document: (operation(document), document.summary())[1],
+            lambda document: (document.revision, operation(document), document.summary()),
             persist=True,
         )
+    except TargetDiscardConfirmationRequiredError as error:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "target_discard_confirmation_required",
+                "lost_target_count": error.lost_target_count,
+                "revision": error.revision,
+                "message": str(error),
+            },
+        ) from error
+    except DocumentRevisionConflictError as error:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "revision_conflict", "revision": error.revision, "message": str(error)},
+        ) from error
     except (ValueError, IndexError, KeyError) as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
-    return _session_response(session_id, structure)
+    return {
+        **_session_response(session_id, structure),
+        "edit_result": {
+            **(result if isinstance(result, dict) else {}),
+            "changed": structure["revision"] != previous_revision,
+        },
+    }
 
 
 @app.get("/api/health")
@@ -744,6 +808,7 @@ def schema() -> dict:
     return {
         "conditions": {definition.key: definition.schema for definition in condition_provider.definitions},
         "bond_types": sorted(BOND_TYPES),
+        "loading": load_options_schema(),
     }
 
 
@@ -846,6 +911,7 @@ async def create_session(
     model: int | None = Form(None),
     remove_waters: bool | None = Form(None),
     hydrogen_policy: Literal["keep", "remove"] | None = Form(None),
+    advanced_options: str = Form("{}"),
 ) -> dict:
     filename = Path(file.filename or "structure.cif").name
     if not filename.lower().endswith((".cif", ".mmcif")):
@@ -865,6 +931,7 @@ async def create_session(
                 "model": model,
                 "remove_waters": remove_waters,
                 "hydrogen_policy": hydrogen_policy,
+                "advanced_options": json.loads(advanced_options),
             },
             condition_provider=condition_provider,
             validation_provider=validation_provider,
@@ -982,6 +1049,14 @@ def get_cif(session_id: str) -> PlainTextResponse:
     )
 
 
+@app.post("/api/sessions/{session_id}/export")
+def export_cif(session_id: str) -> ExportResponse:
+    # Validate and export one snapshot. Later edits cannot change the approved file.
+    document = _call(session_id, lambda current: current.clone())
+    issues = document.validate(full_pipeline=True)
+    return ExportResponse(cif=document.to_cif(), name=document.name, revision=document.revision, issues=issues)
+
+
 @app.post("/api/sessions/{session_id}/conditions")
 def set_condition(session_id: str, mutation: ConditionMutation) -> dict:
     return _apply(
@@ -992,8 +1067,67 @@ def set_condition(session_id: str, mutation: ConditionMutation) -> dict:
             enabled=mutation.enabled,
             value=mutation.value,
             scope=mutation.scope,
+            allow_target_discard=mutation.allow_target_discard,
+            expected_revision=mutation.expected_revision,
         ),
     )
+
+
+@app.post("/api/sessions/{session_id}/groups")
+def edit_group(session_id: str, mutation: GroupMutation) -> dict:
+    return _apply(
+        session_id,
+        lambda document: document.edit_condition_group(
+            mutation.condition,
+            mutation.action,
+            mutation.atom_indices,
+            group_id=mutation.group_id,
+            scope=mutation.scope,
+            allow_target_discard=mutation.allow_target_discard,
+            expected_revision=mutation.expected_revision,
+        ),
+    )
+
+
+@app.post("/api/sessions/{session_id}/centroids")
+def edit_centroid(session_id: str, mutation: CentroidMutation) -> dict:
+    return _apply(
+        session_id,
+        lambda document: document.edit_chain_centroid(
+            mutation.condition,
+            mutation.chain,
+            mutation.value,
+            expected_revision=mutation.expected_revision,
+        ),
+    )
+
+
+@app.post("/api/sessions/{session_id}/distance-restraints/replace")
+def replace_restraints(session_id: str, mutation: RestraintsReplacement) -> dict:
+    return _apply(
+        session_id,
+        lambda document: document.replace_distance_restraints(
+            mutation.pairs,
+            mutation.values,
+            expected_revision=mutation.expected_revision,
+        ),
+    )
+
+
+@app.get("/api/sessions/{session_id}/atom-distance")
+def atom_distance(session_id: str, atom1: int, atom2: int) -> dict:
+    def inspect(document):
+        return {
+            "revision": document.revision,
+            "distance": document.atom_distance(atom1, atom2),
+            "atom1_label": document.atom_label(atom1),
+            "atom2_label": document.atom_label(atom2),
+        }
+
+    try:
+        return _call(session_id, inspect)
+    except (IndexError, ValueError) as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
 
 
 @app.post("/api/sessions/{session_id}/charges")
@@ -1051,6 +1185,26 @@ def set_internal_coordinates(session_id: str, mutation: ConditionOperationMutati
             mutation.scope,
             transform,
             mutation.enabled,
+            allow_target_discard=mutation.allow_target_discard,
+            expected_revision=mutation.expected_revision,
+        ),
+    )
+
+
+@app.post("/api/sessions/{session_id}/internal-coords/clear-targets")
+def clear_internal_targets(session_id: str, mutation: ConditionOperationMutation) -> dict:
+    transform = condition_operations.get("clear_internal_targets")
+    if transform is None:
+        raise HTTPException(status_code=422, detail="internal-coordinate target editing is not available")
+    return _apply(
+        session_id,
+        lambda document: document.apply_selection_transform(
+            mutation.atom_indices,
+            mutation.scope,
+            transform,
+            True,
+            allow_target_discard=True,
+            expected_revision=mutation.expected_revision,
         ),
     )
 
