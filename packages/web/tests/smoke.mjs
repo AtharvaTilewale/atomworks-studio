@@ -3,18 +3,14 @@ import { resolve } from "node:path";
 import AxeBuilder from "@axe-core/playwright";
 import { chromium } from "playwright-core";
 
-import { chromiumArgs, chromiumExecutable } from "../../../scripts/browser.mjs";
+import { chromiumLaunchOptions } from "../../../scripts/browser.mjs";
 
 const baseUrl = process.env.ANNOTATION_STUDIO_URL ?? "http://127.0.0.1:8000/";
 const viewerMode = process.env.VIEWER_MODE;
 if (viewerMode !== "patinae" && viewerMode !== "molstar") {
   throw new Error("Set VIEWER_MODE=patinae or VIEWER_MODE=molstar");
 }
-const browser = await chromium.launch({
-  executablePath: chromiumExecutable(),
-  headless: true,
-  args: chromiumArgs,
-});
+const browser = await chromium.launch(chromiumLaunchOptions());
 
 async function assertNoSevereAccessibilityIssues(page, context) {
   const accessibility = await new AxeBuilder({ page }).analyze();
@@ -39,11 +35,18 @@ async function showEdit(page) {
   }
 }
 
+let page;
+const errors = [];
+const rendererErrors = [];
 try {
   const context = await browser.newContext({ viewport: { width: 1400, height: 900 } });
-  const page = await context.newPage();
-  const errors = [];
+  page = await context.newPage();
   page.on("pageerror", (error) => errors.push(error.message));
+  page.on("console", (message) => {
+    if (message.type() === "error" && !message.text().startsWith("Failed to load resource:")) {
+      rendererErrors.push(message.text());
+    }
+  });
   const requested = [];
   page.on("request", (request) => requested.push(request.url()));
 
@@ -79,39 +82,23 @@ try {
   assert.equal(await page.locator("h1").innerText(), "AtomWorks Studio");
 
   await showEdit(page);
-  assert.equal(await page.locator(".example-load").count(), 3);
-  assert.equal(await page.locator('[data-example="ppi"]').isEnabled(), true);
+  assert.equal(await page.locator(".example-load").count(), 8);
+  assert.equal(await page.locator('[data-example="antibody_design"]').isEnabled(), true);
   if (viewerMode === "molstar") {
-    await page.locator('[data-example="ppi"]').click();
-    await page.waitForFunction(
-      () => document.querySelector("#status")?.textContent?.includes("Loaded PPI"),
-      undefined,
-      { timeout: 30_000 },
-    );
-    assert.equal(await page.locator(".sequence-segment").innerText(), "[50–120]");
+    await page.locator('[data-example="unconditional"]').click();
+    await page.waitForFunction(() => document.querySelector("#status")?.textContent?.includes("Loaded Unconditional"));
+    assert.equal(await page.locator(".sequence-segment").innerText(), "[250–250]");
     await page.locator(".sequence-segment").click();
     await page.waitForFunction(() => document.querySelector(".sequence-segment")?.classList.contains("realized"));
-    assert.match(await page.locator(".sequence-segment").innerText(), /^\d+×X$/);
+    assert.match(await page.locator(".sequence-segment").innerText(), /^250×X$/);
     await page.locator(".sequence-segment").click();
     await page.waitForFunction(() => !document.querySelector(".sequence-segment")?.classList.contains("realized"));
-    assert.equal(await page.locator(".sequence-segment").innerText(), "[50–120]");
-    await page.locator("#examples-panel").evaluate((panel) => { panel.open = true; });
-    await page.locator('[data-example="mcsa"]').click();
-    await page.waitForFunction(
-      () => document.querySelector("#status")?.textContent?.includes("Loaded MCSA"),
-      undefined,
-      { timeout: 30_000 },
-    );
-    assert.equal(await page.locator(".sequence-segment").innerText(), "[180–180]");
-
-    await page.locator("#examples-panel").evaluate((panel) => { panel.open = true; });
-    await page.locator('[data-example="disco"]').click();
-    await page.waitForFunction(
-      () => document.querySelector("#status")?.textContent?.includes("Loaded DISCO"),
-      undefined,
-      { timeout: 30_000 },
-    );
-    assert.equal(await page.locator(".sequence-segment").innerText(), "[150–150]");
+    assert.equal(await page.locator(".sequence-segment").innerText(), "[250–250]");
+    for (const [id, label] of [["enzyme_design", "Enzyme"], ["small_molecule_binder", "Small-molecule"]]) {
+      await page.locator("#examples-panel").evaluate(panel => { panel.open = true; });
+      await page.locator(`[data-example="${id}"]`).click();
+      await page.waitForFunction(label => document.querySelector("#status")?.textContent?.includes(`Loaded ${label}`), label);
+    }
     assert.equal(
       await page.locator("#atomworks-studio-popover").evaluate(
         (element) => getComputedStyle(element).resize,
@@ -542,7 +529,7 @@ try {
     await page.waitForFunction(() => document.querySelector("#viewer-command")?.value === "");
     assert.doesNotMatch(await page.locator("#status").textContent(), /Command failed/);
   } else {
-    assert.equal(await page.locator("#style-menu").isHidden(), true);
+    assert.equal(await page.locator("#style-menu").isVisible(), true);
     assert.equal(await page.locator("#selection-syntax option").first().isDisabled(), true);
     assert.equal(await page.locator("#viewer-command").isEnabled(), true);
   }
@@ -666,6 +653,13 @@ try {
   console.log(
     `Browser smoke passed (${viewerMode}): viewer, deep-link embedding, annotations, and AtomWorks stayed in sync.`,
   );
+} catch (error) {
+  console.error("Browser smoke diagnostics:", await page?.evaluate(() => ({
+    status: document.querySelector("#status")?.textContent,
+    annotation: document.querySelector("#annotation-detail")?.textContent,
+    viewer: { ...document.querySelector("#viewer")?.dataset },
+  })).catch(() => null), { browser: browser.version(), errors, rendererErrors });
+  throw error;
 } finally {
   await browser.close();
 }

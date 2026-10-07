@@ -1,6 +1,6 @@
-import { api } from "../api";
+import { api, apiText } from "../api";
 import { element } from "../dom";
-import { STUDIO_EXAMPLES, type StudioExample } from "../examples";
+import type { StudioExample } from "../examples";
 import type { SessionResponse, StudioSchema } from "../types";
 import { inspect_cif } from "../wasm/annotation_studio_core.js";
 import { prepareCifDownload } from "./authoring-actions";
@@ -16,6 +16,7 @@ export interface SessionFileControllerOptions {
 export class SessionFileController {
   private readonly fileInput = element<HTMLInputElement>("file-input");
   private readonly combineInput = element<HTMLInputElement>("combine-input");
+  private examples: StudioExample[] = [];
   private openGeneration = 0;
   private openQueue: Promise<void> = Promise.resolve();
   private loadFields: StudioSchema["loading"]["fields"] = {};
@@ -66,16 +67,24 @@ export class SessionFileController {
       const sessionId = this.options.getSessionId();
       if (sessionId) void this.options.runViewerUpdate(() => this.download(sessionId));
     });
-    for (const button of document.querySelectorAll<HTMLButtonElement>(".example-load")) {
-      button.addEventListener("click", () => {
-        const example = STUDIO_EXAMPLES.find((candidate) => candidate.id === button.dataset.example);
-        if (example) void this.loadExample(example, button);
-      });
+  }
+
+  async initializeExamples(): Promise<void> {
+    this.examples = await api<StudioExample[]>("/api/examples");
+    const container = element("example-list");
+    container.replaceChildren();
+    for (const example of this.examples) {
+      const button = document.createElement("button");
+      button.className = "secondary example-load";
+      button.dataset.example = example.id;
+      button.textContent = example.label;
+      button.addEventListener("click", () => void this.loadExample(example, button));
+      container.append(button);
     }
   }
 
   async loadPendingExample(id: string): Promise<void> {
-    const example = STUDIO_EXAMPLES.find((candidate) => candidate.id === id);
+    const example = this.examples.find((candidate) => candidate.id === id);
     if (!example) return;
     const button = document.querySelector<HTMLButtonElement>(
       `.example-load[data-example="${example.id}"]`,
@@ -132,10 +141,11 @@ export class SessionFileController {
     activeButton.textContent = "Loading…";
     try {
       const loaded = await this.openFile(
-        new File([example.cif], example.filename, { type: "chemical/x-mmcif" }),
+        new File([await apiText(`/api/examples/${example.id}/cif`)], example.file, { type: "chemical/x-mmcif" }),
       );
       if (!loaded) return;
-      this.options.log(`Loaded ${example.name}.`);
+      this.options.log(`Loaded ${example.label}.`);
+      window.dispatchEvent(new CustomEvent("studio-example-loaded", { detail: example }));
     } finally {
       activeButton.textContent = originalLabel;
       for (const button of buttons) button.disabled = false;

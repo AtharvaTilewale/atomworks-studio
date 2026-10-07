@@ -2,12 +2,12 @@ import assert from 'node:assert/strict';
 import {mkdir,writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import {chromium} from 'playwright-core';
-import {chromiumArgs,chromiumExecutable} from '../../../scripts/browser.mjs';
+import { chromiumLaunchOptions } from '../../../scripts/browser.mjs';
 import {designWorkflows} from './design-workflow-driver.mjs';
 const mode=process.env.VIEWER_MODE;
 assert.ok(['patinae','molstar'].includes(mode));
 const base=process.env.ANNOTATION_STUDIO_URL??'http://127.0.0.1:8000/';
-const browser=await chromium.launch({executablePath:chromiumExecutable(),args:chromiumArgs,headless:true});
+const browser=await chromium.launch(chromiumLaunchOptions());
 const page=await browser.newPage({viewport:{width:1440,height:1000}});
 const output=process.env.STUDIO_WORKFLOW_OUTPUT??'artifacts/workflows';
 try{

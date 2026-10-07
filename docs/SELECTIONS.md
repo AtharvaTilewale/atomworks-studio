@@ -73,7 +73,11 @@ The `select` command also updates Studio’s editing selection, so an annotation
 applies to those atoms. `deselect` clears it. Invalid commands retain the input
 and selection for correction. **More** contains the supported
 command list. Only Patinae's supported PyMOL-style commands work here; arbitrary
-PyMOL commands, `aw_*` plugin commands, Python, and document mutations do not.
+PyMOL commands, `aw_*` plugin commands and Python are not supported.
+`remove <selection>` uses Studio's delete operation, updating the annotated CIF
+and the viewer together. **Undo** restores the atoms and their annotations.
+For example, `remove solvent` removes water when present. Other structural
+commands such as `alter` and `bond` remain disabled; use Studio's editing controls.
 Mol* uses **AtomWorks query** and its menus instead.
 
 Inside the native PyMOL application, use the normal PyMOL selection language:
@@ -87,3 +91,20 @@ Then apply edits through the Studio panel. PyMOL uses its own selection parser;
 AtomWorks expressions such as `atom_name == 'CA'` belong in the browser's
 **AtomWorks query** mode. See the [PyMOL guide](PYMOL.md) for console commands
 and the distinction between the displayed molecule and the saved document.
+
+## Show and hide atoms
+
+**Style** uses the same controls in Studio, VS Code, and embedded Gradio.
+Choose **All atoms** or **Selection**, then **Show**, **Hide**, or **Show only**
+and a representation. **Show only** replaces other representations on that target.
+**Hide everything** hides all representations on the target; it does not delete atoms.
+
+For a binding-site view, select the protein and show a cartoon, then select the
+ligand and show sticks. Show a surface to inspect the pocket and hide that surface
+when it obscures contacts. Both Patinae and Mol* support these controls. Ribbon
+uses Mol*'s backbone representation; rendering details differ between engines.
+
+Display changes leave the annotated CIF and edit history unchanged. Selection
+styles stay attached to the selected atoms through annotation refreshes and
+renderer switches. Opening another structure or changing its atom inventory
+resets these styles. Structural changes still go through AtomWorks and **Undo**.

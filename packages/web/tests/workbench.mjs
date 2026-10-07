@@ -4,12 +4,12 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import AxeBuilder from "@axe-core/playwright";
 import { chromium } from "playwright-core";
-import { chromiumArgs, chromiumExecutable } from "../../../scripts/browser.mjs";
+import { chromiumLaunchOptions } from "../../../scripts/browser.mjs";
 
 const base = process.env.ANNOTATION_STUDIO_URL ?? "http://127.0.0.1:8000/";
 const screenshots = process.env.STUDIO_SCREENSHOTS;
 if (screenshots) await mkdir(screenshots, { recursive: true });
-const browser = await chromium.launch({ executablePath: chromiumExecutable(), headless: true, args: chromiumArgs });
+const browser = await chromium.launch(chromiumLaunchOptions());
 try {
   const context = await browser.newContext({ viewport: { width: 1440, height: 950 }, serviceWorkers: "block" });
   const page = await context.newPage();
@@ -22,7 +22,7 @@ try {
   await page.locator("#file-input").focus();
   assert.equal(await page.evaluate(() => document.activeElement.id), "file-input");
   if (screenshots) await page.screenshot({ path: resolve(screenshots, "studio-empty.png") });
-  await page.locator('[data-example="ppi"]').click();
+  await page.locator('[data-example="antibody_design"]').click();
   await page.waitForFunction(() => !document.querySelector("#download").disabled);
   assert.ok(await page.locator("#empty-state").isHidden());
   for (const viewport of [{ width: 1440, height: 950 }, { width: 760, height: 800 }, { width: 608, height: 620 }]) {

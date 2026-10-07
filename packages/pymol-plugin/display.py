@@ -41,9 +41,11 @@ _DISPLAY_PLACEHOLDER = "_display_placeholder"
 
 
 def display_atom_ids(array: struc.AtomArray) -> np.ndarray:
-    """Return the PyMOL atom ids for *array* — the ``atom_id`` annotation if present, else 1-indexed."""
+    """Return unique display IDs without changing the source's atom identifiers."""
     if "atom_id" in array.get_annotation_categories():
-        return array.get_annotation("atom_id")
+        ids = array.get_annotation("atom_id")
+        if len(np.unique(ids)) == len(ids):
+            return ids
     return np.arange(1, array.array_length() + 1)
 
 
@@ -93,6 +95,7 @@ def prepare_for_display(
         Copy of the array with sentinel coordinates set for display.
     """
     array = array.copy()  # never change the main array
+    array.set_annotation("atom_id", display_atom_ids(array))
 
     # always disambiguate chain_id using chain_iid
     if "chain_iid" in array.get_annotation_categories():

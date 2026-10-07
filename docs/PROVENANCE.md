@@ -6,11 +6,18 @@ AtomWorks Studio originated in
 `git subtree split --prefix=apps/annotation-studio`; its imported tip is
 `6a33a68e29b11f4ac9d3fc1bbb6bf1208171ad3a`.
 
-The patched Patinae viewer is rebuilt from
-`https://github.com/zmactep/patinae.git` at
-`5e40f6d1654b2d68cacfc2923e2db1a52c875058`. The reviewed patch series in
-`vendor/patinae/patches` reproduces Studio branch
-`2bf8d2cc6dde586e80a728f0d8718ba0bbb584f0`.
+The Patinae browser bundle and optional desktop launcher are pinned to upstream
+[`ba03133`](https://github.com/zmactep/patinae/commit/ba03133e59243394a9c425d0538ca5d2f33d528d)
+(v0.5.1). `vendor/patinae/UPSTREAM.toml` records the full revision and bundle checksum.
+Two patches remain in `vendor/patinae/patches`: a WebAssembly-compatible renderer
+clock, and a structured browser bridge for atom identities, selections, command
+metadata, and measurements. Measurements and labels use upstream's scene and
+rendering code. The earlier trajectory and custom rendering patches are removed;
+upstream now handles multi-model CIF trajectories directly.
+
+`bash scripts/build_patinae_viewer.sh` verifies the checked-in bundle. Set
+`ATOMWORKS_STUDIO_REBUILD_PATINAE=1` to rebuild it using the pinned Rust toolchain,
+upstream's npm lockfile, and the patch series.
 
 ## Dependencies
 

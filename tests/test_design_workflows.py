@@ -9,6 +9,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = json.loads((ROOT / "tests/fixtures/workflow_cases.json").read_text())
+CASES += json.loads((ROOT / "tests/fixtures/nim_workflow_cases.json").read_text())
 
 
 @pytest.mark.parametrize("case", CASES, ids=lambda case: case["name"])
@@ -38,7 +39,12 @@ def test_native_design_input_workflow(case, tmp_path, monkeypatch):
     cmd.reinitialize()
     STATE.clear_all()
     load_extensions()
-    name = load_structure(ROOT / "examples" / case["file"], config=build_load_config("minimal"), obj_name=case["name"])
+    source = ROOT / "examples" / case.get("file", "")
+    if "example_id" in case:
+        from annotation_studio.main import EXAMPLES, EXAMPLES_DIR
+
+        source = EXAMPLES_DIR / next(item["file"] for item in EXAMPLES if item["id"] == case["example_id"])
+    name = load_structure(source, config=build_load_config("minimal"), obj_name=case["name"])
     document = STATE.document(name)
     assert len(document.array) == case["atoms"]
     if case["name"] == "ppi":
@@ -60,10 +66,12 @@ def test_native_design_input_workflow(case, tmp_path, monkeypatch):
         assert indices
         return indices
 
+    snapshots = []
     snapshot("00")
     for i, action in enumerate(case["actions"], 1):
         kind = action["kind"]
         editor = None
+        indices = []
         previous = document.array.copy()
         if kind in {"condition", "group", "pair"}:
             definition = document.condition_provider.definitions_by_name[action.get("key", "distance")]
@@ -100,12 +108,17 @@ def test_native_design_input_workflow(case, tmp_path, monkeypatch):
         if kind not in {"realize", "undo"}:
             np.testing.assert_allclose(document.array.coord, previous.coord, equal_nan=True)
         snapshot(f"{i:02d}")
+        snapshots.append({"step": i, "action": kind, "indices": indices, "atoms": len(document.array)})
         if editor is not None:
             editor.close()
     final = output / f"pymol-{case['name']}-saved.cif"
     monkeypatch.setattr(QtWidgets.QFileDialog, "getSaveFileName", lambda *args: (str(final), ""))
     panel._save_active()
     assert final.is_file()
+    reopened = load_structure(final, config=build_load_config("minimal"), obj_name=f"{name}_reopened")
+    (output / f"pymol-{case['name']}-reopened.cif").write_text(STATE.document(reopened).to_cif())
+    (output / f"pymol-{case['name']}-actions.json").write_text(json.dumps(snapshots))
+    STATE.active = name
     panel._widget.resize(680, 800)
     panel._widget.show()
     panel._widget.findChild(QtWidgets.QTabWidget).setCurrentIndex(1)

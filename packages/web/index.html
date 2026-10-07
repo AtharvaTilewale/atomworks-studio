@@ -54,7 +54,12 @@
                     <option value="selection">Selection</option>
                   </select>
                 </label>
-                <label class="checkbox"><input id="representation-exclusive" type="checkbox" /> Replace representation</label>
+                <fieldset class="representation-mode" data-capability="representations">
+                  <legend>Representation</legend>
+                  <label><input type="radio" name="representation-action" value="show" checked />Show</label>
+                  <label><input type="radio" name="representation-action" value="hide" />Hide</label>
+                  <label><input type="radio" name="representation-action" value="replace" />Show only</label>
+                </fieldset>
                 <div class="viewer-menu-grid" id="representation-actions" data-capability="representations">
                   <button type="button" data-representation="cartoon">Cartoon</button>
                   <button type="button" data-representation="ribbon">Ribbon</button>
@@ -62,6 +67,7 @@
                   <button type="button" data-representation="sticks">Sticks</button>
                   <button type="button" data-representation="spheres">Spheres</button>
                   <button type="button" data-representation="surface">Surface</button>
+                  <button type="button" data-representation="everything" data-action="hide" class="representation-hide-all">Hide everything</button>
                 </div>
                 <div class="viewer-menu-grid" id="color-actions" data-capability="colors">
                   <button type="button" data-color="atomic">Atom</button>
@@ -167,8 +173,8 @@
             <label class="viewer-choice compact-choice">Renderer
               <select id="viewer-mode">
                 <option value="">Choose renderer</option>
-                <option value="patinae">Patinae · WebGPU</option>
                 <option value="molstar">Mol* · WebGL</option>
+                <option value="patinae">Patinae · WebGPU</option>
               </select>
             </label>
 
@@ -221,6 +227,15 @@
             </div>
           </div>
           </div>
+          <div id="trajectory-bar" class="trajectory-bar" hidden>
+            <button id="trajectory-toggle" class="secondary compact" aria-pressed="false">Show trajectory</button>
+            <div id="trajectory-controls" hidden>
+              <button id="trajectory-play" class="secondary compact">Play</button>
+              <input id="trajectory-frame" type="range" min="0" max="0" value="0" step="1" aria-label="Trajectory frame" />
+              <output id="trajectory-position" aria-live="off"></output>
+              <span class="muted">Backbone · view only</span>
+            </div>
+          </div>
           <form id="viewer-command-form" class="viewer-command-bar">
               <select id="selection-syntax" aria-label="Input syntax">
                 <option value="patinae">PyMOL commands</option>
@@ -240,33 +255,8 @@
         <aside id="atomworks-studio-popover" class="studio-menu-popover" aria-label="Studio controls">
           <details id="examples-panel" class="card quick-start-card" data-editor-card="main" open>
             <summary>Examples</summary>
-            <p class="muted">Annotated structures to try.</p>
-            <div class="example-list">
-              <article class="example-card">
-                <div class="example-title-row">
-                  <strong>PPI · PD-L1 binder</strong>
-                  <span>50–120 aa</span>
-                </div>
-                <p>Fixed target sequence and coordinates, six hotspot atoms, and an expandable binder chain.</p>
-                <button class="secondary example-load" data-example="ppi" disabled>Load PPI example</button>
-              </article>
-              <article class="example-card">
-                <div class="example-title-row">
-                  <strong>MCSA · PH2 active site</strong>
-                  <span>180 aa</span>
-                </div>
-                <p>Sequence- and coordinate-conditioned catalytic residues around a small-molecule ligand.</p>
-                <button class="secondary example-load" data-example="mcsa" disabled>Load MCSA example</button>
-              </article>
-              <article class="example-card">
-                <div class="example-title-row">
-                  <strong>DISCO-style · IAI binder</strong>
-                  <span>150 aa</span>
-                </div>
-                <p>Small-molecule context with an expandable protein segment.</p>
-                <button class="secondary example-load" data-example="disco" disabled>Load DISCO example</button>
-              </article>
-            </div>
+            <p class="muted">Annotated NIM inputs. Loading an example opens a new document.</p>
+            <div id="example-list" class="example-list"></div>
           </details>
 
           <section class="card editor-document">

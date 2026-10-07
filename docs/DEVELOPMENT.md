@@ -12,7 +12,12 @@ make run
 
 The pinned RFD4 source is used only for scientific annotation definitions.
 No checkpoints or model environment are needed. Both browser renderers are built
-into the release wheel. `make bootstrap` rebuilds the patched Patinae viewer.
+into the release wheel. `make bootstrap` verifies and reuses the bundled Patinae
+viewer; rebuilding it is only needed when its upstream source or patches change.
+
+`make run` uses the installed Studio command and existing web assets. After editing
+the frontend, run `make build` again. For a frontend development server with live
+updates, use `pnpm --dir packages/web dev`.
 
 ## Checks
 
@@ -29,6 +34,9 @@ make docs
 including selections, annotations, protonation, Undo, save/reopen, embedding,
 responsive layouts, and accessibility. It writes logs to `artifacts/local/`.
 Browser automation uses `CHROME_PATH` when supplied; see `scripts/browser.mjs`.
+CI installs the Chromium revision matched to the locked Playwright version.
+Linux runs it under Xvfb with SwiftShader so WebGPU screenshots contain the
+rendered frame. Reproduce that setup with `CI=1 xvfb-run -a make accept-local`.
 
 Native PyMOL tests need PyMOL and Qt. Create the environment described in the
 [PyMOL guide](PYMOL.md), install the source packages there, then run:
@@ -63,7 +71,8 @@ See [architecture](ARCHITECTURE.md) for package boundaries and
 ## Workflow checks
 
 The browser acceptance suite runs the PPI, enzyme-motif and ligand cases in
-`tests/fixtures/workflow_cases.json` through both viewers. It compares exported
+`tests/fixtures/workflow_cases.json` and the eight NIM cases in
+`tests/fixtures/nim_workflow_cases.json` through both viewers. It compares exported
 atom identities, coordinates, bonds, charges, segment bounds, and all annotation
 values and masks. Segment expansion uses random lengths; the comparison checks
 the state restored by Undo, while each workflow checks expansion separately.
@@ -78,3 +87,19 @@ python scripts/check_workflow_outputs.py artifacts/local/workflows --hosts molst
 ```
 
 These are design-input preparation tests. Studio does not execute model inference.
+
+The RFD4 Gradio wrapper uses the same workflow driver. Against a running wrapper:
+
+```bash
+ANNOTATION_STUDIO_URL=http://127.0.0.1:8791/ VIEWER_MODE=patinae \
+  STUDIO_STRICT_RENDERER=1 node packages/web/tests/gradio-workflows.mjs
+ANNOTATION_STUDIO_URL=http://127.0.0.1:8791/ GRADIO_URL=http://127.0.0.1:8791/design/ \
+  VIEWER_MODE=molstar node packages/web/tests/editor-qol.mjs
+```
+
+Repeat with the other viewer. `STUDIO_TEST_GENERATE=1` also submits one antibody
+input, reopens the result, and checks that switching examples clears old results;
+use an echo runner locally or explicitly enable it against a model deployment.
+For private Spaces, supply `HF_TOKEN` through the environment and set
+`STUDIO_PARENT_ORIGIN=https://huggingface.co` to reproduce the Hub's nested iframe.
+The test sends authentication only to the configured Studio origin.

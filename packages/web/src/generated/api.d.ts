@@ -4,6 +4,46 @@
  */
 
 export interface paths {
+    "/api/v1/examples": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * V1 List Examples
+         * @description Return the catalog shared by Studio and model-hosting integrations.
+         */
+        get: operations["v1_list_examples_api_v1_examples_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/examples/{example_id}/cif": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * V1 Example Cif
+         * @description Read only a named, bundled example; arbitrary paths are not accepted.
+         */
+        get: operations["v1_example_cif_api_v1_examples__example_id__cif_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health": {
         parameters: {
             query?: never;
@@ -919,6 +959,59 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    v1_list_examples_api_v1_examples_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    }[];
+                };
+            };
+        };
+    };
+    v1_example_cif_api_v1_examples__example_id__cif_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                example_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     v1_health_api_v1_health_get: {
         parameters: {
             query?: never;

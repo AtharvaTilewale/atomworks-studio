@@ -112,9 +112,8 @@ async function selectViewerBackend(
   force = false,
 ): Promise<ViewerBackend | undefined> {
   const configured = configuration.get<string>("viewerBackend");
-  // Default to Patinae (WebGPU) without prompting; Mol* is used only when explicitly
-  // configured. The picker appears only when the user runs "Select renderer" (force).
-  if (!force) return configured === "molstar" ? "molstar" : "patinae";
+  // Use Mol* unless Patinae is explicitly configured. Prompt only on request.
+  if (!force) return configured === "patinae" ? "patinae" : "molstar";
   const selected = await vscode.window.showQuickPick(
     [
       { label: "Patinae", detail: "WebGPU renderer", backend: "patinae" as const },

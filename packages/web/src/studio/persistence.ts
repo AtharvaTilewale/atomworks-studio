@@ -1,7 +1,8 @@
 import type { SessionResponse } from "../types";
 import type { ViewerMode } from "../viewers";
 
-export const VIEWER_STORAGE_KEY = "annotation-studio-viewer";
+// The old key also stored automatic defaults. Persist only explicit choices now.
+export const VIEWER_STORAGE_KEY = "annotation-studio-viewer-v2";
 export const PENDING_EXAMPLE_KEY = "annotation-studio-pending-example";
 
 export function parseViewerMode(value: string | null): ViewerMode | null {

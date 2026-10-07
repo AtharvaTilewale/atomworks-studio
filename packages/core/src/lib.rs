@@ -24,6 +24,7 @@ struct LoopTable {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct CifSummary {
     pub atom_count: usize,
+    pub finite_atom_count: usize,
     pub chain_ids: Vec<String>,
     pub condition_categories: Vec<String>,
     pub atom_site_columns: Vec<String>,
@@ -111,7 +112,7 @@ fn starts_control(token: &Token) -> bool {
             || token.value.starts_with('_'))
 }
 
-fn atom_site_loop(tokens: &[Token]) -> Result<LoopTable, String> {
+fn atom_site_table(tokens: &[Token]) -> Result<LoopTable, String> {
     for loop_index in 0..tokens.len() {
         if !tokens[loop_index].bare || tokens[loop_index].value != "loop_" {
             continue;
@@ -150,7 +151,25 @@ fn atom_site_loop(tokens: &[Token]) -> Result<LoopTable, String> {
         }
         return Ok(LoopTable { headers, values });
     }
-    Err("CIF has no _atom_site loop".to_owned())
+    let mut headers = Vec::new();
+    let mut values = Vec::new();
+    for (index, token) in tokens.iter().enumerate() {
+        if token.bare && token.value.starts_with("_atom_site.") {
+            let value = tokens
+                .get(index + 1)
+                .filter(|value| !starts_control(value))
+                .ok_or_else(|| format!("missing value for {}", token.value))?;
+            if headers.contains(&token.value) {
+                return Err(format!("duplicate scalar field {}", token.value));
+            }
+            headers.push(token.value.clone());
+            values.push(value.value.clone());
+        }
+    }
+    if headers.is_empty() {
+        return Err("CIF has no _atom_site category".to_owned());
+    }
+    Ok(LoopTable { headers, values })
 }
 
 fn annotation_category(tag: &str) -> Option<String> {
@@ -171,9 +190,29 @@ fn annotation_category(tag: &str) -> Option<String> {
 
 pub fn inspect(input: &str) -> Result<CifSummary, String> {
     let tokens = tokenize(input)?;
-    let table = atom_site_loop(&tokens)?;
+    let table = atom_site_table(&tokens)?;
     let width = table.headers.len();
     let atom_count = table.values.len() / width;
+    let coordinate_columns: Option<Vec<usize>> = ["Cartn_x", "Cartn_y", "Cartn_z"]
+        .iter()
+        .map(|axis| {
+            table
+                .headers
+                .iter()
+                .position(|header| header == &format!("_atom_site.{axis}"))
+        })
+        .collect();
+    let finite_atom_count = coordinate_columns.map_or(0, |columns| {
+        table
+            .values
+            .chunks_exact(width)
+            .filter(|row| {
+                columns
+                    .iter()
+                    .all(|&column| row[column].parse::<f64>().is_ok_and(f64::is_finite))
+            })
+            .count()
+    });
 
     let chain_column = table
         .headers
@@ -207,6 +246,7 @@ pub fn inspect(input: &str) -> Result<CifSummary, String> {
 
     Ok(CifSummary {
         atom_count,
+        finite_atom_count,
         chain_ids,
         condition_categories,
         atom_site_columns: table.headers,
@@ -271,5 +311,17 @@ mod tests {
     fn rejects_ragged_atom_site_loop() {
         let input = "data_x\nloop_\n_atom_site.id\n_atom_site.label_asym_id\n1\n#\n";
         assert!(inspect(input).unwrap_err().contains("values"));
+    }
+
+    #[test]
+    fn scalar_placeholder_keeps_annotations_and_roundtrips() {
+        let input = "data_x\n_atom_site.id 1\n_atom_site.label_asym_id A\n_atom_site.Cartn_x nan\n_atom_site.condition_index_1_residue True\n";
+        let summary = inspect(input).unwrap();
+        assert_eq!(summary.atom_count, 1);
+        assert_eq!(summary.chain_ids, ["A"]);
+        assert_eq!(summary.finite_atom_count, 0);
+        assert_eq!(summary.condition_categories, ["condition_index_1_residue"]);
+        assert_eq!(roundtrip(input).unwrap(), input);
+        assert!(inspect("data_x\n_atom_site.id\n").is_err());
     }
 }

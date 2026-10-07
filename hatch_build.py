@@ -21,7 +21,7 @@ class CustomBuildHook(BuildHookInterface):
             destination = Path(self.root) / "packages/api/annotation_studio" / name
             if (source / "index.html").is_file():
                 shutil.rmtree(destination, ignore_errors=True)
-                shutil.copytree(source, destination)
+                shutil.copytree(source, destination, ignore=shutil.ignore_patterns(".doctrees", "__pycache__", "*.bak"))
             elif not (destination / "index.html").is_file():
                 raise RuntimeError(f"build {source_dir} before building Studio (make build)")
             # Also include generated assets when rebuilding a wheel from its sdist.

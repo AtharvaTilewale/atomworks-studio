@@ -512,6 +512,25 @@ def _apply(session_id: str, operation: Callable[[StudioDocument], Any]) -> dict:
     }
 
 
+EXAMPLES_DIR = Path(__file__).parent / "examples"
+EXAMPLES = json.loads((EXAMPLES_DIR / "examples.json").read_text())
+
+
+@app.get("/api/examples")
+def list_examples() -> list[dict[str, str]]:
+    """Return the catalog shared by Studio and model-hosting integrations."""
+    return EXAMPLES
+
+
+@app.get("/api/examples/{example_id}/cif", response_class=PlainTextResponse)
+def example_cif(example_id: str) -> str:
+    """Read only a named, bundled example; arbitrary paths are not accepted."""
+    example = next((item for item in EXAMPLES if item["id"] == example_id), None)
+    if example is None:
+        raise HTTPException(status_code=404, detail="Unknown example")
+    return (EXAMPLES_DIR / example["file"]).read_text()
+
+
 @app.get("/api/health")
 def health() -> dict[str, str]:
     return {

@@ -168,3 +168,24 @@ For example, consult the [OpenFold3 request examples](https://docs.nvidia.com/ni
 or [Boltz-2 inference guide](https://docs.nvidia.com/nim/bionemo/boltz2/latest/inference.html)
 for the chosen service. Studio does not need an NVIDIA or Hugging Face SDK just
 to prepare structures or inspect their outputs.
+
+
+## Trajectory playback
+
+A model host can attach a multi-model CIF to an output session with
+`?session=SESSION_ID&trajectory=ENCODED_URL`. URL-encode a file URL on the same
+Studio origin. Studio fetches it when the user selects **Show trajectory** and
+provides **Play/Pause** and a frame slider in the existing viewer. Both Patinae
+and Mol* render the frames; no model code is included in Studio.
+
+RFD4's lightweight trajectories contain only Cα atoms. Mol* automatically
+estimates helix and strand assignments from each frame's Cα geometry using its
+Zhang–Skolnick method. These are approximate assignments, not full-backbone
+DSSP results. Patinae currently shows these trajectories as a backbone trace;
+its secondary-structure assignment requires N, Cα, C, and O atoms. Neither
+viewer needs extra model inference for playback.
+
+Playback is view-only. **Back to design** restores the session's editable final
+structure. Opening a different document or editing the result removes the old
+trajectory association. Model hosts control whether snapshots are recorded,
+their retention, and access to the trajectory file.

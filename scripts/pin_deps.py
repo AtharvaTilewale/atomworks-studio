@@ -16,6 +16,10 @@ def main() -> None:
     assert web["dependencies"]["molstar"] == "5.11.0", "Mol* must be exact-pinned"
     patinae = tomllib.loads((ROOT / "vendor/patinae/UPSTREAM.toml").read_text())
     assert re.fullmatch(r"[0-9a-f]{40}", patinae["revision"])
+    launcher = tomllib.loads((ROOT / "packages/patinae-plugin/Cargo.toml").read_text())
+    assert launcher["dependencies"]["patinae-plugin"]["rev"] == patinae["revision"]
+    assert web["dependencies"][patinae["package"]] == f"file:vendor/patinae-viewer-{patinae['version']}.tgz"
+
     patches = sorted((ROOT / "vendor/patinae/patches").glob("*.patch"))
     assert patches, "Patinae patch series is empty"
 

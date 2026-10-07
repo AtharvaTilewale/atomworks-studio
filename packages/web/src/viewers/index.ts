@@ -9,6 +9,7 @@ import type {
   ViewerMode,
   ViewerObject,
   ViewerRepresentation,
+  ViewerRepresentationAction,
   ViewerCommand,
   ViewerMeasurement,
   ViewerMeasurementRequest,
@@ -31,6 +32,7 @@ export type {
   ViewerMode,
   ViewerObject,
   ViewerRepresentation,
+  ViewerRepresentationAction,
   ViewerCommand,
   ViewerMeasurement,
   ViewerMeasurementRequest,
@@ -65,6 +67,22 @@ export class MolecularViewer {
   private interactionOverlays: ViewerInteraction[] = [];
   private measurementRequests: ViewerMeasurementRequest[] = [];
   private markers: ViewerMarker[] = [];
+  // Capture atom indices when a style is applied, not the later contents of "sele".
+  private representations: {
+    representation: ViewerRepresentation;
+    target: ViewerTarget;
+    action: ViewerRepresentationAction;
+    atomIndices: number[];
+  }[] = [];
+
+  private async replayRepresentations(): Promise<void> {
+    if (!this.representations.length) return;
+    for (const operation of this.representations) {
+      this.adapter?.setSelection(operation.atomIndices);
+      await this.adapter?.setRepresentation?.(operation.representation, operation.target, operation.action);
+    }
+    this.adapter?.setSelection(this.selectedAtomIndices);
+  }
 
   constructor(
     private readonly container: HTMLElement,
@@ -151,6 +169,7 @@ export class MolecularViewer {
       if (this.structures.length === 1 && this.annotationGroups.length) {
         this.updateAnnotationDiagnostics(await this.adapter?.showAnnotation(this.annotationGroups));
       }
+      await this.replayRepresentations();
       await this.replayTransientVisuals();
       this.adapter?.setSelection(this.selectedAtomIndices);
     }
@@ -161,11 +180,24 @@ export class MolecularViewer {
     this.container.dataset.comparisonStructures = "0";
     this.updateAnnotationDiagnostics();
     await this.adapter?.loadCif(cif, name);
+    await this.replayRepresentations();
     await this.replayTransientVisuals();
   }
 
+  get trajectoryFrameCount(): number {
+    return this.adapter?.trajectoryFrameCount?.() ?? 0;
+  }
+
+  async setTrajectoryFrame(index: number): Promise<void> {
+    if (!Number.isInteger(index) || index < 0 || index >= this.trajectoryFrameCount) {
+      throw new Error("Trajectory frame is out of range");
+    }
+    await this.adapter?.setTrajectoryFrame?.(index);
+    this.container.dataset.trajectoryFrame = String(index);
+  }
+
   async loadCifs(structures: ViewerStructure[]): Promise<void> {
-    if (!structures.length) throw new Error("Choose at least one structure to visualize.");
+    this.representations = [];
     this.structures = structures.map((structure) => ({ ...structure }));
     this.annotationGroups = [];
     this.selectedAtomIndices = [];
@@ -191,13 +223,18 @@ export class MolecularViewer {
     }
   }
 
-  setRepresentation(
+  async setRepresentation(
     representation: ViewerRepresentation,
     target: ViewerTarget,
-    exclusive = false,
-  ): void {
+    action: ViewerRepresentationAction = "show",
+  ): Promise<void> {
     if (!this.adapter?.setRepresentation) throw new Error("Representation controls are unavailable.");
-    this.adapter.setRepresentation(representation, target, exclusive);
+    if (!this.structures.length) throw new Error("Open a structure first.");
+    if (target === "selection" && !this.selectedAtomIndices.length) throw new Error("Select atoms first.");
+    if (representation === "everything" && action !== "hide") throw new Error("Choose a representation to show.");
+    await this.adapter.setRepresentation(representation, target, action);
+    if (target === "all" && (action === "replace" || representation === "everything")) this.representations = [];
+    this.representations.push({ representation, target, action, atomIndices: [...this.selectedAtomIndices] });
   }
 
   setColor(color: ViewerColor, target: ViewerTarget): void {
@@ -273,6 +310,7 @@ export class MolecularViewer {
   }
 
   async clearAllVisuals(): Promise<void> {
+    this.representations = [];
     this.annotationGroups = [];
     this.interactionOverlays = [];
     this.measurementRequests = [];
@@ -290,12 +328,14 @@ export class MolecularViewer {
     if (!this.adapter) throw new Error("Molecular viewer is not initialized");
     this.annotationGroups = groups;
     this.updateAnnotationDiagnostics(await this.adapter.showAnnotation(groups));
+    await this.replayRepresentations();
     await this.replayTransientVisuals();
   }
 
   async clearAnnotation(): Promise<void> {
     this.annotationGroups = [];
     await this.adapter?.clearAnnotation();
+    await this.replayRepresentations();
     await this.replayTransientVisuals();
     this.updateAnnotationDiagnostics();
   }

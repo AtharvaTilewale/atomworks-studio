@@ -1,27 +1,27 @@
 # Edit, save, and reopen a structure
 
-This walkthrough uses the bundled PPI example. Run Studio using the
+This walkthrough uses the bundled NIM inverse-folding example (2KL8). Run Studio using the
 [installation guide](INSTALLATION.md), then open its URL in your browser.
 No GPU is needed to edit or save a structure.
 
 ## Try it here
 
 The installed guide can open the same editor used by the browser and VS Code.
-Choose **Open PPI example**, then follow the steps below. On a narrow screen,
+Choose **Open 2KL8 example**, then follow the steps below. On a narrow screen,
 use the editor's **Guide** link to keep the instructions in a separate tab.
 
 ```{raw} html
 <div class="studio-example">
-  <button type="button" data-studio-example="ppi">Open PPI example</button>
+  <button type="button" data-studio-example="inverse_folding">Open 2KL8 example</button>
   <p role="status">Interactive editing is available when this guide is served by Studio at /guide/.</p>
 </div>
 ```
 
 ## Open and select
 
-1. In **Edit**, choose the PPI example. Wait for the molecule and sequence to appear.
+1. In **Edit → Main → Examples**, choose **Inverse folding · 2KL8**. Wait for the molecule and sequence to appear.
 2. Set the command bar to **AtomWorks query**, enter `atom_name == 'CA'`, and
-   choose **Select**. The selection count should read **115 atoms** for the bundled example.
+   choose **Select**. The selection count should read **59 atoms** for the bundled example.
 3. In the same **AtomWorks query** mode, enter `sel('*/*/*/CA')`. It selects the same atoms.
 4. Click a residue in the sequence to replace the selection. Ctrl/Cmd-click
    toggles a residue; Shift-click extends a range.
@@ -60,7 +60,7 @@ preserve AtomWorks annotations.
 
 ## Edit a ligand
 
-Load the bundled MCSA enzyme example to work with a ligand.
+Choose **Small-molecule binder · SAM** from the NIM examples to work with a ligand.
 
 - **Protonation:** in **Charges**, set pH and choose **Protonate structure**.
   It updates the whole structure, including hydrogens, and can be undone.

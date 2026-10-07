@@ -16,9 +16,8 @@ make bootstrap
 make run
 ```
 
-Open <http://127.0.0.1:8000/>. It uses **Patinae/WebGPU by default**; if the
-browser has no WebGPU support it automatically falls back to Mol*/WebGL. Pin a
-renderer explicitly with a query parameter:
+Open <http://127.0.0.1:8000/>. It uses **Mol*/WebGL by default**, including when embedded in Gradio. Choose
+Patinae from **More → Renderer**, or pin a renderer with a query parameter:
 
 - <http://127.0.0.1:8000/?viewer=patinae> — Patinae using WebGPU
 - <http://127.0.0.1:8000/?viewer=molstar> — Mol* using WebGL
@@ -39,8 +38,9 @@ controls:
 - **Remove waters** — optional water filtering
 
 Use **Combine CIF** to merge another file into the active document. The
-**Edit** panel includes PPI, MCSA enzyme, and DISCO-style
-small-molecule examples that can be loaded without locating a file manually.
+**Edit → Examples** panel includes the eight NIM inputs: antibody, VHH, enzyme,
+motif, SAM binder, inverse folding, partial diffusion, and unconditional design.
+The same packaged catalog is used by the Gradio Space.
 
 The fixtures are described in
 [examples/README.md](https://github.com/baker-laboratory/atomworks-studio/blob/main/examples/README.md).

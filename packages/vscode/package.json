@@ -75,7 +75,7 @@
             "Use Patinae/WebGPU.",
             "Use Mol*/WebGL."
           ],
-          "default": "patinae",
+          "default": "molstar",
           "description": "Viewer used when opening Studio. Change it with AtomWorks: Select Studio Renderer."
         },
         "annotationStudio.pythonPath": {
@@ -93,10 +93,10 @@
     "test": "pnpm compile && node --test tests/*.test.cjs"
   },
   "devDependencies": {
-    "@types/node": "^26.4.0",
+    "@types/node": "^26.6.3",
     "@types/vscode": "^1.95.0",
     "@vscode/vsce": "^3.9.2",
-    "ovsx": "^1.0.2",
+    "ovsx": "^1.2.0",
     "typescript": "^7.0.2"
   },
   "capabilities": {

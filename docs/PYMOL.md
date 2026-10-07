@@ -59,8 +59,8 @@ as unindexed, disable their Index condition. PyMOL condition selections show
 which atoms carry each annotation.
 
 In **Bonds**, pick two atoms to add or remove a bond. The table lists bonds
-involving the current selection. **Infer Bonds from CCD** replaces bonds using
-CCD templates and requires `CCD_MIRROR_PATH`. Check ligand and nonstandard
+involving the current selection. **Infer Bonds from CCD** merges bonds from CCD
+templates while preserving atoms and charges. It requires `CCD_MIRROR_PATH`. Check ligand and nonstandard
 bond graphs before saving; a PyMOL display alone does not establish stored bonds.
 
 **Charges** sets or adjusts selected atoms' formal charges. **Protonate active

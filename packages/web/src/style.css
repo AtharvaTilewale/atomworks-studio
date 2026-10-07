@@ -210,12 +210,6 @@ h2 { margin: 0 0 12px; font-size: 13px; font-weight: 600; color: var(--text); }
 details > summary { cursor: pointer; margin: -2px 0 12px; font-weight: 500; color: var(--text-secondary); }
 .quick-start-card > .muted { margin: 0 0 10px; }
 .example-list { display: grid; gap: 8px; }
-.example-card {
-  padding: 10px 0; border: 0; border-top: 1px solid var(--border); background: transparent;
-}
-.example-card p { margin: 7px 0; color: var(--text-muted); font-size: 11px; line-height: 1.4; }
-.example-title-row { display: flex; justify-content: space-between; gap: 8px; color: var(--text); font-size: 12px; }
-.example-title-row > span { color: var(--text-muted); font-size: 11px; white-space: nowrap; }
 .example-load { width: 100%; }
 label { display: grid; gap: 5px; margin: 10px 0; color: var(--text-secondary); font-size: 12px; }
 .checkbox { display: flex; align-items: center; gap: 7px; }
@@ -387,3 +381,38 @@ body.host-vscode[data-host-theme="high-contrast-light"] {
 .editor-tabs button { border: 0; border-radius: 0; min-width: 0; padding: 6px 2px; font-size: 11px; background: transparent; color: var(--text-muted); }
 .editor-tabs button[aria-selected="true"] { color: var(--accent); box-shadow: inset 0 -2px var(--accent); background: var(--accent-soft); }
 [role="tabpanel"] > .card { width: 100%; }
+
+.representation-mode {
+  display: flex;
+  gap: 0;
+  border: 0;
+  padding: 0;
+  margin: 0 0 8px;
+}
+.representation-mode legend { font-size: 11px; margin-bottom: 6px; }
+.viewer-menu-popover .representation-mode label {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 30px;
+  margin: 0;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  position: relative;
+}
+.representation-mode label:first-of-type { border-radius: 5px 0 0 5px; }
+.representation-mode label:last-of-type { border-radius: 0 5px 5px 0; }
+.representation-mode label + label { border-left: 0; }
+.representation-mode label:has(input:checked) { background: #223954; color: #e2edf9; }
+.representation-mode label:has(input:focus-visible) { outline: 2px solid #8db7e8; outline-offset: 2px; }
+.representation-mode input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.representation-hide-all { grid-column: 1 / -1; }
+
+.trajectory-bar { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-top: 1px solid var(--border); }
+.trajectory-bar[hidden], #trajectory-controls[hidden] { display: none; }
+#trajectory-controls { display: flex; align-items: center; gap: 12px; flex: 1; }
+#trajectory-frame { flex: 1; min-width: 80px; accent-color: var(--accent); }
+#trajectory-position { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.trajectory-playing #sequence-dock, .trajectory-playing #viewer-command-form { display: none; }
+.trajectory-playing #atomworks-studio-popover { opacity: .45; }

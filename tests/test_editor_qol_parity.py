@@ -52,6 +52,73 @@ def documents():
 
 
 @pytest.mark.usefixtures("stable_cif_metadata")
+def test_bond_buttons_share_http_transactions(qt, monkeypatch, documents):
+    from atomworks_studio_pymol import bond_wizard
+    from pymol.Qt import QtWidgets
+
+    native, browser, state = documents
+    state.index_maps = {"test": {"a": 0, "b": 1}}
+    session = store.add(browser)
+    monkeypatch.setenv("CCD_MIRROR_PATH", "/unused-test-ccd")
+    monkeypatch.setattr(bond_wizard, "reload_structure_in_pymol", lambda name: None)
+    monkeypatch.setattr(QtWidgets.QMessageBox, "question", lambda *args: QtWidgets.QMessageBox.Yes)
+    wizard = bond_wizard.BondWizard(state)
+    monkeypatch.setattr(wizard, "_refresh_table", lambda: None)
+    wizard._picked = [("a", "a", "test", 0), ("b", "b", "test", 0)]
+    wizard._table_bonds = [("a", "b", 1, "test", 0)]
+    wizard._table.setRowCount(1)
+    wizard._table.setItem(0, 0, QtWidgets.QTableWidgetItem("a-b"))
+    wizard._table.selectRow(0)
+    for button, action in (
+        (wizard._btn_add, "add"),
+        (wizard._btn_remove, "remove"),
+        (wizard._btn_add, "add"),
+        (wizard._btn_delete_row, "remove"),
+    ):
+        button.click()
+        response = client.post(
+            f"/api/sessions/{session}/bonds",
+            json={"atom1": 0, "atom2": 1, "action": action, "bond_type": "SINGLE"},
+        )
+        assert response.status_code == 200, response.text
+        assert native.inspect_bonds() == browser.inspect_bonds()
+        assert native.to_cif() == browser.to_cif()
+        assert native.revision == browser.revision
+
+    # Only the external CCD lookup is substituted; real Qt/HTTP/document paths run.
+    def infer(array, *, sanitize):
+        assert sanitize is False  # Bond editing must not remove atoms or change charges.
+        array.bonds.add_bond(0, 1, 2)
+        return array
+
+    monkeypatch.setattr("atomworks_studio_editing.document.infer_bonds_from_residue_names", infer)
+    wizard._btn_infer.click()
+    response = client.post(f"/api/sessions/{session}/bonds/infer-ccd")
+    assert response.status_code == 200, response.text
+    assert native.to_cif() == browser.to_cif()
+    assert native.revision == browser.revision == 5
+    assert native.undo() and browser.undo()
+    assert native.to_cif() == browser.to_cif()
+
+    # A partially failed inference must preserve the document and its full Undo budget.
+    for _ in range(10):
+        native.snapshot()
+    before = native.to_cif(), native.revision, len(native._undo)
+
+    def failed_inference(array, *, sanitize):
+        array.charge[0] = 9
+        raise ValueError("CCD lookup failed")
+
+    errors = []
+    monkeypatch.setattr("atomworks_studio_editing.document.infer_bonds_from_residue_names", failed_inference)
+    monkeypatch.setattr(QtWidgets.QMessageBox, "critical", lambda *args: errors.append(args[-1]))
+    wizard._btn_infer.click()
+    assert errors == ["CCD lookup failed"]
+    assert (native.to_cif(), native.revision, len(native._undo)) == before
+    wizard.widget.close()
+
+
+@pytest.mark.usefixtures("stable_cif_metadata")
 @pytest.mark.parametrize("condition", [C_IDXGRP, C_CRDGRP])
 def test_group_actions_match_qt_and_http(qt, monkeypatch, documents, condition):
     from atomworks_studio_rfd4.pymol.group_editor import GroupEditor

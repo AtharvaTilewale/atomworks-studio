@@ -1003,8 +1003,8 @@ checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
 name = "patinae-algos"
-version = "0.4.4"
-source = "git+https://github.com/zmactep/patinae?rev=5e40f6d1654b2d68cacfc2923e2db1a52c875058#5e40f6d1654b2d68cacfc2923e2db1a52c875058"
+version = "0.5.1"
+source = "git+https://github.com/zmactep/patinae?rev=ba03133e59243394a9c425d0538ca5d2f33d528d#ba03133e59243394a9c425d0538ca5d2f33d528d"
 dependencies = [
  "bitflags",
  "lin_alg",
@@ -1023,8 +1023,8 @@ dependencies = [
 
 [[package]]
 name = "patinae-cmd"
-version = "0.4.4"
-source = "git+https://github.com/zmactep/patinae?rev=5e40f6d1654b2d68cacfc2923e2db1a52c875058#5e40f6d1654b2d68cacfc2923e2db1a52c875058"
+version = "0.5.1"
+source = "git+https://github.com/zmactep/patinae?rev=ba03133e59243394a9c425d0538ca5d2f33d528d#ba03133e59243394a9c425d0538ca5d2f33d528d"
 dependencies = [
  "ahash",
  "lin_alg",
@@ -1039,12 +1039,13 @@ dependencies = [
  "patinae-session",
  "patinae-settings",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
 name = "patinae-color"
-version = "0.4.4"
-source = "git+https://github.com/zmactep/patinae?rev=5e40f6d1654b2d68cacfc2923e2db1a52c875058#5e40f6d1654b2d68cacfc2923e2db1a52c875058"
+version = "0.5.1"
+source = "git+https://github.com/zmactep/patinae?rev=ba03133e59243394a9c425d0538ca5d2f33d528d#ba03133e59243394a9c425d0538ca5d2f33d528d"
 dependencies = [
  "ahash",
  "patinae-mol",
@@ -1054,8 +1055,8 @@ dependencies = [
 
 [[package]]
 name = "patinae-framework"
-version = "0.4.4"
-source = "git+https://github.com/zmactep/patinae?rev=5e40f6d1654b2d68cacfc2923e2db1a52c875058#5e40f6d1654b2d68cacfc2923e2db1a52c875058"
+version = "0.5.1"
+source = "git+https://github.com/zmactep/patinae?rev=ba03133e59243394a9c425d0538ca5d2f33d528d#ba03133e59243394a9c425d0538ca5d2f33d528d"
 dependencies = [
  "dirs",
  "lin_alg",
@@ -1068,14 +1069,15 @@ dependencies = [
  "patinae-settings",
  "rmp-serde",
  "serde",
+ "serde_json",
  "tokio",
  "wgpu",
 ]
 
 [[package]]
 name = "patinae-io"
-version = "0.4.4"
-source = "git+https://github.com/zmactep/patinae?rev=5e40f6d1654b2d68cacfc2923e2db1a52c875058#5e40f6d1654b2d68cacfc2923e2db1a52c875058"
+version = "0.5.1"
+source = "git+https://github.com/zmactep/patinae?rev=ba03133e59243394a9c425d0538ca5d2f33d528d#ba03133e59243394a9c425d0538ca5d2f33d528d"
 dependencies = [
  "flate2",
  "lin_alg",
@@ -1086,8 +1088,8 @@ dependencies = [
 
 [[package]]
 name = "patinae-mol"
-version = "0.4.4"
-source = "git+https://github.com/zmactep/patinae?rev=5e40f6d1654b2d68cacfc2923e2db1a52c875058#5e40f6d1654b2d68cacfc2923e2db1a52c875058"
+version = "0.5.1"
+source = "git+https://github.com/zmactep/patinae?rev=ba03133e59243394a9c425d0538ca5d2f33d528d#ba03133e59243394a9c425d0538ca5d2f33d528d"
 dependencies = [
  "ahash",
  "bitflags",
@@ -1104,8 +1106,8 @@ dependencies = [
 
 [[package]]
 name = "patinae-plugin"
-version = "0.4.4"
-source = "git+https://github.com/zmactep/patinae?rev=5e40f6d1654b2d68cacfc2923e2db1a52c875058#5e40f6d1654b2d68cacfc2923e2db1a52c875058"
+version = "0.5.1"
+source = "git+https://github.com/zmactep/patinae?rev=ba03133e59243394a9c425d0538ca5d2f33d528d#ba03133e59243394a9c425d0538ca5d2f33d528d"
 dependencies = [
  "log",
  "patinae-cmd",
@@ -1121,8 +1123,8 @@ dependencies = [
 
 [[package]]
 name = "patinae-render"
-version = "0.4.4"
-source = "git+https://github.com/zmactep/patinae?rev=5e40f6d1654b2d68cacfc2923e2db1a52c875058#5e40f6d1654b2d68cacfc2923e2db1a52c875058"
+version = "0.5.1"
+source = "git+https://github.com/zmactep/patinae?rev=ba03133e59243394a9c425d0538ca5d2f33d528d#ba03133e59243394a9c425d0538ca5d2f33d528d"
 dependencies = [
  "bytemuck",
  "image",
@@ -1139,8 +1141,8 @@ dependencies = [
 
 [[package]]
 name = "patinae-scene"
-version = "0.4.4"
-source = "git+https://github.com/zmactep/patinae?rev=5e40f6d1654b2d68cacfc2923e2db1a52c875058#5e40f6d1654b2d68cacfc2923e2db1a52c875058"
+version = "0.5.1"
+source = "git+https://github.com/zmactep/patinae?rev=ba03133e59243394a9c425d0538ca5d2f33d528d#ba03133e59243394a9c425d0538ca5d2f33d528d"
 dependencies = [
  "ahash",
  "bitflags",
@@ -1160,8 +1162,8 @@ dependencies = [
 
 [[package]]
 name = "patinae-select"
-version = "0.4.4"
-source = "git+https://github.com/zmactep/patinae?rev=5e40f6d1654b2d68cacfc2923e2db1a52c875058#5e40f6d1654b2d68cacfc2923e2db1a52c875058"
+version = "0.5.1"
+source = "git+https://github.com/zmactep/patinae?rev=ba03133e59243394a9c425d0538ca5d2f33d528d#ba03133e59243394a9c425d0538ca5d2f33d528d"
 dependencies = [
  "ahash",
  "bitvec",
@@ -1174,8 +1176,8 @@ dependencies = [
 
 [[package]]
 name = "patinae-session"
-version = "0.4.4"
-source = "git+https://github.com/zmactep/patinae?rev=5e40f6d1654b2d68cacfc2923e2db1a52c875058#5e40f6d1654b2d68cacfc2923e2db1a52c875058"
+version = "0.5.1"
+source = "git+https://github.com/zmactep/patinae?rev=ba03133e59243394a9c425d0538ca5d2f33d528d#ba03133e59243394a9c425d0538ca5d2f33d528d"
 dependencies = [
  "ahash",
  "flate2",
@@ -1186,14 +1188,15 @@ dependencies = [
  "patinae-scene",
  "patinae-settings",
  "rmp-serde",
+ "rmpv",
  "serde",
  "thiserror 2.0.19",
 ]
 
 [[package]]
 name = "patinae-settings"
-version = "0.4.4"
-source = "git+https://github.com/zmactep/patinae?rev=5e40f6d1654b2d68cacfc2923e2db1a52c875058#5e40f6d1654b2d68cacfc2923e2db1a52c875058"
+version = "0.5.1"
+source = "git+https://github.com/zmactep/patinae?rev=ba03133e59243394a9c425d0538ca5d2f33d528d#ba03133e59243394a9c425d0538ca5d2f33d528d"
 dependencies = [
  "ahash",
  "dirs",
@@ -1455,6 +1458,15 @@ checksum = "72f81bee8c8ef9b577d1681a70ebbc962c232461e397b22c208c43c04b67a155"
 dependencies = [
  "rmp",
  "serde",
+]
+
+[[package]]
+name = "rmpv"
+version = "1.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7a4e1d4b9b938a26d2996af33229f0ca0956c652c1375067f0b45291c1df8417"
+dependencies = [
+ "rmp",
 ]
 
 [[package]]

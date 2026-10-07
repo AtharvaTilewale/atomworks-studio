@@ -9,5 +9,5 @@ description = "Patinae desktop launcher for the shared AtomWorks Annotation Stud
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-patinae-plugin = { git = "https://github.com/zmactep/patinae", rev = "5e40f6d1654b2d68cacfc2923e2db1a52c875058" }
+patinae-plugin = { git = "https://github.com/zmactep/patinae", rev = "ba03133e59243394a9c425d0538ca5d2f33d528d" }
 webbrowser = "1.2"

@@ -19,13 +19,17 @@ package_name="$(read_metadata package)"
 version="$(read_metadata version)"
 artifact_sha256="$(read_metadata artifact_sha256)"
 artifact="${artifact_dir}/patinae-viewer-${version}.tgz"
-if command -v pnpm >/dev/null 2>&1; then
-  package_manager=(pnpm)
-else
-  package_manager=(corepack pnpm)
-fi
+verify_artifact() {
+  node - "${artifact}" "${artifact_sha256}" <<'JS'
+const fs = require("node:fs");
+const crypto = require("node:crypto");
+const [path, expected] = process.argv.slice(2);
+const actual = crypto.createHash("sha256").update(fs.readFileSync(path)).digest("hex");
+if (actual !== expected) throw new Error(`Patinae checksum mismatch: ${actual}`);
+JS
+}
 if [[ -f "${artifact}" && "${ATOMWORKS_STUDIO_REBUILD_PATINAE:-0}" != "1" ]]; then
-  printf '%s  %s\n' "${artifact_sha256}" "${artifact}" | sha256sum --check --status
+  verify_artifact
   exit 0
 fi
 
@@ -69,11 +73,6 @@ manifest.name = name;
 manifest.version = version;
 fs.writeFileSync(path, `${JSON.stringify(manifest, null, 2)}\n`);
 JS
-cat >"${source_dir}/web/pnpm-workspace.yaml" <<'YAML'
-allowBuilds:
-  esbuild: true
-  wasm-pack: false
-YAML
 cat >>"${source_dir}/web/Cargo.toml" <<'TOML'
 
 [package.metadata.wasm-pack.profile.release]
@@ -82,12 +81,12 @@ TOML
 
 (
   cd "${source_dir}/web"
-  "${package_manager[@]}" install --no-frozen-lockfile
+  npm ci --ignore-scripts
   RUSTUP_TOOLCHAIN="${rust_toolchain}" SOURCE_DATE_EPOCH=0 CARGO_BUILD_JOBS=1 \
   RUSTFLAGS="-C codegen-units=1 --remap-path-prefix=${source_dir}=/src/patinae --remap-path-prefix=${CARGO_HOME:-${HOME}/.cargo}=/cargo" \
     "${wasm_pack}" build --target web --out-dir pkg
-  "${package_manager[@]}" exec vite build
-  "${package_manager[@]}" exec tsc --emitDeclarationOnly
+  ./node_modules/.bin/vite build
+  ./node_modules/.bin/tsc --emitDeclarationOnly
   chmod -R u=rwX,go=rX LICENSE package.json dist
   pack_dir="$(mktemp -d)"
   npm pack --ignore-scripts --pack-destination "${pack_dir}" >/dev/null
@@ -96,7 +95,7 @@ TOML
   mv "${packed[0]}" "${artifact}"
   rmdir "${pack_dir}"
 )
-printf '%s  %s\n' "${artifact_sha256}" "${artifact}" | sha256sum --check --status
+verify_artifact
 patches=("${root}"/vendor/patinae/patches/*.patch)
 printf 'Built %s from %s plus %s patches\n' \
   "${artifact}" "${revision}" "${#patches[@]}"

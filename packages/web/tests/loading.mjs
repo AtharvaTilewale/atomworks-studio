@@ -2,12 +2,12 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import {chromium} from 'playwright-core';
-import {chromiumArgs, chromiumExecutable} from '../../../scripts/browser.mjs';
+import { chromiumLaunchOptions } from '../../../scripts/browser.mjs';
 
 const base=process.env.ANNOTATION_STUDIO_URL??'http://127.0.0.1:8000/';
 const mode=process.env.VIEWER_MODE;
 assert.ok(['molstar','patinae'].includes(mode));
-const browser=await chromium.launch({executablePath:chromiumExecutable(),args:chromiumArgs,headless:true});
+const browser=await chromium.launch(chromiumLaunchOptions());
 let release;
 try {
   const page=await browser.newPage();

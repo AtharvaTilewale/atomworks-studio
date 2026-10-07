@@ -14,14 +14,14 @@
     "test:editor": "node tests/editor-qol.mjs"
   },
   "dependencies": {
-    "@baker-laboratory/patinae-viewer": "file:vendor/patinae-viewer-0.4.5-studio.1.tgz",
+    "@baker-laboratory/patinae-viewer": "file:vendor/patinae-viewer-0.5.1-studio.1.tgz",
     "molstar": "5.11.0"
   },
   "devDependencies": {
-    "@axe-core/playwright": "^4.12.1",
-    "@types/node": "^26.4.0",
+    "@axe-core/playwright": "^4.13.0",
+    "@types/node": "^26.6.3",
     "openapi-typescript": "^7.13.0",
-    "playwright-core": "^1.62.1",
+    "playwright-core": "^1.63.0",
     "sass": "^1.103.1",
     "typescript": "^5.9.3",
     "vite": "^8.2.2"

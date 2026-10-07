@@ -1,7 +1,9 @@
 export type ViewerBackend = "patinae" | "molstar";
 export type ViewerMode = ViewerBackend;
 export type ViewerTarget = "all" | "selection";
+export type ViewerRepresentationAction = "show" | "hide" | "replace";
 export type ViewerRepresentation =
+  | "everything"
   | "cartoon"
   | "ribbon"
   | "lines"
@@ -143,11 +145,13 @@ export interface ViewerAdapter {
   initialize(): Promise<void>;
   loadCif(cif: string, name: string): Promise<void>;
   loadCifs(structures: ViewerStructure[]): Promise<void>;
+  trajectoryFrameCount?(): number;
+  setTrajectoryFrame?(index: number): Promise<void>;
   showAnnotation(groups: AnnotationGroup[]): Promise<AnnotationRenderResult>;
   clearAnnotation(): Promise<void>;
   setSelection(atomIndices: number[]): void;
   clearSelection(): void;
-  setRepresentation?(representation: ViewerRepresentation, target: ViewerTarget, exclusive: boolean): void;
+  setRepresentation?(representation: ViewerRepresentation, target: ViewerTarget, action: ViewerRepresentationAction): void | Promise<void>;
   setColor?(color: ViewerColor, target: ViewerTarget): void;
   setBackground?(color: "black" | "white"): void;
   camera?(action: ViewerCameraAction): void;

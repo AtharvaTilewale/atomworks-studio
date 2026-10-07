@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
-import { chromiumArgs, chromiumExecutable } from "../../../scripts/browser.mjs";
+import { chromiumLaunchOptions } from "../../../scripts/browser.mjs";
 
 const base = process.env.ANNOTATION_STUDIO_URL ?? "http://127.0.0.1:8000/";
 const backend = process.env.VIEWER_MODE;
 assert.ok(["patinae", "molstar"].includes(backend));
-const browser = await chromium.launch({ executablePath: chromiumExecutable(), args: chromiumArgs, headless: true });
+const browser = await chromium.launch(chromiumLaunchOptions());
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
   const errors = [];

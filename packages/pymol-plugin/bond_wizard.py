@@ -7,8 +7,6 @@ removing, and inferring bonds on the active :py:class:`AtomArrayPlus`.
 import logging
 import os
 
-from atomworks.io.template import infer_bonds_from_residue_names
-from atomworks_studio_editing.structure_mutations import edit_bond
 from atomworks_studio_pymol.bridge import (
     _pymol_resi_to_res_id_ins_code,
     reload_structure_in_pymol,
@@ -151,7 +149,7 @@ class BondWizard:
         ccd_available = bool(os.environ.get("CCD_MIRROR_PATH"))
         if ccd_available:
             self._btn_infer.setToolTip(
-                "Replace all bonds using CCD template matching.\n"
+                "Infer bonds using CCD templates without changing atoms or charges.\n"
                 "Works for standard residues and any molecule with a CCD code."
             )
         else:
@@ -266,7 +264,7 @@ class BondWizard:
             return
 
         lbl1, lbl2 = self._picked[0][1], self._picked[1][1]
-        arr = self._state.get_synced_array(obj_name)
+        self._state.get_synced_array(obj_name)
         resolved = self._resolve_picked(obj_name)
         if resolved is None:
             QtWidgets.QMessageBox.warning(
@@ -278,11 +276,9 @@ class BondWizard:
             self._status.setText("Cannot add a bond from an atom to itself.")
             return
 
-        self._state.push_snapshot(obj_name)
         try:
-            edit_bond(arr, idx1, idx2, "add", self._current_bond_type())
+            self._state.document(obj_name).edit_bond(idx1, idx2, "add", self._current_bond_type().name)
         except Exception as e:
-            self._state.pop_snapshot(obj_name)
             QtWidgets.QMessageBox.critical(self._widget, "Add Bond Error", str(e))
             return
 
@@ -314,11 +310,9 @@ class BondWizard:
             return
         idx1, idx2 = resolved
 
-        self._state.push_snapshot(obj_name)
         try:
-            edit_bond(arr, idx1, idx2, "remove")
+            self._state.document(obj_name).edit_bond(idx1, idx2, "remove")
         except Exception as e:
-            self._state.pop_snapshot(obj_name)
             QtWidgets.QMessageBox.critical(self._widget, "Remove Bond Error", str(e))
             return
 
@@ -336,7 +330,7 @@ class BondWizard:
             return
 
         key1, key2, _, row_obj_name, row_version = self._table_bonds[row]
-        arr = self._state.get_synced_array(obj_name)
+        self._state.get_synced_array(obj_name)
         index_map = self._state.index_maps.get(obj_name) or {}
         current_version = self._state.structure_version(obj_name)
         idx1, idx2 = index_map.get(key1), index_map.get(key2)
@@ -347,11 +341,9 @@ class BondWizard:
             self._refresh_table()
             return
 
-        self._state.push_snapshot(obj_name)
         try:
-            edit_bond(arr, idx1, idx2, "remove")
+            self._state.document(obj_name).edit_bond(idx1, idx2, "remove")
         except Exception as e:
-            self._state.pop_snapshot(obj_name)
             QtWidgets.QMessageBox.critical(self._widget, "Delete Bond Error", str(e))
             return
 
@@ -429,22 +421,15 @@ class BondWizard:
         confirm = QtWidgets.QMessageBox.question(
             self._widget,
             "Infer Bonds from CCD",
-            "This will replace all existing bonds using CCD template matching.\n\nContinue?",
+            "Infer bonds using CCD templates without changing atoms or charges?",
             QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.Cancel,
         )
         if confirm != QtWidgets.QMessageBox.Yes:
             return
 
-        arr = self._state.get_synced_array(obj_name)
-        self._state.push_snapshot(obj_name)
-
         try:
-            result = infer_bonds_from_residue_names(arr)
-            # infer_bonds_from_residue_names may return a new array or modify in place
-            if result is not None and result is not arr:
-                self._state.set_array(obj_name, result)
+            self._state.document(obj_name).infer_bonds_from_ccd()
         except Exception as e:
-            self._state.pop_snapshot(obj_name)
             QtWidgets.QMessageBox.critical(self._widget, "CCD Inference Error", str(e))
             return
 

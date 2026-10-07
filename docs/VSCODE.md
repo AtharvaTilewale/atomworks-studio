@@ -42,8 +42,8 @@ or stopping that server. Clear the URL to return to automatic startup.
 For example, an independently managed server on port 8001 can be started with
 `atomworks-studio --vscode --port 8001`.
 
-Patinae/WebGPU is selected by default. **AtomWorks: Select Studio Renderer**
-chooses Mol*/WebGL when WebGPU is unavailable. Run Open Studio to open the chosen
+Mol*/WebGL is selected by default. **AtomWorks: Select Studio Renderer**
+lets you choose Patinae/WebGPU instead. Run Open Studio to open the chosen
 renderer. Both provide the same structure-editing operations.
 
 With Remote SSH, install Studio in the remote Python environment. Automatic

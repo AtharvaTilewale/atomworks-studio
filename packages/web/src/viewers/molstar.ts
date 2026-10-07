@@ -1,3 +1,4 @@
+import { StateTransforms } from "molstar/lib/mol-plugin-state/transforms";
 import { Viewer as MolstarViewer } from "molstar/lib/apps/viewer/app";
 import { OrderedSet } from "molstar/lib/mol-data/int";
 import {
@@ -8,6 +9,7 @@ import {
   clearStructureOverpaint,
   setStructureOverpaint,
 } from "molstar/lib/mol-plugin-state/helpers/structure-overpaint";
+import type { StructureRepresentationProps } from "molstar/lib/mol-plugin-state/helpers/structure-representation-params";
 import { Color } from "molstar/lib/mol-util/color";
 import { Shape } from "molstar/lib/mol-model/shape";
 import { ShapeRepresentation } from "molstar/lib/mol-repr/shape/representation";
@@ -33,6 +35,9 @@ import {
   type ViewerMeasurementRequest,
   type ViewerStructure,
   type ViewerMarker,
+  type ViewerRepresentation,
+  type ViewerRepresentationAction,
+  type ViewerTarget,
 } from "./contract";
 
 const COMPARISON_COLORS = {
@@ -48,7 +53,7 @@ const COMPARISON_COLORS = {
 export class MolstarAdapter implements ViewerAdapter {
   readonly backend = "molstar" as const;
   readonly capabilities = {
-    representations: false,
+    representations: true,
     colors: false,
     background: true,
     commands: false,
@@ -63,6 +68,11 @@ export class MolstarAdapter implements ViewerAdapter {
   private viewer: MolstarViewer | null = null;
   private resizeObserver: ResizeObserver | null = null;
   private selectedAtomIndices: number[] = [];
+  private annotationGroups: AnnotationGroup[] = [];
+  private displayComponents = new Map<string, Map<string, {
+    loci: StructureElement.Loci; ref?: string; props?: StructureRepresentationProps;
+  }>>();
+  private comparisonColors = new Map<string, number>();
   private measurements: ViewerMeasurement[] = [];
   private markerRepresentation: ShapeRepresentation<ViewerMarker[], Mesh, typeof Mesh.Params> | null = null;
 
@@ -81,6 +91,10 @@ export class MolstarAdapter implements ViewerAdapter {
       viewportBackgroundColor: "#02080d",
       preferWebgl1: false,
     });
+    // Mol* can resolve create() even when its canvas failed to initialize.
+    if (!this.viewer.plugin.canvas3d) {
+      throw new Error("Mol* could not create a WebGL rendering context.");
+    }
     // Docking the inspector and toggling sequence change the canvas without
     // resizing the browser window. Keep Mol*'s drawing buffer in step.
     this.resizeObserver = new ResizeObserver(() => this.viewer?.plugin.handleResize());
@@ -111,12 +125,32 @@ export class MolstarAdapter implements ViewerAdapter {
 
   async loadCif(cif: string, name: string): Promise<void> {
     if (!this.viewer) throw new Error("Mol* is not initialized");
+    this.displayComponents.clear();
+    this.comparisonColors.clear();
+    this.annotationGroups = [];
     await this.viewer.plugin.clear();
     await this.viewer.loadStructureFromData(cif, "mmcif", { dataLabel: name });
   }
 
+  trajectoryFrameCount(): number {
+    return this.viewer?.plugin.managers.structure.hierarchy.current.trajectories[0]?.cell.obj?.data.frameCount ?? 0;
+  }
+
+  async setTrajectoryFrame(index: number): Promise<void> {
+    if (!this.viewer) throw new Error("Mol* is not initialized");
+    const state = this.viewer.plugin.state.data;
+    const update = state.build();
+    for (const model of state.selectQ(q => q.ofTransformer(StateTransforms.Model.ModelFromTrajectory))) {
+      update.to(model).update({ modelIndex: index });
+    }
+    await update.commit();
+  }
+
   async loadCifs(structures: ViewerStructure[]): Promise<void> {
     if (!this.viewer) throw new Error("Mol* is not initialized");
+    this.displayComponents.clear();
+    this.comparisonColors.clear();
+    this.annotationGroups = [];
     await this.viewer.plugin.clear();
     for (const [index, structure] of structures.entries()) {
       await this.viewer.loadStructureFromData(structure.cif, "mmcif", { dataLabel: structure.name });
@@ -126,6 +160,7 @@ export class MolstarAdapter implements ViewerAdapter {
       const colorName = structure.color && structure.color in COMPARISON_COLORS
         ? structure.color as keyof typeof COMPARISON_COLORS
         : fallback;
+      this.comparisonColors.set(reference.cell.transform.ref, COMPARISON_COLORS[colorName]);
       await setStructureOverpaint(
         this.viewer.plugin,
         reference.components,
@@ -152,6 +187,7 @@ export class MolstarAdapter implements ViewerAdapter {
   async showAnnotation(groups: AnnotationGroup[]): Promise<AnnotationRenderResult> {
     if (!this.viewer) throw new Error("Mol* is not initialized");
     const normalized = normalizedAnnotationGroups(groups);
+    this.annotationGroups = normalized;
     const { reference } = this.currentStructure();
     await clearStructureOverpaint(this.viewer.plugin, reference.components);
     if (normalized.length === 0) {
@@ -196,6 +232,7 @@ export class MolstarAdapter implements ViewerAdapter {
   }
 
   async clearAnnotation(): Promise<void> {
+    this.annotationGroups = [];
     if (!this.viewer) return;
     const reference = this.viewer.plugin.managers.structure.hierarchy.current.structures[0];
     if (reference) await clearStructureOverpaint(this.viewer.plugin, reference.components);
@@ -216,6 +253,95 @@ export class MolstarAdapter implements ViewerAdapter {
     this.viewer.plugin.managers.interactivity.lociHighlights.clearHighlights();
     this.viewer.plugin.managers.structure.focus.clear();
     this.selectedAtomIndices = [];
+  }
+
+  async setRepresentation(
+    representation: ViewerRepresentation,
+    target: ViewerTarget,
+    action: ViewerRepresentationAction,
+  ): Promise<void> {
+    if (!this.viewer) throw new Error("Mol* is not initialized");
+    const plugin = this.viewer.plugin;
+    const types: Record<Exclude<ViewerRepresentation, "everything">, string> = {
+      cartoon: "cartoon", ribbon: "backbone", lines: "line", sticks: "ball-and-stick",
+      spheres: "spacefill", surface: "molecular-surface",
+    };
+    const requested = representation === "everything" ? null : types[representation];
+    for (const [index, reference] of plugin.managers.structure.hierarchy.current.structures.entries()) {
+      // Studio selections index the editable input, not comparison structures.
+      if (target === "selection" && index > 0) continue;
+      const structure = reference.cell.obj?.data;
+      if (!structure) continue;
+      const selected = target === "all" ? StructureElement.Loci.all(structure) :
+        StructureElement.Schema.toLoci(structure, { items: { atom_index: this.selectedAtomIndices } });
+      const root = reference.cell.transform.ref;
+      let components = this.displayComponents.get(root);
+      if (!components) {
+        components = new Map();
+        // Preserve the preset's visible atoms, then use one component per representation.
+        // Native bundle components remove hidden geometry, including picking.
+        for (const component of reference.components) {
+          const data = component.cell.obj?.data;
+          if (!data) continue;
+          const loci = StructureElement.Loci.remap(StructureElement.Loci.all(data), structure);
+          for (const repr of component.representations) {
+            const values = repr.cell.params?.values;
+            if (!values) continue;
+            const type = values.type.name;
+            const previous = components.get(type);
+            components.set(type, {
+              loci: previous ? StructureElement.Loci.union(previous.loci, loci) : loci,
+              props: previous?.props ?? {
+                type: plugin.representation.structure.registry.get(type), typeParams: values.type.params,
+                color: plugin.representation.structure.themes.colorThemeRegistry.get(values.colorTheme.name),
+                colorParams: values.colorTheme.params,
+                size: plugin.representation.structure.themes.sizeThemeRegistry.get(values.sizeTheme.name),
+                sizeParams: values.sizeTheme.params,
+              },
+            });
+          }
+        }
+        const update = plugin.state.data.build();
+        for (const component of reference.components) update.delete(component.cell.transform.ref);
+        await update.commit();
+        this.displayComponents.set(root, components);
+      }
+      if (requested && !components.has(requested)) components.set(requested, { loci: StructureElement.Loci.none(structure) });
+      for (const [type, component] of components) {
+        let visible = component.loci;
+        if (action === "replace" || (action === "hide" && (!requested || requested === type))) {
+          visible = StructureElement.Loci.subtract(visible, selected);
+        }
+        if (action !== "hide" && requested === type) visible = StructureElement.Loci.union(visible, selected);
+        if ((component.ref || StructureElement.Loci.isEmpty(visible)) && StructureElement.Loci.areEqual(visible, component.loci)) continue;
+        const result = await plugin.builders.structure.tryCreateComponent(root, {
+          type: { name: "bundle", params: StructureElement.Bundle.fromLoci(visible) },
+          nullIfEmpty: true, label: type,
+        }, `studio-${type}`);
+        if (result && !component.ref) {
+          await plugin.builders.structure.representation.addRepresentation(result, component.props ?? {
+            type: plugin.representation.structure.registry.get(type),
+            color: plugin.representation.structure.themes.colorThemeRegistry.get(
+              type === "cartoon" || type === "backbone" ? "chain-id" : "element-symbol"),
+            ...(type === "ball-and-stick" ? { typeParams: { sizeAspectRatio: 1 } } : {}),
+          });
+        }
+        component.loci = visible;
+        component.ref = result?.ref;
+      }
+    }
+    for (const reference of plugin.managers.structure.hierarchy.current.structures) {
+      const color = this.comparisonColors.get(reference.cell.transform.ref);
+      if (color !== undefined) await setStructureOverpaint(plugin, reference.components, Color(color),
+        async structure => StructureElement.Loci.all(structure));
+    }
+    // New components receive annotation colours without changing selection or camera.
+    const { reference } = this.currentStructure();
+    for (const [index, group] of this.annotationGroups.entries()) {
+      await setStructureOverpaint(plugin, reference.components,
+        Color((group.color ?? ANNOTATION_PALETTE[index % ANNOTATION_PALETTE.length]).value),
+        async () => this.lociFor(group.atomIndices));
+    }
   }
 
   setBackground(color: "black" | "white"): void {

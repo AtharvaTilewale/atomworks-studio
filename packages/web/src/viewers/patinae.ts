@@ -23,6 +23,7 @@ import {
   type ViewerInteraction,
   type ViewerObject,
   type ViewerRepresentation,
+  type ViewerRepresentationAction,
   type ViewerSelection,
   type ViewerStructure,
   type ViewerTarget,
@@ -79,7 +80,7 @@ export class PatinaeAdapter implements ViewerAdapter {
   private cif: string | null = null;
   private markerNames: string[] = [];
   private name = "structure";
-  private displayCommands = [
+  private readonly displayCommands = [
     "hide everything",
     "show cartoon",
     "show sticks, not polymer",
@@ -120,8 +121,7 @@ export class PatinaeAdapter implements ViewerAdapter {
     this.capabilities.commandCatalog = typeof this.viewer.getCommandCatalog === "function";
     this.capabilities.measurements =
       typeof this.viewer.getMeasurementList === "function"
-      && (typeof this.viewer.addMeasurements === "function"
-        || typeof this.viewer.addDistanceMeasurements === "function");
+      && typeof this.viewer.addMeasurements === "function";
     this.capabilities.interactionOverlays = this.capabilities.measurements;
     if (picking) {
       this.viewer.on("atom-picked", (hit) => {
@@ -149,9 +149,10 @@ export class PatinaeAdapter implements ViewerAdapter {
   private async renderCif(): Promise<void> {
     if (!this.viewer || this.cif === null) throw new Error("Patinae has no loaded structure");
     for (const objectName of this.viewer.getObjectNames()) this.viewer.execute(`delete ${objectName}`);
-    this.viewer.loadData(new TextEncoder().encode(this.cif), this.name, "cif");
-    for (const command of this.displayCommands) this.viewer.execute(command);
-    for (const command of this.colorCommands) this.viewer.execute(command);
+    const loaded = this.viewer.loadData(new TextEncoder().encode(this.cif), this.name, "cif");
+    if ("Err" in loaded.result) throw new Error(loaded.result.Err);
+    for (const command of this.displayCommands) await this.executeCommand(command);
+    for (const command of this.colorCommands) await this.executeCommand(command);
     this.viewer.execute(this.backgroundCommand);
     this.atomIdentities = this.viewer.getAtomIdentityMap?.() ?? [];
     const coordinateRows = parseAtomSiteBooleanColumn(
@@ -172,15 +173,25 @@ export class PatinaeAdapter implements ViewerAdapter {
     await this.renderCif();
   }
 
+  trajectoryFrameCount(): number {
+    return this.viewer?.getMovieState().frame_count ?? 0;
+  }
+
+  async setTrajectoryFrame(index: number): Promise<void> {
+    if (!this.viewer) throw new Error("Patinae is not initialized");
+    await this.executeCommand(`frame ${index + 1}`);
+  }
+
   async loadCifs(structures: ViewerStructure[]): Promise<void> {
     if (!this.viewer) throw new Error("Patinae is not initialized");
     for (const objectName of this.viewer.getObjectNames()) this.viewer.execute(`delete ${objectName}`);
     const loaded = structures.map((structure, index) => {
       const objectName = `compare_${index + 1}_${structure.name.replace(/[^A-Za-z0-9_]/g, "_")}`;
-      this.viewer!.loadData(new TextEncoder().encode(structure.cif), objectName, "cif");
+      const loaded = this.viewer!.loadData(new TextEncoder().encode(structure.cif), objectName, "cif");
+      if ("Err" in loaded.result) throw new Error(loaded.result.Err);
       return { ...structure, objectName };
     });
-    for (const command of this.displayCommands) this.viewer.execute(command);
+    for (const command of this.displayCommands) await this.executeCommand(command);
     this.viewer.execute(this.backgroundCommand);
     this.atomIdentities = this.viewer.getAtomIdentityMap?.() ?? [];
     for (const [index, structure] of loaded.entries()) {
@@ -261,19 +272,14 @@ export class PatinaeAdapter implements ViewerAdapter {
     this.setSelection([]);
   }
 
-  setRepresentation(
+  async setRepresentation(
     representation: ViewerRepresentation,
     target: ViewerTarget,
-    exclusive: boolean,
-  ): void {
-    if (!this.viewer) return;
+    action: ViewerRepresentationAction,
+  ): Promise<void> {
+    if (!this.viewer) throw new Error("Patinae is not initialized");
     const selection = target === "selection" ? "sele" : "all";
-    const command = exclusive
-      ? `as ${representation}, ${selection}`
-      : `show ${representation}, ${selection}`;
-    if (exclusive && target === "all") this.displayCommands = [command];
-    else this.displayCommands.push(command);
-    this.viewer.execute(command);
+    await this.executeCommand(`${action === "replace" ? "as" : action} ${representation}, ${selection}`);
   }
 
   setColor(color: ViewerColor, target: ViewerTarget): void {
@@ -295,9 +301,17 @@ export class PatinaeAdapter implements ViewerAdapter {
     this.viewer.execute(command);
   }
 
-  executeCommand(command: string): unknown {
+  async executeCommand(command: string): Promise<unknown> {
     if (!this.viewer) throw new Error("Patinae is not initialized");
-    return this.viewer.execute(command);
+    const reply = await this.viewer.execute(command);
+    for (const id of reply.task_ids) {
+      const task = await this.viewer.tasks.wait(id, 30_000);
+      if (task.state !== "succeeded") throw new Error(`Patinae task ${id}: ${task.state}`);
+    }
+    if ("Err" in reply.result) throw new Error(reply.result.Err);
+    return { messages: reply.messages.map(message => ({
+      level: message.kind.toLowerCase(), text: message.text,
+    })) };
   }
 
   evaluateSelection(expression: string): number[] {
@@ -307,7 +321,7 @@ export class PatinaeAdapter implements ViewerAdapter {
   }
 
   getObjectList(): ViewerObject[] {
-    return this.viewer?.getObjectList?.().map((object) => ({
+    return this.viewer?.getObjectInfos().filter(object => !object.name.startsWith("_studio_")).map((object) => ({
       name: object.name,
       type: object.object_type,
       atomCount: object.atom_count,
@@ -342,7 +356,7 @@ export class PatinaeAdapter implements ViewerAdapter {
   }
 
   async addMeasurement(request: ViewerMeasurementRequest): Promise<ViewerMeasurement[]> {
-    if (!this.viewer?.addMeasurements && !this.viewer?.addDistanceMeasurements) {
+    if (!this.viewer?.addMeasurements) {
       throw new Error("This Patinae build does not support measurements.");
     }
     const required = request.kind === "distance" ? 2 : request.kind === "angle" ? 3 : 4;
@@ -350,30 +364,22 @@ export class PatinaeAdapter implements ViewerAdapter {
       throw new Error(`Select exactly ${required} atoms for a ${request.kind} measurement.`);
     }
     const name = request.label?.replace(/[^A-Za-z0-9_-]/g, "_") || `${request.kind}_${Date.now()}`;
-    if (this.viewer.addMeasurements) {
-      const selections = request.atomIndices.map((index) => this.nativeSelection([index]));
-      const base = {
-        name,
-        color: rgba(request.color ?? 0xffd54f),
-        label: request.label,
-      };
-      const measurement: MeasurementRequest = request.kind === "distance"
-        ? { ...base, kind: "distance", selections: [selections[0], selections[1]] }
-        : request.kind === "angle"
-          ? { ...base, kind: "angle", selections: [selections[0], selections[1], selections[2]] }
-          : {
-              ...base,
-              kind: "dihedral",
-              selections: [selections[0], selections[1], selections[2], selections[3]],
-            };
-      return flattenMeasurements(this.viewer.addMeasurements([measurement]));
-    }
-    if (request.kind !== "distance") throw new Error(`This Patinae build cannot create ${request.kind} measurements.`);
-    return flattenMeasurements(this.viewer.addDistanceMeasurements!([{
-        name,
-        selection1: this.nativeSelection([request.atomIndices[0]]),
-        selection2: this.nativeSelection([request.atomIndices[1]]),
-      }]));
+    const selections = request.atomIndices.map((index) => this.nativeSelection([index]));
+    const base = {
+      name,
+      color: rgba(request.color ?? 0xffd54f),
+      label: request.label,
+    };
+    const measurement: MeasurementRequest = request.kind === "distance"
+      ? { ...base, kind: "distance", selections: [selections[0], selections[1]] }
+      : request.kind === "angle"
+        ? { ...base, kind: "angle", selections: [selections[0], selections[1], selections[2]] }
+        : {
+            ...base,
+            kind: "dihedral",
+            selections: [selections[0], selections[1], selections[2], selections[3]],
+          };
+    return flattenMeasurements(this.viewer.addMeasurements([measurement]));
   }
 
   async clearMeasurements(): Promise<void> {
@@ -382,7 +388,7 @@ export class PatinaeAdapter implements ViewerAdapter {
   }
 
   async showInteractions(interactions: ViewerInteraction[]): Promise<void> {
-    if (!this.viewer?.addMeasurements && !this.viewer?.addDistanceMeasurements) {
+    if (!this.viewer?.addMeasurements) {
       throw new Error("This Patinae build does not support interaction overlays.");
     }
     await this.clearMeasurements();
@@ -396,12 +402,6 @@ export class PatinaeAdapter implements ViewerAdapter {
         ],
         color: rgba(interaction.color),
         label: interaction.label,
-      })));
-    } else {
-      this.viewer.addDistanceMeasurements!(interactions.map((interaction) => ({
-        name: interaction.id,
-        selection1: this.nativeSelection([interaction.atom1]),
-        selection2: this.nativeSelection([interaction.atom2]),
       })));
     }
   }

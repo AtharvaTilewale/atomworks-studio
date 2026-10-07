@@ -1,6 +1,10 @@
 # Example structures
 
-Load these files from **Edit → Examples** or **Open CIF**:
+The **Edit → Examples** menu uses the packaged NIM catalog in
+`packages/api/annotation_studio/examples/`. These eight inputs also power the
+Gradio demo; model execution is optional.
+
+The files below remain regression fixtures and can be opened with **Open CIF**:
 
 - `ppi_pdl1.cif`: PD-L1 target with three hotspot residues and a 50–120 residue
   expandable segment. Source: RFD4 `all_ppi.yaml:rfd3_pdl1`.

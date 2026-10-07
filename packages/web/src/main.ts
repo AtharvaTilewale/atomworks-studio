@@ -1,3 +1,4 @@
+import { TrajectoryController } from "./studio/trajectory-controller";
 import initCifCore, { inspect_cif } from "./wasm/annotation_studio_core.js";
 import { api, apiText } from "./api";
 import { applyCapabilities, element, escapeHtml } from "./dom";
@@ -9,7 +10,6 @@ import { initializeEditorTabs } from "./studio/editor-tabs";
 import { ConditionController } from "./studio/condition-controller";
 import {
   PENDING_EXAMPLE_KEY,
-  VIEWER_STORAGE_KEY,
   parseViewerMode,
   persistSession as persistSessionStorage,
   requestedViewerMode,
@@ -75,13 +75,13 @@ element<HTMLAnchorElement>("guide-link").addEventListener("click", (event) => {
   window.parent.postMessage({ source: "atomworks-studio", type: "open-guide" }, "*");
 });
 
-function notifyHost(type: "ready" | "changed"): void {
+function notifyHost(type: "ready" | "changed" | "example", task?: string): void {
   const parentOrigin = query.get("parent_origin");
   if (!parentOrigin || window.parent === window || !sessionId) return;
   try {
     const targetOrigin = new URL(parentOrigin).origin;
     window.parent.postMessage(
-      { source: "atomworks-annotation-studio", type, session_id: sessionId },
+      { source: "atomworks-annotation-studio", type, session_id: sessionId, ...(task ? { task } : {}) },
       targetOrigin,
     );
   } catch {
@@ -89,6 +89,11 @@ function notifyHost(type: "ready" | "changed"): void {
   }
 }
 
+window.addEventListener("studio-example-loaded", (event) => {
+  notifyHost("example", (event as CustomEvent<{ task: string }>).detail.task);
+});
+
+let trajectoryController: TrajectoryController | null = null;
 let molecularViewer: MolecularViewer;
 let viewerUpdateQueue: Promise<void> = Promise.resolve();
 let sessionId: string | null = null;
@@ -170,8 +175,14 @@ function enableSessionControls(enabled: boolean): void {
 async function loadViewerCif(cif: string, name: string): Promise<void> {
   const wasmSummary = inspect_cif(cif) as {
     atom_count: number;
+    finite_atom_count: number;
     condition_categories: string[];
   };
+  if (wasmSummary.finite_atom_count === 0) {
+    await molecularViewer.loadCifs([]);
+    log("No coordinates to display. The design's sequence and conditions remain editable.");
+    return;
+  }
   await molecularViewer.loadCif(cif, name);
   if (!molecularViewer.initialized) {
     log(
@@ -188,7 +199,7 @@ async function loadViewerCif(cif: string, name: string): Promise<void> {
 }
 
 async function handleAtomPicked(atomIndex: number, label?: string): Promise<void> {
-  if (!sessionId) return;
+  if (!sessionId || trajectoryController?.active) return;
   if (await conditionController?.handleAtomPicked(atomIndex)) return;
   if (await analysisController?.handleAtomPicked(atomIndex, label)) return;
   const scope = pickScope.value as SelectionScope;
@@ -272,7 +283,19 @@ function runViewerUpdate(operation: () => Promise<void>): Promise<void> {
   return update;
 }
 
-function mutate(path: string, body?: unknown): Promise<void> {
+// Retry display-only actions after recovery; document mutations use runViewerUpdate.
+function runVisualUpdate(operation: () => Promise<void>): Promise<void> {
+  return runViewerUpdate(async () => {
+    try {
+      await operation();
+    } catch (error) {
+      await recoverRenderer(error);
+      await operation();
+    }
+  });
+}
+
+function mutate(path: string, body?: unknown, propagateError = false): Promise<void> {
   if (!sessionId) return Promise.resolve();
   const targetSession = sessionId;
   return runViewerUpdate(async () => {
@@ -282,6 +305,8 @@ function mutate(path: string, body?: unknown): Promise<void> {
         `/api/sessions/${targetSession}${path}`, body, () => sessionId === targetSession,
       );
       if (!response || sessionId !== targetSession) return;
+      trajectoryController?.dispose();
+      trajectoryController = null;
       conditionController?.acceptMutation(path, response);
       persistSession(response);
       const structural = /^\/(?:delete|segments|reset-residue-ids|protonate)/.test(path)
@@ -303,6 +328,7 @@ function mutate(path: string, body?: unknown): Promise<void> {
         conditionController?.setFeedback(message);
         log(message);
       }
+      if (propagateError) throw error;
     }
   });
 }
@@ -312,12 +338,10 @@ async function initialize(): Promise<void> {
   const host = query.get("host");
   document.body.classList.toggle("host-vscode", host === "vscode");
   if (host === "vscode") applyHostTheme(query.get("hostTheme"));
-  // Use the requested renderer at startup; a fatal runtime error can recover to Mol*.
-  // Otherwise Patinae is the default and may auto-fall-back to Mol* when WebGPU is absent.
+  // Respect an explicit choice; otherwise use Mol* across browser and embedded hosts.
   const urlPinnedViewer = parseViewerMode(query.get("viewer"));
-  const mode = requestedViewerMode(query) ?? "patinae";
+  const mode = requestedViewerMode(query) ?? "molstar";
   viewerModeSelect.value = mode;
-  localStorage.setItem(VIEWER_STORAGE_KEY, mode);
   await initCifCore();
   const schema = await api<StudioSchema>("/api/schema");
   initializeEditorTabs(schema.editor_tabs);
@@ -341,7 +365,8 @@ async function initialize(): Promise<void> {
     getSessionId: () => sessionId,
     getSummary: () => lastSummary,
     requestedMode: () => requestedViewerMode(query),
-    runViewerUpdate,
+    runViewerUpdate: runVisualUpdate,
+    mutate: (path, body) => mutate(path, body, true),
     log,
   });
   analysisController = new AnalysisController({
@@ -355,7 +380,7 @@ async function initialize(): Promise<void> {
     onSelectionUiChange: updateSelectionUi,
   });
   annotationController = new AnnotationController({
-    runViewerUpdate,
+    runViewerUpdate: runVisualUpdate,
     viewer: () => molecularViewer,
     selection: selectionController,
     getSessionId: () => sessionId,
@@ -363,7 +388,7 @@ async function initialize(): Promise<void> {
   });
   conditionController = new ConditionController({
     selection: selectionController, mutate, getRevision: () => lastSummary?.revision, getSessionId: () => sessionId,
-    onMarkersChanged: () => void runViewerUpdate(refreshCentroidMarkers).catch((error) => log(String(error))),
+    onMarkersChanged: () => void runVisualUpdate(refreshCentroidMarkers).catch((error) => log(String(error))),
   });
   sequenceController = new SequenceController({
     selection: selectionController,
@@ -384,6 +409,8 @@ async function initialize(): Promise<void> {
       workspace.inert = true;
       enableSessionControls(false);
       try {
+        trajectoryController?.dispose();
+        trajectoryController = null;
         sessionId = response.session_id;
         currentName = response.structure.name;
         selectionController.clear();
@@ -403,6 +430,10 @@ async function initialize(): Promise<void> {
       }
     }),
     onCombined: async (response, filename) => {
+      trajectoryController?.dispose();
+      trajectoryController = null;
+      selectionController.clear();
+      await molecularViewer.clearAllVisuals();
       persistSession(response);
       await refreshFromServer(response.structure, false);
       log(`Combined ${filename}; conflicting chain IDs were reassigned.`);
@@ -421,6 +452,7 @@ async function initialize(): Promise<void> {
   sequenceController.bind();
   structureEditController.bind();
   sessionFileController.bind();
+  await sessionFileController.initializeExamples();
   pickScope.addEventListener("change", () => {
     selectionController.setScope(pickScope.value as SelectionScope);
   });
@@ -444,10 +476,7 @@ async function initialize(): Promise<void> {
     viewerToolbarController.refreshCapabilities();
     updateSelectionUi();
   } catch (error) {
-    // Patinae (WebGPU) is the default renderer. If it is unavailable and the user did not
-    // pin a renderer in the URL, fall back to Mol* (WebGL) rather than dropping to
-    // editing-only, so the 3D viewer still works on browsers without WebGPU. The fallback is
-    // not persisted, so a browser that later gains WebGPU support returns to Patinae.
+    // Recover a saved Patinae preference when WebGPU is unavailable, unless URL-pinned.
     if (mode === "patinae" && urlPinnedViewer === null) {
       try {
         await molecularViewer.switchBackend("molstar");
@@ -483,6 +512,13 @@ async function initialize(): Promise<void> {
       sessionStorage.removeItem("annotation-studio-name");
     }
   }
+  if (restoredSession && query.get("trajectory")) {
+    trajectoryController = new TrajectoryController(molecularViewer, async () => {
+      await molecularViewer.clearAllVisuals();
+      await refreshFromServer();
+    }, log);
+    trajectoryController.bind(query.get("trajectory")!);
+  }
   if (!restoredSession) log("Ready. Open a CIF to start.");
   const pendingExample = query.has("session") ? null : example ?? sessionStorage.getItem(PENDING_EXAMPLE_KEY);
   if (pendingExample) {
@@ -491,8 +527,8 @@ async function initialize(): Promise<void> {
   }
 }
 
-if (import.meta.env.PROD && "serviceWorker" in navigator) {
-  void navigator.serviceWorker.register("/sw.js");
+if (import.meta.env.PROD && window.parent === window && "serviceWorker" in navigator) {
+  void navigator.serviceWorker.register("/sw.js").catch(error => console.warn("Offline installation unavailable", error));
 }
 
 void initialize().catch((error) => log(`Initialization failed: ${String(error)}`));

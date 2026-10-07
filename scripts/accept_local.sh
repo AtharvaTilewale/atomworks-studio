@@ -14,6 +14,9 @@ fi
 
 bash "${root}/scripts/build_patinae_viewer.sh"
 "${pnpm_cmd[@]}" --dir "${root}" install --frozen-lockfile
+if [[ -n "${CI:-}" ]]; then
+  "${pnpm_cmd[@]}" --dir "${root}/packages/web" exec playwright-core install chromium --no-shell
+fi
 cargo test --manifest-path "${root}/Cargo.toml" --locked
 uv run --project "${root}" --all-extras python "${root}/scripts/run_pytest.py" \
   -q "${root}/tests" | tee "${artifact_dir}/pytest.log"
@@ -48,6 +51,11 @@ for viewer in patinae molstar; do
     node "${root}/packages/web/tests/editor-qol.mjs" | tee "${artifact_dir}/editor-${viewer}.log"
   VIEWER_MODE="${viewer}" ANNOTATION_STUDIO_URL="${accept_url}/" \
     node "${root}/packages/web/tests/loading.mjs" | tee "${artifact_dir}/loading-${viewer}.log"
+  VIEWER_MODE="${viewer}" ANNOTATION_STUDIO_URL="${accept_url}/" \
+    STUDIO_WORKFLOW_OUTPUT="${artifact_dir}/display" \
+    node "${root}/packages/web/tests/display.mjs" | tee "${artifact_dir}/display-${viewer}.log"
+  VIEWER_MODE="${viewer}" ANNOTATION_STUDIO_URL="${accept_url}/" \
+    node "${root}/packages/web/tests/trajectory.mjs" | tee "${artifact_dir}/trajectory-${viewer}.log"
   VIEWER_MODE="${viewer}" ANNOTATION_STUDIO_URL="${accept_url}/" \
     STUDIO_WORKFLOW_OUTPUT="${artifact_dir}/workflows" \
     node "${root}/packages/web/tests/design-workflows.mjs" | tee "${artifact_dir}/design-workflows-${viewer}.log"

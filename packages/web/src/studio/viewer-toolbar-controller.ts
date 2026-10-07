@@ -7,6 +7,7 @@ import type {
   ViewerColor,
   ViewerMode,
   ViewerRepresentation,
+  ViewerRepresentationAction,
   ViewerTarget,
 } from "../viewers";
 import { VIEWER_STORAGE_KEY } from "./persistence";
@@ -25,7 +26,7 @@ const FALLBACK_SAFE_PATINAE_COMMANDS = new Set([
 
 const STUDIO_UNSAFE_PATINAE_COMMANDS = new Set([
   "alter", "bond", "create", "delete", "extract", "fuse", "load", "load_traj",
-  "pseudoatom", "remove", "rotate", "transform_selection", "translate", "unbond",
+  "pseudoatom", "rotate", "transform_selection", "translate", "unbond",
 ]);
 
 export interface ViewerToolbarControllerOptions {
@@ -35,6 +36,7 @@ export interface ViewerToolbarControllerOptions {
   getSummary: () => StructureSummary | null;
   requestedMode: () => ViewerMode | null;
   runViewerUpdate: (operation: () => Promise<void>) => Promise<void>;
+  mutate: (path: string, body?: unknown) => Promise<void>;
   log: (message: string) => void;
 }
 
@@ -43,7 +45,6 @@ export class ViewerToolbarController {
   private readonly selectionSyntax = element<HTMLSelectElement>("selection-syntax");
   private readonly viewerCommand = element<HTMLInputElement>("viewer-command");
   private readonly viewerActionTarget = element<HTMLSelectElement>("viewer-action-target");
-  private readonly representationExclusive = element<HTMLInputElement>("representation-exclusive");
   private readonly studioMenu = element<HTMLDetailsElement>("atomworks-studio-menu");
   private readonly studioPopover = element<HTMLElement>("atomworks-studio-popover");
   private readonly workspace = element<HTMLElement>("workspace");
@@ -77,13 +78,15 @@ export class ViewerToolbarController {
       }
     });
     for (const button of document.querySelectorAll<HTMLButtonElement>("[data-representation]")) {
-      button.addEventListener("click", () => {
+      button.addEventListener("click", async () => {
+        const action = (button.dataset.action ?? document.querySelector<HTMLInputElement>(
+          'input[name="representation-action"]:checked',
+        )!.value) as ViewerRepresentationAction;
+        const representation = button.dataset.representation as ViewerRepresentation;
+        const target = this.viewerActionTarget.value as ViewerTarget;
         try {
-          this.options.viewer().setRepresentation(
-            button.dataset.representation as ViewerRepresentation,
-            this.viewerActionTarget.value as ViewerTarget,
-            this.representationExclusive.checked,
-          );
+          await this.options.runViewerUpdate(() => this.options.viewer().setRepresentation(representation, target, action));
+          this.options.log(`${action === "replace" ? "Show only" : action === "hide" ? "Hide" : "Show"} ${representation} · ${target === "all" ? "all atoms" : "selection"}.`);
         } catch (error) {
           this.options.log(`Display action failed: ${String(error)}`);
         }
@@ -192,7 +195,7 @@ export class ViewerToolbarController {
     this.viewerCommand.placeholder = hint;
     this.viewerCommand.setAttribute("aria-label", hint);
     this.viewerCommand.title = syntax === "patinae"
-      ? "Supported PyMOL-style commands, executed by Patinae. See More for available commands."
+      ? "PyMOL-style selection and display commands; remove edits the document with Undo. See More for commands."
       : "AtomWorks expressions or selection paths: sel('A/*/[10-20]/CA').";
     element("run-viewer-command").textContent = syntax === "patinae" ? "Run" : "Select";
   }
@@ -313,6 +316,18 @@ export class ViewerToolbarController {
     }
     const viewer = this.options.viewer();
     const verb = trimmed.split(/\s+/, 1)[0].toLowerCase();
+    if (verb === "remove") {
+      if (!sessionId) throw new Error("Open a CIF before removing atoms.");
+      const expression = trimmed.slice(verb.length).trim();
+      if (!expression) throw new Error("Usage: remove <selection>, for example remove solvent");
+      const indices = viewer.evaluateSelection(expression);
+      if (!indices.length) throw new Error("No atoms match that selection.");
+      await this.options.mutate("/delete", {
+        atom_indices: indices,
+        close_residue_gaps: element<HTMLInputElement>("close-residue-gaps").checked,
+      });
+      return;
+    }
     const catalog = viewer.getCommandCatalog();
     const metadata = catalog.find((entry) =>
       entry.name.toLowerCase() === verb
@@ -330,7 +345,7 @@ export class ViewerToolbarController {
           : `Unsupported viewer command '${verb}'. Browse available commands under More.`,
       );
     }
-    const result = viewer.executeCommand(trimmed) as {
+    const result = await viewer.executeCommand(trimmed) as {
       messages?: Array<{ level: string; text: string }>;
     };
     const errors = result?.messages?.filter((message) => message.level === "error") ?? [];
@@ -386,11 +401,13 @@ export class ViewerToolbarController {
       const button = document.createElement("button");
       button.type = "button";
       const studioUnsafe = STUDIO_UNSAFE_PATINAE_COMMANDS.has(command.name);
-      button.disabled = command.webSafe === false || studioUnsafe;
+      button.disabled = (command.webSafe === false && command.name !== "remove") || studioUnsafe;
       const name = document.createElement("strong");
       name.textContent = command.name;
       const description = document.createElement("small");
-      description.textContent = studioUnsafe
+      description.textContent = command.name === "remove"
+        ? "remove <selection> · delete from the document; Undo restores it."
+        : studioUnsafe
         ? "Use AtomWorks Studio so the annotated CIF remains canonical."
         : command.webSafe === false
         ? command.unavailableReason ?? "Desktop only"

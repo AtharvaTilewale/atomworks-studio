@@ -3,10 +3,34 @@ import {mkdir, readFile, writeFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import {join} from 'node:path';
 
-export async function designWorkflows({page, ui=page, base, label, output, saveDownload=(download,path)=>download.saveAs(path)}) {
+export async function designWorkflows({page, ui=page, base, label, output, saveDownload=(download,path)=>download.saveAs(path), request=page.request, onLoaded=async()=>{}}) {
   const cases=JSON.parse(await readFile(fileURLToPath(new URL('../../../tests/fixtures/workflow_cases.json',import.meta.url)),'utf8'));
+  cases.push(...JSON.parse(await readFile(fileURLToPath(new URL('../../../tests/fixtures/nim_workflow_cases.json',import.meta.url)),'utf8')));
   await mkdir(output,{recursive:true});
   const logs=[];
+  const expectedRenderer=label.endsWith('patinae')?'patinae':'molstar';
+  const strict=process.env.STUDIO_STRICT_RENDERER==='1';
+  await ui.evaluate(()=>{
+    window.workflowRenderers=[document.querySelector('#viewer').dataset.backend];
+    window.workflowRendererObserver?.disconnect();
+    window.workflowRendererObserver=new MutationObserver(records=>{
+      for(const record of records)window.workflowRenderers.push(record.oldValue);
+      window.workflowRenderers.push(document.querySelector('#viewer').dataset.backend);
+    });
+    window.workflowRendererObserver.observe(document.querySelector('#viewer'),{
+      attributes:true,attributeFilter:['data-backend'],attributeOldValue:true,
+    });
+  });
+  async function rendererCheck(){
+    const actual=await ui.locator('#viewer').getAttribute('data-backend');
+    if(strict){
+      assert.equal(actual,expectedRenderer,'Requested renderer must stay active');
+      const observed=await ui.evaluate(()=>window.workflowRenderers);
+      assert.ok(observed.every(value=>value===expectedRenderer),`Renderer changed: ${observed}`);
+    }
+    return actual;
+  }
+  await rendererCheck();
   async function settled(){await ui.waitForFunction(()=>!document.querySelector('#viewer-mode').disabled && !document.querySelector('#download').disabled);}
   async function post(button, endpoint){
     const pending=page.waitForResponse(r=>new URL(r.url()).pathname.endsWith(endpoint)&&r.request().method()==='POST');
@@ -28,23 +52,30 @@ export async function designWorkflows({page, ui=page, base, label, output, saveD
   }
   for(const scenario of cases){
     const loaded=page.waitForResponse(r=>r.url().endsWith('/sessions')&&r.request().method()==='POST');
-    await ui.locator('#file-input').setInputFiles(fileURLToPath(new URL('../../../examples/'+scenario.file,import.meta.url)));
+    if(scenario.example_id){
+      await ui.locator('#editor-tab-main').click();
+      await ui.locator('#examples-panel').evaluate(panel=>{panel.open=true});
+      await ui.locator(`[data-example="${scenario.example_id}"]`).click();
+    } else await ui.locator('#file-input').setInputFiles(fileURLToPath(new URL('../../../examples/'+scenario.file,import.meta.url)));
     const session=await (await loaded).json();
     assert.equal(session.structure.atom_count,scenario.atoms);
     await settled();
+    await onLoaded(scenario);
     const endpoint=`${base}api/v1/sessions/${session.session_id}`;
     async function snapshot(stage){
-      const response=await page.request.get(endpoint+'/cif');
+      const response=await request.get(endpoint+'/cif');
       assert.equal(response.status(),200);
       await writeFile(join(output,`${label}-${scenario.name}-${stage}.cif`),await response.body());
     }
     await snapshot('00');
     for(const [i,action] of scenario.actions.entries()){
       let result;
+      let indices=[];
       if(['condition','group','pair'].includes(action.kind)){
         await ui.locator('#editor-tab-annotations').click();
         await ui.locator('#condition').selectOption(action.key??'distance');
         const selected=await select(action.query);
+        indices=selected.atom_indices;
         if(action.kind==='condition'){
           await ui.locator('#enabled').setChecked(action.enabled);
           if(action.value!==undefined) await ui.locator('#condition-value-input').selectOption(String(action.value));
@@ -59,7 +90,7 @@ export async function designWorkflows({page, ui=page, base, label, output, saveD
         }
       }else if(action.kind==='charge'){
         await ui.locator('#editor-tab-charges').click();
-        await select(action.query);
+        indices=(await select(action.query)).atom_indices;
         await ui.locator('#charge').fill(String(action.value));
         result=await post('#apply-charge','/charges');
       }else if(action.kind==='undo')result=await post('#undo','/undo');
@@ -71,7 +102,8 @@ export async function designWorkflows({page, ui=page, base, label, output, saveD
         assert.ok(result.structure.atom_count>scenario.atoms);
       }
       await snapshot(String(i+1).padStart(2,'0'));
-      logs.push({scenario:scenario.name,step:i+1,action:action.kind,atoms:result.structure.atom_count});
+      logs.push({scenario:scenario.name,step:i+1,action:action.kind,indices,
+        atoms:result.structure.atom_count,renderer:await rendererCheck()});
     }
     await ui.locator('#editor-tab-annotations').click();
     await ui.locator('#condition').selectOption(scenario.name==='ppi'?'hotspot':'rasa');
@@ -80,8 +112,20 @@ export async function designWorkflows({page, ui=page, base, label, output, saveD
     await ui.locator('#download').click();
     if((await (await checked).json()).issues.length)await ui.locator('dialog.confirmation button[value="confirm"]').click();
     await saveDownload(await download,join(output,`${label}-${scenario.name}-saved.cif`));
+    const reopenedResponse=page.waitForResponse(r=>r.url().endsWith('/sessions')&&r.request().method()==='POST');
+    await ui.locator('#file-input').setInputFiles(join(output,`${label}-${scenario.name}-saved.cif`));
+    const reopened=await (await reopenedResponse).json();
+    await settled();
+    const reopenedCif=await request.get(`${base}api/v1/sessions/${reopened.session_id}/cif`);
+    assert.equal(reopenedCif.status(),200);
+    await writeFile(join(output,`${label}-${scenario.name}-reopened.cif`),await reopenedCif.body());
+    await rendererCheck();
     await page.screenshot({path:join(output,`${label}-${scenario.name}.png`)});
     console.log(`${label} (${await ui.locator('#viewer').getAttribute('data-backend')}): ${scenario.name} edits, restraint/group, segment expansion, Undo and Save passed`);
   }
+  await rendererCheck();
   await writeFile(join(output,`${label}-actions.json`),JSON.stringify(logs,null,2));
+  await writeFile(join(output,`${label}-renderers.json`),JSON.stringify({
+    strict,requested:expectedRenderer,observed:await ui.evaluate(()=>window.workflowRenderers),
+  }));
 }
