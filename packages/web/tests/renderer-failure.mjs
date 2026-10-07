@@ -50,6 +50,26 @@ try {
       () => document.querySelector("#structure-summary")?.textContent?.includes("mcsa_ph2"),
     );
     assert.match((await page.locator("#status").textContent()), /renderer is unavailable/);
+    if (viewer === "patinae") {
+      const session = await page.evaluate(() => sessionStorage.getItem("annotation-studio-session"));
+      const cifUrl = new URL(`/api/v1/sessions/${session}/cif`, baseUrl).href;
+      const snapshot = async () => (await (await page.request.get(cifUrl)).text())
+        .replace(/^_entry\.(date|time).*$/gm, "");
+      const original = await snapshot();
+      for (const mode of ["molstar", "patinae"]) {
+        await page.locator('[data-menu="overflow"]').evaluate(menu => { menu.open = true; });
+        await page.locator("#viewer-mode").selectOption(mode);
+        await page.waitForFunction(() => !document.querySelector("#viewer-mode").disabled);
+      }
+      await page.waitForFunction(() => document.querySelector("#status").textContent.includes("Renderer switch failed")
+        && !document.querySelector("#viewer-mode").disabled);
+      assert.equal(await page.locator("#viewer-mode").inputValue(), "molstar");
+      assert.equal(await page.locator("#viewer canvas").first().isVisible(), true,
+        "an unavailable renderer must not leave the working view blank");
+      assert.equal(await page.locator("#download").isEnabled(), true);
+      assert.equal(await snapshot(), original,
+        "a failed renderer switch preserves the document");
+    }
     await context.close();
   }
 } finally {

@@ -78,83 +78,64 @@ build. It is an editor-only CPU recipe; it does not execute inference.
 [Docker Spaces](https://huggingface.co/docs/hub/spaces-sdks-docker) can host a
 custom server and use GPU hardware.
 
-For a first model-enabled Space, put a small application beside Studio in the
-**model's deployment repository**:
+### Model-enabled Gradio host
 
-1. Let the user prepare a structure in the embedded editor.
-2. Export its annotated CIF through the API and freeze that input for the run.
-3. Validate the model-specific options and run the model with bounded concurrency.
-4. Upload an output CIF to Studio and open the returned `editor_path` for inspection.
+Install `atomworks-studio[gradio]` for the optional shared generation UI. The base
+editor installation does not require Gradio. Studio owns the embedded editor,
+queued Generate action, current-document export, result selection and CIF/ZIP
+downloads. Model-specific controls and validation live in the model's provider.
+The deployment supplies one synchronous callback: `(annotated_cif, options)` to
+a list of output CIF strings. It runs off the API event loop with one queued worker.
 
-That deployment owns checkpoints, CUDA dependencies, model validation, progress,
-cancellation, and output retention. Keep those out of the editing package.
-For one GPU, start with a single queued worker and an explicit busy state.
-Keep inference off Studio's API event loop so editing remains responsive.
-Use the model's documented inference entry point and argument list, without a
-shell command assembled from user input.
+```python
+from annotation_studio.gradio import create_app
+from atomworks_studio_rfd4.generation import RFD4GenerationProvider
 
-The earlier development code contains subprocess cancellation and result
-collection that can be adapted after the model is chosen. Restoring the full
-job-provider framework, GPU provisioning, and durable database into Studio is
-unnecessary for this deployment. Preserve that code in development history.
-A deployed model should have a real end-to-end inference test; a successful
-Studio edit/export test does not establish model compatibility.
+# generate(cif: str, options: dict) -> list[str] is supplied by your deployment.
+app = create_app(
+    provider=RFD4GenerationProvider(noise_defaults=(0.3, 0.1)),
+    generate_fn=generate,
+)
+```
 
-A GPU Docker Space is the most direct fit for the current FastAPI application.
-[ZeroGPU](https://huggingface.co/docs/hub/spaces-zerogpu) currently requires Gradio;
-it is not a hardware switch for this Docker recipe. For intermittent long jobs,
-[Hugging Face Jobs](https://huggingface.co/docs/hub/jobs-overview) is another
-execution option, with input/output persistence and status polling owned by the
-model application. No Space, GPU allocation, or paid job is created by Studio.
+Serve this app with Uvicorn using one process. `/design/` is the generation UI;
+the existing editor and versioned HTTP API remain on the same origin. The callback
+receives a validated snapshot of the current edits. Its output becomes separate
+Studio documents; failed requests preserve the input. Download files before
+sessions expire. This in-memory queue does not persist or cancel running jobs.
+
+The deployment owns model weights, CUDA dependencies and execution. Pass native
+noise defaults from its inference configuration to the RFD4 provider. No Torch
+model, model download, GPU provisioning or job-provider registry is added to
+Studio. Other model providers implement the small `GenerationProvider` interface
+in `annotation_studio.gradio`. Gradio and model generation remain optional for
+PyMOL, VS Code and the standalone browser editor.
+
+[ZeroGPU](https://huggingface.co/docs/hub/spaces-zerogpu) requires a Gradio Space;
+the model deployment wraps its callback in `spaces.GPU`. The editor-only Docker
+Space remains a CPU recipe. A Studio handoff check does not validate GPU inference;
+run the actual model on its intended host before releasing a deployment.
 
 ### RFD4-Proteina deployment
 
-The first target is [RosettaCommons/RFD4-Proteina](https://github.com/RosettaCommons/RFD4-Proteina).
-At the inspected commit `66e4394d38a04a0b901a76507cd5528af2d7f845`, its
-`rfd4-generate` command accepts an annotated CIF directly:
+The [ZeroGPU adapter](https://github.com/baker-laboratory/RFD4-Proteina-dev/pull/636)
+uses the shared host and RFD4 provider above.
 
-```bash
-rfd4-generate inputs=/runs/job/input.cif num_replicates=1 \
-  batch_size=1 out_dir=/runs/job/output
-```
+Install Studio in RFD4's supported Python/CUDA environment, using the model
+repository's [installation guide](https://github.com/RosettaCommons/RFD4-Proteina/blob/main/docs/installation.rst).
+The adapter loads a pinned Hugging Face checkpoint bundle once and invokes
+RFD4's native generation entry point for each request. The provider supplies
+task, recycling preset, design count, seed and noise controls.
 
-Use server-generated job paths. The runner should invoke this as an argument
-list from the RFD4 checkout, capture its log and return code, and collect output
-CIFs only after successful completion. Keep cancellation of the process group
-and an execution timeout from the old runner. A single worker serializes GPU
-use; the model process may load weights afresh for each run initially.
+Keep source, model and Space repositories private during qualification. Store
+`HF_TOKEN` as a Space secret and pin `RFD4_MODEL_REVISION` to the verified model
+commit. The deployment guide in the model repository owns the exact environment
+and launch instructions.
 
-Use the public AtomWorks update in [RFD4 PR #5](https://github.com/RosettaCommons/RFD4-Proteina/pull/5)
-(or a release containing it). Its manifest pins `atomworks[ml,openbabel]==3.0.0`,
-matching Studio. At inspection, that PR was open and `main` still referenced the
-older AtomWorks Git branch; do not mistake the two revisions for the same setup.
-
-For this version, **one Python environment is the simplest starting point**.
-Dependency resolution for RFD4 PR #5 at `e7b374c372ede770ac8d847adf8d72cdc02b4af8`
-and Studio succeeded for Linux x86-64/Python 3.12.10, selecting AtomWorks 3.0.0,
-Biotite 1.6.0, and Torch 2.13.0 with CUDA 13.2. This checks base package constraints,
-not GPU execution or optional TMol/refolding extras. Install Studio into the
-model's compatible environment; do not use the CPU Torch image above for inference.
-
-Keep editing and generation in separate processes even when they share the
-Python environment. The Space serves one public application port and its small
-deployment app owns Run, progress, cancellation, and result loading. Studio's
-own UI stays unchanged. The CIF/HTTP boundary also allows moving inference to
-another machine later without changing the editor.
-
-Follow RFD4's [installation instructions](https://github.com/RosettaCommons/RFD4-Proteina/blob/66e4394d38a04a0b901a76507cd5528af2d7f845/docs/installation.rst)
-for its CUDA environment and checkpoint download (about 8 GB). The current
-setup targets CUDA 13, so validate the Space GPU driver's compatibility before
-choosing hardware. Checkpoint disk size does not establish the required VRAM;
-measure a short monomer, then the intended PPI and enzyme workloads. Start with
-plain generation; optional refolding oracles use additional containers and are
-not part of this first Space recipe.
-
-The upstream repository is private at the time of this inspection. A Space
-build needs authorized source access until it is published; never put a GitHub
-token into a Docker build argument or image layer. No model-enabled image or
-GPU inference run is claimed by the editor-only recipe. The deployment still
-needs GPU validation and a checked comparison of its outputs before release.
+The draft adapter currently returns final CIFs using eager execution. Compiled
+inference, trajectory handoff, detailed sampler progress and refolding metrics
+are not connected to this adapter. Test real generation and memory use on the
+intended GPU before deploying it; editor/handoff tests use a test callback.
 
 ## NIM and other inference services
 
@@ -168,7 +149,6 @@ For example, consult the [OpenFold3 request examples](https://docs.nvidia.com/ni
 or [Boltz-2 inference guide](https://docs.nvidia.com/nim/bionemo/boltz2/latest/inference.html)
 for the chosen service. Studio does not need an NVIDIA or Hugging Face SDK just
 to prepare structures or inspect their outputs.
-
 
 ## Trajectory playback
 

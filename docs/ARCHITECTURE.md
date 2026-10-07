@@ -34,5 +34,8 @@ Sessions are process-local and bounded. Set `ANNOTATION_STUDIO_SESSION_DIR` to
 persist CIF snapshots across server restarts; Undo history is in memory. Run one
 server process. Optional proxy identity support isolates users' session lookups.
 
-Patinae's WebGPU support is for molecular rendering. Studio has no inference
-workers, design submission routes, GPU provisioning, database, or job queue.
+Patinae's WebGPU support is for molecular rendering. The base editor has no
+model runtime or GPU provisioning. The optional Gradio host embeds the same web
+editor and queues calls to a deployment-supplied generation function. The model
+repository owns checkpoint loading and inference; the host owns CIF handoff,
+result selection and downloads.

@@ -264,6 +264,7 @@ export class ViewerToolbarController {
   async switchRenderer(mode: ViewerMode): Promise<void> {
     await this.options.runViewerUpdate(async () => {
       const viewer = this.options.viewer();
+      const hadRenderer = viewer.initialized;
       const previousMode = (viewer.initialized ? viewer.backend : this.options.requestedMode()) ?? "molstar";
       try {
         await viewer.switchBackend(mode);
@@ -275,7 +276,16 @@ export class ViewerToolbarController {
         this.renderDrawers();
         this.options.log(`Switched renderer to ${mode === "patinae" ? "Patinae" : "Mol*"} without reloading.`);
       } catch (error) {
-        this.viewerModeSelect.value = previousMode;
+        if (hadRenderer) {
+          try {
+            await viewer.switchBackend(previousMode);
+            this.refreshCapabilities();
+            this.renderDrawers();
+          } catch (restoreError) {
+            this.options.log(`Could not restore the previous renderer: ${String(restoreError)}`);
+          }
+        }
+        this.viewerModeSelect.value = viewer.initialized ? viewer.backend : "";
         this.options.log(`Renderer switch failed: ${String(error)}`);
       }
     });
