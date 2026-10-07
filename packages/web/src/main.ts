@@ -1,12 +1,11 @@
 import initCifCore, { inspect_cif } from "./wasm/annotation_studio_core.js";
 import { api, apiText } from "./api";
-import { initializeDesignController, type OpenedDesignDocument } from "./studio/design-controller";
 import { applyCapabilities, element, escapeHtml } from "./dom";
-import type { StudioExample } from "./examples";
 import { SelectionController } from "./selection-controller";
 import { AnalysisController } from "./studio/analysis-controller";
 import { mutateWithConfirmation } from "./studio/authoring-actions";
 import { AnnotationController } from "./studio/annotation-controller";
+import { initializeEditorTabs } from "./studio/editor-tabs";
 import { ConditionController } from "./studio/condition-controller";
 import {
   PENDING_EXAMPLE_KEY,
@@ -25,7 +24,6 @@ import type {
   StructureSummary,
   StudioSchema,
 } from "./types";
-import type { components } from "./generated/api";
 import { MolecularViewer } from "./viewers";
 import "./style.css";
 
@@ -40,9 +38,22 @@ const statusElement = element<HTMLPreElement>("status");
 const query = new URLSearchParams(window.location.search);
 const hostThemes = new Set(["light", "dark", "high-contrast", "high-contrast-light"]);
 
-function applyHostTheme(theme: unknown): void {
+const hostColorTokens = new Set([
+  "--bg-app", "--surface-header", "--surface-panel", "--surface-card", "--surface-raised", "--surface-recessed",
+  "--text", "--text-secondary", "--text-muted", "--text-subtle", "--border", "--border-strong",
+  "--accent", "--accent-hover", "--accent-ink", "--accent-soft", "--focus",
+]);
+function applyHostTheme(theme: unknown, tokens?: Record<string, unknown>): void {
   if (typeof theme === "string" && hostThemes.has(theme)) {
     document.body.dataset.hostTheme = theme;
+    for (const key of hostColorTokens) {
+      const value = tokens?.[key];
+      if (typeof value === "string" && CSS.supports("color", value)) {
+        document.body.style.setProperty(key, value);
+      } else {
+        document.body.style.removeProperty(key);
+      }
+    }
   }
 }
 
@@ -53,8 +64,15 @@ window.addEventListener("message", (event) => {
     event.data?.source === "atomworks-vscode-host" &&
     event.data?.type === "theme"
   ) {
-    applyHostTheme(event.data.theme);
+    applyHostTheme(event.data.theme, event.data.tokens);
   }
+});
+
+element<HTMLAnchorElement>("guide-link").addEventListener("click", (event) => {
+  if (query.get("host") !== "vscode" || window.parent === window) return;
+  event.preventDefault();
+  // Only a fixed action is sent; the extension chooses the trusted guide URL.
+  window.parent.postMessage({ source: "atomworks-studio", type: "open-guide" }, "*");
 });
 
 function notifyHost(type: "ready" | "changed"): void {
@@ -76,11 +94,6 @@ let viewerUpdateQueue: Promise<void> = Promise.resolve();
 let sessionId: string | null = null;
 let currentName = "structure";
 let lastSummary: StructureSummary | null = null;
-let designController: {
-  updateSession: () => void;
-  applyPreset: (metricsTags: string[], search?: StudioExample["search"]) => string[];
-} | null = null;
-let quantumController: { updateSession: () => void } | null = null;
 let viewerToolbarController: ViewerToolbarController | null = null;
 let analysisController: AnalysisController | null = null;
 let annotationController: AnnotationController | null = null;
@@ -95,12 +108,11 @@ const selectionController = new SelectionController(
 
 function persistSession(response: SessionResponse, message?: string): void {
   persistSessionStorage(response, message);
-  designController?.updateSession();
-  quantumController?.updateSession();
 }
 
 function log(message: string): void {
   const stamp = new Date().toLocaleTimeString();
+  element("status-message").textContent = message.split("\n")[0];
   statusElement.textContent = `[${stamp}] ${message}\n${statusElement.textContent ?? ""}`.slice(0, 5000);
 }
 
@@ -123,7 +135,9 @@ function updateSelectionUi(): void {
 
 function renderSummary(summary: StructureSummary): void {
   lastSummary = summary;
-  const active = Object.entries(summary.condition_counts).filter(([, count]) => count > 0);
+  element("document-name").textContent = summary.name;
+  element("empty-state").hidden = true;
+  element<HTMLDetailsElement>("examples-panel").open = false;
   summaryElement.classList.remove("muted");
   summaryElement.innerHTML = `
     <dl class="summary-grid">
@@ -131,10 +145,7 @@ function renderSummary(summary: StructureSummary): void {
       <dt>Atoms</dt><dd>${summary.atom_count.toLocaleString()}</dd>
       <dt>Chains</dt><dd>${escapeHtml(summary.chain_ids.join(", ") || "—")}</dd>
       <dt>Undo</dt><dd>${summary.undo_depth}/10</dd>
-    </dl>
-    <div class="condition-pills">
-      ${active.map(([name, count]) => `<span class="pill">${escapeHtml(name)}: ${count}</span>`).join("")}
-    </div>`;
+    </dl>`;
   sequenceController?.render(summary.sequence);
   annotationController?.render(summary.annotations, summary.stored_fields, summary.scalar_fields);
   structureEditController?.updateKnownChains(summary.chain_ids);
@@ -203,19 +214,41 @@ async function handleAtomPicked(atomIndex: number, label?: string): Promise<void
   }
 }
 
+async function recoverRenderer(error: unknown): Promise<void> {
+  if (!molecularViewer.initialized
+    || !String(error).includes("Patinae viewer stopped after WASM call")) throw error;
+  if (molecularViewer.backend === "molstar") return;
+  await molecularViewer.switchBackend("molstar");
+  viewerModeSelect.value = "molstar";
+  const url = new URL(window.location.href);
+  url.searchParams.set("viewer", "molstar");
+  history.replaceState(null, "", url);
+  viewerToolbarController?.refreshCapabilities();
+  selectionController.restore();
+  log("Patinae rendering stopped. Switched to Mol*; your document and Undo history are preserved.");
+}
+
 async function refreshFromServer(summary?: StructureSummary, preserveSelection = true): Promise<void> {
   if (!sessionId) return;
   const cif = await apiText(`/api/sessions/${sessionId}/cif`);
-  await loadViewerCif(cif, currentName);
-  if (summary) renderSummary(summary);
-  if (preserveSelection) {
-    if (summary) selectionController.retainValid(summary.atom_count);
-    await annotationController?.restore();
-  } else {
-    annotationController?.reset();
-    selectionController.clear();
+  const refresh = async () => {
+    await loadViewerCif(cif, currentName);
+    if (summary) renderSummary(summary);
+    if (preserveSelection) {
+      if (summary) selectionController.retainValid(summary.atom_count);
+      await annotationController?.restore();
+    } else {
+      annotationController?.reset();
+      selectionController.clear();
+    }
+    await refreshCentroidMarkers();
+  };
+  try {
+    await refresh();
+  } catch (error) {
+    await recoverRenderer(error);
+    await refresh();
   }
-  await refreshCentroidMarkers();
 }
 
 async function refreshCentroidMarkers(): Promise<void> {
@@ -251,7 +284,8 @@ function mutate(path: string, body?: unknown): Promise<void> {
       if (!response || sessionId !== targetSession) return;
       conditionController?.acceptMutation(path, response);
       persistSession(response);
-      const structural = /^\/(?:delete|segments|reset-residue-ids)/.test(path);
+      const structural = /^\/(?:delete|segments|reset-residue-ids|protonate)/.test(path)
+        || response.structure.atom_count !== lastSummary?.atom_count;
       if (structural) await molecularViewer.clearAllVisuals();
       const annotationEdit = path === "/internal-coords"
         || /^\/(?:conditions|groups|centroids|distance-restraints)(?:\/|$)/.test(path);
@@ -264,48 +298,12 @@ function mutate(path: string, body?: unknown): Promise<void> {
       log(message);
       notifyHost("changed");
     } catch (error) {
-      if (sessionId === targetSession) log(`Error: ${String(error)}`);
+      if (sessionId === targetSession) {
+        const message = `Error: ${String(error)}`;
+        conditionController?.setFeedback(message);
+        log(message);
+      }
     }
-  });
-}
-
-type JobDocument = Pick<OpenedDesignDocument, "label" | "session_id" | "editor_path" | "structure"> & {
-  kind: string;
-};
-
-/** Make a job's input or output document the active editor session. */
-async function openJobDocument(jobDocument: JobDocument): Promise<void> {
-  sessionId = jobDocument.session_id;
-  currentName = jobDocument.structure.name;
-  persistSession({
-    session_id: jobDocument.session_id,
-    editor_path: jobDocument.editor_path,
-    structure: jobDocument.structure,
-  });
-  await refreshFromServer(jobDocument.structure, false);
-  if (jobDocument.kind === "refolded") {
-    const confidence = jobDocument.structure.scalar_fields.find(
-      (field) => field.name === "b_factor" || /plddt|confidence/i.test(field.name),
-    );
-    if (confidence) {
-      await annotationController?.display(confidence);
-      annotationController?.setDetail(`${confidence.label} colored on the refolded structure.`);
-    }
-  }
-  enableSessionControls(true);
-  notifyHost("changed");
-  log(`Opened ${jobDocument.kind} structure ${jobDocument.label}.`);
-}
-
-/** Load the quantum panel only on deployments whose API offers enabled quantum jobs. */
-async function initializeQuantumPanel(): Promise<void> {
-  const providers = await api<Array<components["schemas"]["ProviderSummary"]>>("/api/providers");
-  if (!providers.some((provider) => provider.name === "quantum" && provider.jobs && provider.enabled)) return;
-  const { initializeQuantumController } = await import("./studio/quantum-controller");
-  quantumController = await initializeQuantumController({
-    getSessionId: () => sessionId,
-    openDocument: openJobDocument,
-    log,
   });
 }
 
@@ -314,7 +312,7 @@ async function initialize(): Promise<void> {
   const host = query.get("host");
   document.body.classList.toggle("host-vscode", host === "vscode");
   if (host === "vscode") applyHostTheme(query.get("hostTheme"));
-  // A renderer pinned in the URL (?viewer=) is honored exactly and never auto-swapped.
+  // Use the requested renderer at startup; a fatal runtime error can recover to Mol*.
   // Otherwise Patinae is the default and may auto-fall-back to Mol* when WebGPU is absent.
   const urlPinnedViewer = parseViewerMode(query.get("viewer"));
   const mode = requestedViewerMode(query) ?? "patinae";
@@ -322,11 +320,20 @@ async function initialize(): Promise<void> {
   localStorage.setItem(VIEWER_STORAGE_KEY, mode);
   await initCifCore();
   const schema = await api<StudioSchema>("/api/schema");
+  initializeEditorTabs(schema.editor_tabs);
   molecularViewer = new MolecularViewer(
     element("viewer"),
     viewerBackend,
     mode,
     handleAtomPicked,
+    (error) => void runViewerUpdate(async () => {
+      await recoverRenderer(error);
+      if (sessionId) {
+        const response = await api<SessionResponse>(`/api/sessions/${sessionId}`);
+        await refreshFromServer(response.structure);
+        enableSessionControls(true);
+      }
+    }).catch((failure) => log(`Renderer recovery failed: ${String(failure)}`)),
   );
   viewerToolbarController = new ViewerToolbarController({
     viewer: () => molecularViewer,
@@ -372,30 +379,42 @@ async function initialize(): Promise<void> {
   sessionFileController = new SessionFileController({
     runViewerUpdate,
     getSessionId: () => sessionId,
-    onOpened: async (response) => {
-      sessionId = response.session_id;
-      currentName = response.structure.name;
-      selectionController.clear();
-      await molecularViewer.clearAllVisuals();
-      persistSession(response);
-      await refreshFromServer(response.structure, false);
-      enableSessionControls(true);
-      notifyHost("ready");
-    },
+    onOpened: (response) => runViewerUpdate(async () => {
+      const workspace = element("workspace");
+      workspace.inert = true;
+      enableSessionControls(false);
+      try {
+        sessionId = response.session_id;
+        currentName = response.structure.name;
+        selectionController.clear();
+        await molecularViewer.clearAllVisuals();
+        persistSession(response);
+        await refreshFromServer(response.structure, false);
+        enableSessionControls(true);
+        notifyHost("ready");
+      } catch (error) {
+        await recoverRenderer(error);
+        persistSession(response);
+        await refreshFromServer(response.structure, false);
+        enableSessionControls(true);
+        notifyHost("ready");
+      } finally {
+        workspace.inert = false;
+      }
+    }),
     onCombined: async (response, filename) => {
       persistSession(response);
       await refreshFromServer(response.structure, false);
       log(`Combined ${filename}; conflicting chain IDs were reassigned.`);
       notifyHost("changed");
     },
-    applyExamplePreset: (example) =>
-      designController?.applyPreset(example.metricsTags, example.search) ?? [],
     log,
   });
   conditionController.initialize(schema);
   sessionFileController.initializeLoading(schema.loading);
   structureEditController.initializeBondTypes(schema.bond_types);
   viewerToolbarController.bind();
+  element("empty-open").addEventListener("click", () => element<HTMLInputElement>("file-input").click());
   analysisController.bind();
   annotationController.bind();
   conditionController.bind();
@@ -414,7 +433,10 @@ async function initialize(): Promise<void> {
     element("style-menu").hidden = true;
     pickScope.disabled = true;
     selectionSyntax.querySelector<HTMLOptionElement>('option[value="patinae"]')!.disabled = true;
-    if (selectionSyntax.value === "patinae") selectionSyntax.value = "expression";
+    if (selectionSyntax.value === "patinae") {
+      selectionSyntax.value = "expression";
+      selectionSyntax.dispatchEvent(new Event("change"));
+    }
     log(`Renderer initialization failed; editing remains available: ${String(error)}`);
   };
   try {
@@ -441,7 +463,8 @@ async function initialize(): Promise<void> {
     }
   }
   let restoredSession = false;
-  const savedSession = query.get("session") ?? sessionStorage.getItem("annotation-studio-session");
+  const example = query.get("example");
+  const savedSession = query.get("session") ?? (example ? null : sessionStorage.getItem("annotation-studio-session"));
   if (savedSession) {
     try {
       sessionId = savedSession;
@@ -461,38 +484,7 @@ async function initialize(): Promise<void> {
     }
   }
   if (!restoredSession) log("Ready. Open a CIF to start.");
-  designController = await initializeDesignController({
-    request: api,
-    getSessionId: () => sessionId,
-    openDocument: openJobDocument,
-    compareDocuments: async (designDocuments) => {
-      const outputColors = ["magenta", "orange", "green", "yellow"] as const;
-      const structures = await Promise.all(designDocuments.map(async (designDocument, index) => {
-        return {
-          cif: await apiText(`/api/sessions/${designDocument.session_id}/cif`),
-          name: designDocument.label,
-          color: designDocument.kind === "input"
-            ? "cyan" as const
-            : outputColors[index % outputColors.length],
-        };
-      }));
-      selectionController.clear();
-      annotationController?.reset();
-      await molecularViewer.loadCifs(structures);
-      viewerToolbarController?.renderDrawers();
-      log(`Comparing ${designDocuments.length} design structures in one viewer.`);
-    },
-    clearComparison: async () => {
-      if (!lastSummary) return;
-      await refreshFromServer(lastSummary, false);
-      viewerToolbarController?.renderDrawers();
-    },
-    log,
-  });
-  designController.updateSession();
-  // Not awaited: the quantum schema can take seconds to inspect, and no other control depends on it.
-  void initializeQuantumPanel().catch((error) => log(`Could not load the quantum panel: ${String(error)}`));
-  const pendingExample = sessionStorage.getItem(PENDING_EXAMPLE_KEY);
+  const pendingExample = query.has("session") ? null : example ?? sessionStorage.getItem(PENDING_EXAMPLE_KEY);
   if (pendingExample) {
     sessionStorage.removeItem(PENDING_EXAMPLE_KEY);
     await sessionFileController.loadPendingExample(pendingExample);

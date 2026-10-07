@@ -53,7 +53,7 @@ export class ViewerToolbarController {
   bind(): void {
     for (const menu of document.querySelectorAll<HTMLDetailsElement>(".viewer-menu")) {
       menu.addEventListener("toggle", () => {
-        // A studio tab (data-studio-tab) shows only the popover panels with the same data-studio-panel.
+        // Keep the docked editor independent of transient viewer menus.
         const studioTab = menu.dataset.studioTab;
         if (menu.open) {
           closeToolbarMenus(menu);
@@ -66,6 +66,16 @@ export class ViewerToolbarController {
         }
       });
     }
+    this.studioMenu.open = true;
+    this.showStudioTab("atomworks", "Edit");
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      const openMenu = document.querySelector<HTMLDetailsElement>(".viewer-menu:not(.studio-menu)[open], .load-options[open]");
+      if (openMenu) {
+        openMenu.open = false;
+        openMenu.querySelector<HTMLElement>("summary")?.focus();
+      }
+    });
     for (const button of document.querySelectorAll<HTMLButtonElement>("[data-representation]")) {
       button.addEventListener("click", () => {
         try {
@@ -126,6 +136,8 @@ export class ViewerToolbarController {
       });
     }
     element("command-search").addEventListener("input", () => this.renderCommandCatalog());
+    this.selectionSyntax.addEventListener("change", () => this.updateCommandHint());
+    this.updateCommandHint();
     element<HTMLFormElement>("viewer-command-form").addEventListener("submit", (event) => {
       event.preventDefault();
       const command = this.viewerCommand.value;
@@ -168,7 +180,21 @@ export class ViewerToolbarController {
     if (!capabilities.commands && this.selectionSyntax.value === "patinae") {
       this.selectionSyntax.value = "expression";
     }
+    this.updateCommandHint();
     this.renderCommandCatalog();
+  }
+
+  private updateCommandHint(): void {
+    const syntax = this.selectionSyntax.value;
+    const hint = syntax === "patinae"
+      ? "PyMOL command, e.g. select sele, name CA"
+      : "AtomWorks query, e.g. atom_name == 'CA'";
+    this.viewerCommand.placeholder = hint;
+    this.viewerCommand.setAttribute("aria-label", hint);
+    this.viewerCommand.title = syntax === "patinae"
+      ? "Supported PyMOL-style commands, executed by Patinae. See More for available commands."
+      : "AtomWorks expressions or selection paths: sel('A/*/[10-20]/CA').";
+    element("run-viewer-command").textContent = syntax === "patinae" ? "Run" : "Select";
   }
 
   renderDrawers(): void {
@@ -259,9 +285,6 @@ export class ViewerToolbarController {
   private showStudioTab(tab: string, label: string): void {
     this.workspace.dataset.studioTab = tab;
     this.studioPopover.setAttribute("aria-label", label);
-    for (const panel of this.studioPopover.querySelectorAll<HTMLElement>("[data-studio-panel]")) {
-      panel.hidden = panel.dataset.studioPanel !== tab;
-    }
   }
 
   private async executeCommand(
@@ -304,12 +327,25 @@ export class ViewerToolbarController {
           ? `Command '${verb}' would desynchronize the annotated CIF. Use AtomWorks Studio editing controls instead.`
           : metadata?.unavailableReason
           ? `Command '${verb}' is unavailable in the browser: ${metadata.unavailableReason}`
-          : `Unsupported viewer command '${verb}'. Browse the web-safe command catalog under •••.`,
+          : `Unsupported viewer command '${verb}'. Browse available commands under More.`,
       );
     }
     const result = viewer.executeCommand(trimmed) as {
       messages?: Array<{ level: string; text: string }>;
     };
+    const errors = result?.messages?.filter((message) => message.level === "error") ?? [];
+    if (errors.length) throw new Error(errors.map((message) => message.text.trim()).join("\n"));
+    const name = metadata?.name ?? verb;
+    if (name === "select") {
+      const selectionName = trimmed.includes(",")
+        ? trimmed.slice(trimmed.search(/\s/) + 1).split(",", 1)[0].trim()
+        : "sele";
+      // Patinae removes empty named selections; evaluating a missing name stops its viewer.
+      const exists = viewer.getSelectionList().some((selection) => selection.name === selectionName);
+      this.options.selection.replace(exists ? viewer.evaluateSelection(selectionName) : [], true);
+    } else if (name === "deselect") {
+      this.options.selection.clear();
+    }
     const messages = result?.messages?.map((message) => message.text.trim()).filter(Boolean) ?? [];
     this.options.log(messages.join("\n") || `Patinae: ${trimmed}`);
   }
@@ -362,6 +398,7 @@ export class ViewerToolbarController {
       button.append(name, description);
       button.addEventListener("click", () => {
         this.selectionSyntax.value = "patinae";
+        this.updateCommandHint();
         this.viewerCommand.value = `${command.name} `;
         this.viewerCommand.focus();
         closeToolbarMenus();

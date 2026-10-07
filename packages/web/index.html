@@ -3,28 +3,26 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#14161e" />
+    <meta name="theme-color" content="#202124" />
     <link rel="icon" href="./annotation-studio.svg" />
     <link rel="manifest" href="./manifest.webmanifest" />
-    <title>AtomWorks Annotation Studio</title>
+    <title>AtomWorks Studio</title>
   </head>
   <body>
     <main class="app-shell">
       <header>
         <div class="header-identity">
-          <img src="./atomworks_logo_dark.svg" alt="AtomWorks" class="header-logo" />
-          <div>
-            <p class="eyebrow">AtomWorks</p>
-            <h1>Annotation Studio</h1>
-          </div>
+          <img src="./annotation-studio.svg" alt="" class="header-logo" />
+          <h1>AtomWorks <span>Studio</span></h1>
         </div>
+        <span id="document-name" class="document-name">No structure open</span>
         <div class="header-actions">
-          <label class="file-button">
+          <label class="file-button primary">
             Open CIF
             <input id="file-input" type="file" accept=".cif,.mmcif,chemical/x-mmcif" />
           </label>
           <details class="load-options">
-            <summary>Load options</summary>
+            <summary>Import options</summary>
             <div class="load-options-popover">
               <label>Preset
                 <select id="parse-preset">
@@ -40,20 +38,13 @@
             Combine CIF
             <input id="combine-input" type="file" accept=".cif,.mmcif,chemical/x-mmcif" disabled />
           </label>
-          <button id="download" aria-label="Download annotated CIF" disabled>Download CIF</button>
+          <button id="download" aria-label="Download annotated CIF" disabled>Save CIF</button>
         </div>
       </header>
 
       <section id="workspace" class="workspace">
         <div class="viewer-column">
           <div id="viewer-toolbar" class="viewer-toolbar">
-            <label class="viewer-choice compact-choice">Renderer
-              <select id="viewer-mode">
-                <option value="">Choose renderer</option>
-                <option value="patinae">Patinae · WebGPU</option>
-                <option value="molstar">Mol* · WebGL</option>
-              </select>
-            </label>
             <details id="style-menu" class="viewer-menu" data-menu="style">
               <summary>Style</summary>
               <div class="viewer-menu-popover viewer-menu-popover-wide">
@@ -145,8 +136,6 @@
                 </label>
                 <button id="add-measurement" type="button" class="secondary compact" data-capability="measurements" disabled>Add measurement</button>
                 <button id="clear-analysis-visuals" type="button" class="secondary compact" data-capability="measurements">Clear visuals</button>
-                <button id="inspect-bonds" type="button" class="secondary compact" disabled>Inspect bonds</button>
-                <button id="infer-bonds" type="button" class="secondary compact" disabled>Infer CCD bonds</button>
                 <label>Restraint Å
                   <input id="restraint-distance" type="number" min="0" step="0.1" value="4.0" />
                 </label>
@@ -157,13 +146,7 @@
               </div>
             </details>
             <details id="atomworks-studio-menu" class="viewer-menu studio-menu" data-menu="studio" data-studio-tab="atomworks">
-              <summary>AtomWorks Studio</summary>
-            </details>
-            <details id="rfd4-proteina-menu" class="viewer-menu studio-menu" data-menu="rfd4" data-studio-tab="rfd4">
-              <summary>RFD4-Proteina</summary>
-            </details>
-            <details id="quantum-menu" class="viewer-menu studio-menu" data-menu="quantum" data-studio-tab="quantum" hidden>
-              <summary>AtomWorks-Quantum</summary>
+              <summary>Edit</summary>
             </details>
             <details class="viewer-menu" data-menu="view">
               <summary>View</summary>
@@ -179,11 +162,19 @@
               </div>
             </details>
             <details class="viewer-menu overflow-menu" data-menu="overflow">
-              <summary>•••</summary>
+              <summary aria-label="More viewer options">More</summary>
               <div class="viewer-menu-popover viewer-menu-popover-right viewer-menu-popover-wide">
-                <button id="open-objects" type="button" class="secondary compact">Objects drawer</button>
-                <button id="open-selections" type="button" class="secondary compact">Selections drawer</button>
-                <button id="open-measurements" type="button" class="secondary compact">Measurements drawer</button>
+            <label class="viewer-choice compact-choice">Renderer
+              <select id="viewer-mode">
+                <option value="">Choose renderer</option>
+                <option value="patinae">Patinae · WebGPU</option>
+                <option value="molstar">Mol* · WebGL</option>
+              </select>
+            </label>
+
+                <button id="open-objects" type="button" class="secondary compact">Objects</button>
+                <button id="open-selections" type="button" class="secondary compact">Selections</button>
+                <button id="open-measurements" type="button" class="secondary compact">Measurements</button>
                 <label>Patinae command catalog
                   <input id="command-search" type="search" placeholder="Search commands…" />
                 </label>
@@ -202,7 +193,7 @@
                 <button id="sequence-toggle" class="secondary compact" type="button" aria-expanded="true">
                   Hide sequence
                 </button>
-                <button id="sequence-realize" class="secondary compact" disabled>Expand segments</button>
+                <button id="sequence-realize" class="secondary compact" disabled>Realize segments</button>
                 <button id="sequence-collapse" class="secondary compact" disabled>Collapse segments</button>
               </div>
             </div>
@@ -210,26 +201,34 @@
               Open a structure to select residues.
             </div>
           </div>
+          <div class="viewer-stage">
           <div id="viewer">
             <div id="renderer-prompt" class="renderer-prompt" hidden>
               <p class="eyebrow">Choose a renderer</p>
               <strong>Open the Studio with Patinae or Mol*</strong>
-              <p>Both use the same editor, examples, jobs, and output metrics.</p>
+              <p>Both use the same annotations and editing tools.</p>
               <div class="button-row">
                 <button class="renderer-prompt-choice" data-renderer="patinae">Use Patinae · WebGPU</button>
                 <button class="renderer-prompt-choice secondary" data-renderer="molstar">Use Mol* · WebGL</button>
               </div>
             </div>
           </div>
+          <div id="empty-state" class="empty-state">
+            <div class="empty-state-inner">
+              <h2>Open a structure</h2>
+              <p>Choose a CIF file to inspect and annotate.<br />Or start with an example in the Edit panel.</p>
+              <button id="empty-open" class="secondary" type="button">Open CIF…</button>
+            </div>
+          </div>
+          </div>
           <form id="viewer-command-form" class="viewer-command-bar">
               <select id="selection-syntax" aria-label="Input syntax">
-                <option value="patinae">Patinae</option>
-                <option value="expression">AtomWorks</option>
-                <option value="path">Path</option>
+                <option value="patinae">PyMOL commands</option>
+                <option value="expression">AtomWorks query</option>
               </select>
               <input
                 id="viewer-command"
-                aria-label="Patinae command or AtomWorks query"
+                aria-label="PyMOL command or AtomWorks query"
                 autocomplete="off"
                 spellcheck="false"
                 placeholder="Enter command or selection"
@@ -239,24 +238,9 @@
         </div>
 
         <aside id="atomworks-studio-popover" class="studio-menu-popover" aria-label="Studio controls">
-          <section class="drawer-stack" data-studio-panel="atomworks" aria-label="Viewer data drawers">
-            <details id="objects-drawer" class="card drawer">
-              <summary>Objects</summary>
-              <div id="object-list" class="drawer-list muted">Open a structure to list objects.</div>
-            </details>
-            <details id="selections-drawer" class="card drawer">
-              <summary>Selections</summary>
-              <div id="selection-list" class="drawer-list muted">No named selections.</div>
-            </details>
-            <details id="measurements-drawer" class="card drawer">
-              <summary>Measurements</summary>
-              <div id="measurement-list" class="drawer-list muted">No measurements.</div>
-              <div id="analysis-results" class="drawer-list"></div>
-            </details>
-          </section>
-          <details class="card quick-start-card" data-studio-panel="atomworks" open>
-            <summary>Quick-start examples</summary>
-            <p class="muted">Load a ready-to-run annotated CIF, inspect its conditions, then edit or generate.</p>
+          <details id="examples-panel" class="card quick-start-card" data-editor-card="main" open>
+            <summary>Examples</summary>
+            <p class="muted">Annotated structures to try.</p>
             <div class="example-list">
               <article class="example-card">
                 <div class="example-title-row">
@@ -264,9 +248,6 @@
                   <span>50–120 aa</span>
                 </div>
                 <p>Fixed target sequence and coordinates, six hotspot atoms, and an expandable binder chain.</p>
-                <div class="example-tags">
-                  <span>Hotspots</span><span>Fixed target</span><span>Interface</span>
-                </div>
                 <button class="secondary example-load" data-example="ppi" disabled>Load PPI example</button>
               </article>
               <article class="example-card">
@@ -275,9 +256,6 @@
                   <span>180 aa</span>
                 </div>
                 <p>Sequence- and coordinate-conditioned catalytic residues around a small-molecule ligand.</p>
-                <div class="example-tags">
-                  <span>Catalytic motif</span><span>Coordinates</span><span>Ligand</span>
-                </div>
                 <button class="secondary example-load" data-example="mcsa" disabled>Load MCSA example</button>
               </article>
               <article class="example-card">
@@ -285,159 +263,41 @@
                   <strong>DISCO-style · IAI binder</strong>
                   <span>150 aa</span>
                 </div>
-                <p>De novo expandable protein design using an annotated small-molecule context.</p>
-                <div class="example-tags">
-                  <span>Small molecule</span><span>De novo binder</span>
-                </div>
+                <p>Small-molecule context with an expandable protein segment.</p>
                 <button class="secondary example-load" data-example="disco" disabled>Load DISCO example</button>
               </article>
             </div>
           </details>
 
-          <section class="card" data-studio-panel="atomworks">
+          <section class="card editor-document">
             <h2>Structure</h2>
             <div id="structure-summary" class="muted">Open an annotated CIF to begin.</div>
+            <p id="structure-edit-feedback" class="inline-feedback muted" aria-live="polite">
+              Bond actions require exactly two selected atoms.
+            </p>
             <div class="button-row">
               <button id="validate" disabled>Validate</button>
               <button id="undo" class="secondary" disabled>Undo</button>
             </div>
           </section>
 
-          <details id="design-card" class="card" data-studio-panel="rfd4" open>
-            <summary>Generate with RFD4</summary>
-            <p id="design-availability" class="muted gpu-status" data-state="checking">Checking GPU design service…</p>
-            <section class="design-recipes" aria-label="Design recipes">
-              <div class="card-title-row">
-                <h3>Start with a recipe</h3>
-                <span>editable</span>
-              </div>
-              <div class="design-recipe-grid">
-                <button id="design-recipe-fast" type="button" class="design-recipe" disabled>
-                  <strong>Fast screen</strong>
-                  <span>Inline geometry + interface checks</span>
-                </button>
-                <button id="design-recipe-confidence" type="button" class="design-recipe" disabled>
-                  <strong>Confidence-ranked binder</strong>
-                  <span>Inline checks + model refolding when available</span>
-                </button>
-              </div>
-              <p id="design-recipe-summary" class="design-recipe-summary" aria-live="polite">
-                Connect a design service to choose a recipe.
-              </p>
-            </section>
-            <details class="design-settings" open>
-              <summary>Design settings</summary>
-            <label>Workflow
-              <select id="design-mode">
-                <option value="generate">Generate</option>
-                <option value="search">Reward-guided search</option>
+          <section class="card" data-editor-card="annotations">
+            <h2>Annotations</h2>
+            <label>Type<select id="condition"></select></label>
+            <label>Selection scope
+              <select id="scope">
+                <option value="atom">Atoms</option>
+                <option value="residue">Whole residues</option>
+                <option value="chain">Whole chains</option>
               </select>
             </label>
-            <div class="inline-fields">
-              <label>Designs<input id="design-count" type="number" min="1" max="64" value="8" /></label>
-              <label>Batch size<input id="design-batch" type="number" min="1" max="32" value="4" /></label>
-            </div>
-            <label>Diffusion steps<input id="design-steps" type="number" min="1" max="1000" value="100" /></label>
-            <label id="design-refolding-oracle-row" hidden>Confidence runtime
-              <select id="design-refolding-oracle"></select>
-            </label>
-            <div class="metrics-picker-wrap">
-              <span class="metrics-picker-label">Metrics</span>
-              <div id="metrics-picker"></div>
-            </div>
-            <select id="design-metrics" hidden multiple></select>
-            <div id="search-options" hidden>
-              <div class="inline-fields">
-                <label>Branches<input id="search-branches" type="number" min="1" max="16" value="2" /></label>
-                <label>Beam width<input id="search-beam" type="number" min="1" max="16" value="2" /></label>
-              </div>
-              <label>Checkpoints<input id="search-checkpoints" value="0,50,100" /></label>
-              <label>Reward metric group<select id="search-reward-tag"></select></label>
-              <label>Reward metric
-                <input id="search-reward" list="search-reward-options" value="interchain_interactions.hbond_atom_pair_count_coi" />
-                <datalist id="search-reward-options"></datalist>
-              </label>
-              <label>Reward weight<input id="search-weight" type="number" step="0.1" value="1" /></label>
-              <p id="search-refolding-note" class="menu-note" hidden>
-                Model refolding runs at every search checkpoint for this reward group. It is substantially slower than inline metrics.
-                </p>
-              </div>
-            </details>
-            <details class="design-settings design-advanced">
-              <summary>Advanced model options (YAML)</summary>
-              <label class="file-button secondary compact">
-                Load model-options YAML
-                <input id="design-config-file" type="file" accept=".yaml,.yml,text/yaml" />
-              </label>
-              <label>Model options
-                <textarea id="design-config" rows="5" placeholder="generation:&#10;  model:&#10;    ..."></textarea>
-              </label>
-            </details>
-            <div class="action-row">
-              <button id="submit-design" disabled>Submit GPU design job</button>
-              <button id="cancel-design" class="secondary" disabled>Cancel job</button>
-            </div>
-            <div id="design-job-status" class="muted" aria-live="polite"></div>
-            <div id="design-progress" class="design-progress" hidden>
-              <div class="design-progress-row">
-                <strong id="design-progress-phase">Queued</strong>
-                <span id="design-progress-elapsed">0s</span>
-              </div>
-              <div class="design-progress-track"><span></span></div>
-              <details>
-                <summary>Live RFD4 log</summary>
-                <pre id="design-progress-log"></pre>
-              </details>
-            </div>
-            <div class="document-toolbar">
-              <button id="previous-design" class="secondary compact" disabled>Previous</button>
-              <span id="design-position" class="muted">No results</span>
-              <button id="next-design" class="secondary compact" disabled>Next</button>
-              <button id="align-design" class="secondary compact" disabled>Align to input</button>
-              <button id="compare-designs" class="secondary compact" disabled>Compare selected (0)</button>
-              <button id="clear-design-comparison" class="secondary compact" disabled>Clear comparison</button>
-            </div>
-            <div id="design-documents" class="document-list"></div>
-            <div id="design-metric-summary" class="metric-summary"></div>
-          </details>
-
-          <section id="quantum-card" class="card" data-studio-panel="quantum">
-            <h2>Quantum calculation</h2>
-            <p id="quantum-availability" class="muted gpu-status" data-state="checking">Checking the quantum service…</p>
-            <label>Calculation<select id="quantum-calculation"></select></label>
-            <p id="quantum-calculation-note" class="menu-note"></p>
-            <label>Model<select id="quantum-model"></select></label>
-            <p id="quantum-model-note" class="menu-note"></p>
-            <div class="inline-fields">
-              <label>Total charge<input id="quantum-charge" type="number" step="1" value="0" /></label>
-              <label>Multiplicity<input id="quantum-multiplicity" type="number" min="1" step="1" value="1" /></label>
-            </div>
-            <div class="inline-fields">
-              <label id="quantum-fmax-row">Force threshold (eV/Å)<input id="quantum-fmax" type="number" min="0" step="0.005" value="0.02" /></label>
-              <label id="quantum-steps-row">Steps<input id="quantum-steps" type="number" min="1" step="1" value="1000" /></label>
-            </div>
-            <div class="action-row">
-              <button id="submit-quantum" disabled>Submit calculation</button>
-              <button id="cancel-quantum" class="secondary" disabled>Cancel job</button>
-            </div>
-            <div id="quantum-job-status" class="muted" aria-live="polite"></div>
-            <div id="quantum-progress" class="design-progress" hidden>
-              <div class="design-progress-row">
-                <strong id="quantum-progress-phase">Queued</strong>
-                <span id="quantum-progress-elapsed">0s</span>
-              </div>
-              <div id="quantum-progress-track" class="design-progress-track"><span></span></div>
-              <details>
-                <summary>Live aq log</summary>
-                <pre id="quantum-progress-log"></pre>
-              </details>
-            </div>
-            <div id="quantum-results" class="quantum-results"></div>
-          </section>
-
-          <section class="card" data-studio-panel="atomworks">
+            <label class="checkbox"><input id="enabled" type="checkbox" checked /> Enable condition</label>
+            <div id="condition-value"></div>
+            <p id="condition-feedback" class="inline-feedback muted" aria-live="polite">Select one or more atoms.</p>
+            <button id="apply-condition" disabled>Apply to selection</button>
+            <hr />
             <div class="card-title-row">
-              <h2>Annotation summary</h2>
+              <h3>Inspect annotations</h3>
               <button id="clear-annotation-view" class="secondary compact" disabled>Clear colors</button>
             </div>
             <label class="search-field">Search annotations
@@ -451,24 +311,8 @@
             </div>
           </section>
 
-          <section class="card" data-studio-panel="atomworks">
-            <h2>Condition</h2>
-            <label>Type<select id="condition"></select></label>
-            <label>Selection scope
-              <select id="scope">
-                <option value="atom">Atoms</option>
-                <option value="residue">Whole residues</option>
-                <option value="chain">Whole chains</option>
-              </select>
-            </label>
-            <label class="checkbox"><input id="enabled" type="checkbox" checked /> Enable condition</label>
-            <div id="condition-value"></div>
-            <p id="condition-feedback" class="inline-feedback muted" aria-live="polite">Select one or more atoms.</p>
-            <button id="apply-condition" disabled>Apply to selection</button>
-          </section>
-
-          <details class="card" data-studio-panel="atomworks">
-            <summary>Charges and bonds</summary>
+          <details class="card" data-editor-card="charges">
+            <summary>Charges</summary>
             <div class="inline-fields">
               <label>Charge action
                 <select id="charge-action"><option value="value">Set</option><option value="delta">Add delta</option></select>
@@ -476,30 +320,47 @@
               <label>Charge<input id="charge" type="number" min="-10" max="10" value="0" /></label>
             </div>
             <button id="apply-charge" disabled>Apply charge</button>
-            <hr />
+            <div class="inline-fields protonation-fields">
+              <label>pH<input id="protonation-ph" type="number" min="0" max="14" step="0.1" value="7.4" /></label>
+              <button id="protonate" disabled>Protonate structure</button>
+            </div>
+            <p class="muted">Updates hydrogens and formal charges for the whole structure. Undo restores the previous state.</p>
+          </details>
+
+          <details class="card" data-editor-card="bonds">
+            <summary>Bonds</summary>
             <label>Bond type<select id="bond-type"></select></label>
             <div class="button-row">
               <button id="add-bond" disabled>Add bond</button>
               <button id="remove-bond" class="secondary" disabled>Remove bond</button>
             </div>
-            <p id="structure-edit-feedback" class="inline-feedback muted" aria-live="polite">
-              Bond actions require exactly two selected atoms.
-            </p>
+            <div class="button-row">
+              <button id="inspect-bonds" class="secondary" disabled>Inspect bonds</button>
+              <button id="infer-bonds" class="secondary" disabled>Infer CCD bonds</button>
+            </div>
+            <div id="bond-list" class="drawer-list muted" aria-live="polite">Inspect bonds to list their atoms and types.</div>
           </details>
 
-          <details class="card" data-studio-panel="atomworks">
+          <details class="card" data-editor-card="main">
             <summary>Structure editing</summary>
             <div class="button-row">
-              <button id="delete-atoms" class="danger" disabled>Delete selected</button>
+              <button id="delete-atoms" class="danger" disabled>Delete selection</button>
               <button id="reset-residues" class="secondary" disabled>Reset residue IDs</button>
             </div>
             <label class="checkbox"><input id="close-residue-gaps" type="checkbox" /> Close residue-ID gaps after delete</label>
+          </details>
+
+          <details class="card" data-editor-card="chains">
+            <summary>Chains</summary>
             <div class="inline-fields">
               <label>Assign chain<input id="chain-id" list="known-chain-ids" maxlength="8" placeholder="A" /></label>
               <button id="assign-chain" class="secondary" disabled>Assign selected</button>
             </div>
             <datalist id="known-chain-ids"></datalist>
-            <hr />
+          </details>
+
+          <details class="card" data-editor-card="main">
+            <summary>Expandable segments</summary>
             <div class="inline-fields">
               <label>Min<input id="segment-min" type="number" min="1" value="5" /></label>
               <label>Max<input id="segment-max" type="number" min="1" value="10" /></label>
@@ -519,17 +380,37 @@
             </div>
             <button id="insert-segment" disabled>Insert expandable segment</button>
             <div class="button-row">
-              <button id="realize-segments" class="secondary" disabled>Realize</button>
-              <button id="collapse-segments" class="secondary" disabled>Collapse</button>
+              <button id="realize-segments" class="secondary" disabled>Realize segments</button>
+              <button id="collapse-segments" class="secondary" disabled>Collapse segments</button>
             </div>
           </details>
 
-          <section class="card log-card" data-studio-panel="atomworks">
-            <h2>Status</h2>
-            <pre id="status" tabindex="0">Initializing molecular viewer and CIF WASM…</pre>
+          <section class="drawer-stack" data-editor-card="main" aria-label="Viewer data drawers">
+            <details id="objects-drawer" class="card drawer">
+              <summary>Objects</summary>
+              <div id="object-list" class="drawer-list muted">Open a structure to list objects.</div>
+            </details>
+            <details id="selections-drawer" class="card drawer">
+              <summary>Selections</summary>
+              <div id="selection-list" class="drawer-list muted">No named selections.</div>
+            </details>
+            <details id="measurements-drawer" class="card drawer">
+              <summary>Measurements</summary>
+              <div id="measurement-list" class="drawer-list muted">No measurements.</div>
+              <div id="analysis-results" class="drawer-list"></div>
+            </details>
           </section>
+
+          <details class="card log-card" data-editor-card="main">
+            <summary>Activity log</summary>
+            <pre id="status" tabindex="0">Starting Studio…</pre>
+          </details>
         </aside>
       </section>
+      <footer class="status-bar">
+        <span id="status-message" role="status">Starting Studio…</span>
+        <a id="guide-link" href="/guide/" target="_blank" rel="noopener">Guide</a>
+      </footer>
     </main>
     <script type="module" src="/src/main.ts"></script>
   </body>

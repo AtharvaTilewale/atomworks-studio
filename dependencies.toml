@@ -1,21 +1,15 @@
-# atomworks and RFD4 are vendored as git submodules under external/ (see .gitmodules).
-# A fresh `git clone --recursive` checks out these exact commits; keep the revisions here
-# in sync with the submodule gitlinks. Reviewed updates are sourced from atomworks `dev`
-# and RFD4 `main`.
+# AtomWorks is a public Python release; uv.lock records its artifacts and hashes.
+# RFD4 annotation definitions are bundled from the revision-pinned source.
 
 [atomworks]
 package = "atomworks"
-version = "2.1.1"
-repository = "https://github.com/baker-laboratory/atomworks-dev.git"
-branch = "dev"
-revision = "cf8daa068edf2cadf7baffbb2ec46049758a7f0c"
-submodule = "external/atomworks-dev"
+version = "3.0.0"
+repository = "https://github.com/RosettaCommons/atomworks.git"
 
 [rfd4]
-repository = "https://github.com/baker-laboratory/RFD4-Proteina-dev.git"
-branch = "main"
-revision = "538209c763cdbe5b28450f6abf0b9d7936e91efd"
-submodule = "external/RFD4-Proteina-dev"
+repository = "https://github.com/RosettaCommons/RFD4-Proteina.git"
+revision = "66e4394d38a04a0b901a76507cd5528af2d7f845"
+metadata = "providers/rfd4/UPSTREAM.toml"
 runtime_variable = "ANNOTATION_STUDIO_RFD4_ROOT"
 
 [patinae]

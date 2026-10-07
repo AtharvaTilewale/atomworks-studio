@@ -61,6 +61,7 @@ export class MolstarAdapter implements ViewerAdapter {
     interactionOverlays: true,
   } as const;
   private viewer: MolstarViewer | null = null;
+  private resizeObserver: ResizeObserver | null = null;
   private selectedAtomIndices: number[] = [];
   private measurements: ViewerMeasurement[] = [];
   private markerRepresentation: ShapeRepresentation<ViewerMarker[], Mesh, typeof Mesh.Params> | null = null;
@@ -80,6 +81,10 @@ export class MolstarAdapter implements ViewerAdapter {
       viewportBackgroundColor: "#02080d",
       preferWebgl1: false,
     });
+    // Docking the inspector and toggling sequence change the canvas without
+    // resizing the browser window. Keep Mol*'s drawing buffer in step.
+    this.resizeObserver = new ResizeObserver(() => this.viewer?.plugin.handleResize());
+    this.resizeObserver.observe(this.context.container);
     for (const anchor of this.context.container.querySelectorAll("a")) {
       if (!anchor.textContent?.trim() && !anchor.getAttribute("aria-label")) {
         anchor.setAttribute("aria-label", anchor.title || "Mol* viewer link");
@@ -304,6 +309,8 @@ export class MolstarAdapter implements ViewerAdapter {
   }
 
   destroy(): void {
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
     this.markerRepresentation?.destroy();
     this.markerRepresentation = null;
     this.viewer?.dispose();

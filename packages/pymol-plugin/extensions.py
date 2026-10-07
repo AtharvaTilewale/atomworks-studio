@@ -109,7 +109,10 @@ def load_extensions() -> None:
     Errors in individual extensions are logged as warnings and do not prevent
     other extensions from loading.
     """
-    for module_path in read_extensions():
+    from atomworks_studio_editing.providers import load_providers
+
+    modules = dict.fromkeys((*load_providers().pymol_editors, *read_extensions()))
+    for module_path in modules:
         try:
             mod = importlib.import_module(module_path)
             mod.register()

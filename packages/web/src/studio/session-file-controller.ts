@@ -9,7 +9,6 @@ export interface SessionFileControllerOptions {
   getSessionId: () => string | null;
   onOpened: (response: SessionResponse) => Promise<void>;
   onCombined: (response: SessionResponse, filename: string) => Promise<void>;
-  applyExamplePreset: (example: StudioExample) => string[];
   log: (message: string) => void;
   runViewerUpdate: (operation: () => Promise<void>) => Promise<void>;
 }
@@ -77,8 +76,9 @@ export class SessionFileController {
 
   async loadPendingExample(id: string): Promise<void> {
     const example = STUDIO_EXAMPLES.find((candidate) => candidate.id === id);
+    if (!example) return;
     const button = document.querySelector<HTMLButtonElement>(
-      `.example-load[data-example="${id}"]`,
+      `.example-load[data-example="${example.id}"]`,
     );
     if (example && button) await this.loadExample(example, button);
   }
@@ -135,13 +135,7 @@ export class SessionFileController {
         new File([example.cif], example.filename, { type: "chemical/x-mmcif" }),
       );
       if (!loaded) return;
-      const selectedMetrics = this.options.applyExamplePreset(example);
-      this.options.log(
-        `Loaded ${example.name}.`
-        + (selectedMetrics.length
-          ? ` Suggested metrics selected: ${selectedMetrics.join(", ")}.`
-          : ""),
-      );
+      this.options.log(`Loaded ${example.name}.`);
     } finally {
       activeButton.textContent = originalLabel;
       for (const button of buttons) button.disabled = false;

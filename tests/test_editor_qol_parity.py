@@ -267,3 +267,37 @@ def test_cif_without_comments_is_not_misidentified_as_pdb():
     reparsed = StudioDocument.from_cif(without_comments)
     np.testing.assert_equal(reparsed.array.coord, original.array.coord)
     assert list(reparsed.array.atom_name) == list(original.array.atom_name)
+
+
+def test_protonation_button_updates_native_object_and_supports_undo(qt, monkeypatch):
+    from atomworks_studio_pymol.bridge import load_structure, reload_structure_in_pymol
+    from atomworks_studio_pymol.charge_wizard import ChargeWizard
+    from atomworks_studio_pymol.state import STATE
+    from pymol import cmd
+
+    cmd.reinitialize()
+    STATE.clear_all()
+    name = load_structure(FIXTURE, config=build_load_config(), obj_name="protonation_test")
+    STATE.active = name
+    before = STATE.arrays[name].copy()
+    from pymol.Qt import QtWidgets
+
+    errors = []
+    monkeypatch.setattr(QtWidgets.QMessageBox, "critical", lambda *args: errors.append(args[1:]))
+    monkeypatch.setattr(QtWidgets.QMessageBox, "warning", lambda *args: errors.append(args[1:]))
+    wizard = ChargeWizard(STATE)
+    assert wizard._ph.value() == 7.4
+    wizard._protonate_button.click()
+    qt.processEvents()
+    assert errors == []
+    assert wizard._protonate_button.isEnabled()
+    array = STATE.arrays[name]
+    assert np.count_nonzero(array.element == "H") > 0
+    assert cmd.count_atoms(name) == len(array)
+    assert len(STATE.index_maps[name]) == cmd.count_atoms(name)
+    STATE.pop_snapshot(name)
+    reload_structure_in_pymol(name)
+    np.testing.assert_equal(STATE.arrays[name].coord, before.coord)
+    np.testing.assert_array_equal(STATE.arrays[name].atom_name, before.atom_name)
+    STATE.clear_all()
+    cmd.delete(name)

@@ -2,7 +2,7 @@
 
 RFD4's package initializer loads cluster configuration and the model stack. Its
 condition and annotation modules are standalone scientific definitions, loaded
-from the installed/configured checkout under Studio's own namespace. This never
+from the bundled or explicitly configured source under Studio's own namespace. This never
 inserts a substitute ``rfproteina`` package into the application's import table.
 """
 
@@ -16,16 +16,16 @@ from types import ModuleType
 
 
 def source_root() -> Path:
-    """Locate the explicitly configured, installed, or bundled RFD4 source."""
+    """Locate the explicitly configured or bundled RFD4 source."""
     configured = os.environ.get("ANNOTATION_STUDIO_RFD4_ROOT") or os.environ.get("RFPROTEINA_ROOT")
     if configured:
         root = Path(configured).expanduser().resolve() / "src" / "rfproteina"
-    elif (spec := importlib.util.find_spec("rfproteina")) and spec.submodule_search_locations:
-        root = Path(next(iter(spec.submodule_search_locations)))
     else:
-        root = Path(__file__).resolve().parents[3] / "external" / "RFD4-Proteina-dev" / "src" / "rfproteina"
+        root = Path(__file__).with_name("_upstream") / "src" / "rfproteina"
     if not (root / "conditions.py").is_file():
-        raise ImportError("RFD4 definitions not found; set ANNOTATION_STUDIO_RFD4_ROOT to an RFD4 checkout")
+        raise ImportError(
+            "RFD4 definitions are missing; install a complete Studio RFD4 wheel or configure its source checkout"
+        )
     return root
 
 

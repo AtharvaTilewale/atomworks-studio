@@ -14,9 +14,3 @@ runtime and open the resulting annotated CIF in Studio. Studio currently does
 not import JSON/YAML specs directly or preserve their source expressions and
 contigs when editing a structure. Annotated-CIF edits are not a lossless JSON
 round trip.
-
-A future JSON-loading interface should call RFD4's canonical compiler, using a
-separate process when needed to isolate its model runtime. Editing the source
-spec itself would require an explicit representation of its expressions,
-contigs, and relationship to the displayed structure. That is a separate feature,
-not a reason to duplicate the inference parser in Studio.

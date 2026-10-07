@@ -21,10 +21,10 @@ from atomworks_studio_editing.annotations import set_annotation_mask  # noqa: E4
 from atomworks.ml.conditions import C_DIS  # noqa: E402
 from atomworks_studio_rfd4.model import C_HOT, C_RAS  # noqa: E402
 from atomworks_studio_rfd4.condition_contract import CONDITION_DEFINITIONS  # noqa: E402
-from atomworks_studio_rfd4.pymol.editors import _run_pipeline_validation  # noqa: E402
+from atomworks_studio_rfd4.pymol.editors import _run_annotation_validation  # noqa: E402
 
 from annotation_studio.core import StudioDocument  # noqa: E402
-from annotation_studio.rfd4_provider import CONDITION_PROVIDER, VALIDATION_PROVIDER  # noqa: E402
+from atomworks_studio_rfd4 import CONDITION_PROVIDER, VALIDATION_PROVIDER  # noqa: E402
 
 pytestmark = pytest.mark.usefixtures("stable_cif_metadata")
 
@@ -153,13 +153,15 @@ def test_distance_condition_uses_existing_pair_editor() -> None:
     assert editor_for(C_DIS) is PairValueEditor
 
 
-def test_pymol_and_studio_share_full_provider_validation(monkeypatch) -> None:
-    from atomworks_studio_rfd4 import interactive_validation
+def test_pymol_and_studio_share_annotation_validation(monkeypatch) -> None:
+    import atomworks_studio_rfd4
+    from atomworks_studio_rfd4.pymol import editors
 
     document = _rfd4_document(FIXTURE.read_text(), "validation")
     issue = {"severity": "error", "check": "res_id_gap", "message": "upstream index-group report"}
-    monkeypatch.setattr(interactive_validation, "validate_model_pipeline", lambda *args, **kwargs: [issue])
-    assert _run_pipeline_validation(document.array) == ["[res_id_gap] upstream index-group report"]
+    monkeypatch.setattr(atomworks_studio_rfd4, "validate_rfd4", lambda *args, **kwargs: [issue])
+    monkeypatch.setattr(editors, "validate_rfd4", lambda *args, **kwargs: [issue])
+    assert _run_annotation_validation(document.array) == ["[res_id_gap] upstream index-group report"]
     assert issue in document.validate(full_pipeline=True)
 
 

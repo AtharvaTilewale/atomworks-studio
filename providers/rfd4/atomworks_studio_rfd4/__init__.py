@@ -1,12 +1,6 @@
-"""RFD4-specific providers for the otherwise model-neutral Studio API."""
+"""Shared RFD4 annotation adapter for every Studio interface."""
 
 from __future__ import annotations
-
-from pathlib import Path
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from annotation_studio.design_jobs import ProcessDesignProvider
 
 import numpy as np
 from atomworks.io.utils.atom_array_plus import AtomArrayPlus
@@ -81,7 +75,7 @@ class RFD4ConditionProvider(ConditionProvider):
 
 
 class RFD4ValidationProvider(ValidationProvider):
-    """RFD4 semantic and optional full-pipeline validation."""
+    """RFD4 annotation checks without the model runtime."""
 
     def validate(self, array: AtomArrayPlus, *, full_pipeline: bool = False) -> list[dict[str, str]]:
         return validate_rfd4(array, full_pipeline=full_pipeline)
@@ -98,9 +92,4 @@ CONDITION_OPERATIONS: dict[str, ConditionOperation] = {
 }
 
 
-def create_design_provider(project_root: Path) -> ProcessDesignProvider:
-    """Create the process-isolated RFD4 design provider."""
-
-    from annotation_studio.design_jobs import ProcessDesignProvider
-
-    return ProcessDesignProvider.from_environment(project_root)
+PYMOL_EDITORS = ("atomworks_studio_rfd4.pymol.editors",)

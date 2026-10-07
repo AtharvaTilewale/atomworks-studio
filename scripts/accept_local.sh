@@ -6,10 +6,6 @@ artifact_dir="${root}/artifacts/local"
 accept_port="${ANNOTATION_STUDIO_ACCEPT_PORT:-18000}"
 accept_url="http://127.0.0.1:${accept_port}"
 mkdir -p "${artifact_dir}"
-rfd4_root="${ANNOTATION_STUDIO_RFD4_ROOT:-${RFPROTEINA_ROOT:-${root}/external/RFD4-Proteina-dev}}"
-if [[ -d "${rfd4_root}/src/rfproteina" ]]; then
-  export PYTHONPATH="${rfd4_root}/src${PYTHONPATH:+:${PYTHONPATH}}"
-fi
 if command -v pnpm >/dev/null 2>&1; then
   pnpm_cmd=(pnpm)
 else
@@ -24,6 +20,8 @@ uv run --project "${root}" --all-extras python "${root}/scripts/run_pytest.py" \
 "${pnpm_cmd[@]}" --dir "${root}/packages/web" test:unit | tee "${artifact_dir}/web-unit.log"
 "${pnpm_cmd[@]}" --dir "${root}/packages/web" build | tee "${artifact_dir}/web-build.log"
 uv run --project "${root}" python "${root}/scripts/check_web_budget.py" | tee "${artifact_dir}/web-budget.log"
+
+make -C "${root}" docs
 
 ANNOTATION_STUDIO_PORT="${accept_port}" bash "${root}/run.sh" >"${artifact_dir}/server.log" 2>&1 &
 server_pid=$!
@@ -40,14 +38,29 @@ for viewer in patinae molstar; do
   VIEWER_MODE="${viewer}" ANNOTATION_STUDIO_URL="${accept_url}" \
     "${pnpm_cmd[@]}" --dir "${root}/packages/web" test:e2e \
     | tee "${artifact_dir}/e2e-${viewer}.log"
+  VIEWER_MODE="${viewer}" ANNOTATION_STUDIO_URL="${accept_url}/" \
+    node "${root}/packages/web/tests/selections.mjs" | tee "${artifact_dir}/selections-${viewer}.log"
+  VIEWER_MODE="${viewer}" ANNOTATION_STUDIO_URL="${accept_url}/" \
+    node "${root}/packages/web/tests/protonation.mjs" | tee "${artifact_dir}/protonation-${viewer}.log"
+  VIEWER_MODE="${viewer}" ANNOTATION_STUDIO_URL="${accept_url}/" \
+    node "${root}/packages/web/tests/annotations.mjs" | tee "${artifact_dir}/annotations-${viewer}.log"
+  VIEWER_MODE="${viewer}" ANNOTATION_STUDIO_URL="${accept_url}/" \
+    node "${root}/packages/web/tests/editor-qol.mjs" | tee "${artifact_dir}/editor-${viewer}.log"
+  VIEWER_MODE="${viewer}" ANNOTATION_STUDIO_URL="${accept_url}/" \
+    node "${root}/packages/web/tests/loading.mjs" | tee "${artifact_dir}/loading-${viewer}.log"
+  VIEWER_MODE="${viewer}" ANNOTATION_STUDIO_URL="${accept_url}/" \
+    STUDIO_WORKFLOW_OUTPUT="${artifact_dir}/workflows" \
+    node "${root}/packages/web/tests/design-workflows.mjs" | tee "${artifact_dir}/design-workflows-${viewer}.log"
 done
+uv run --project "${root}" python "${root}/scripts/check_workflow_outputs.py" \
+  "${artifact_dir}/workflows" --reference molstar --hosts patinae | tee "${artifact_dir}/workflow-parity.log"
 ANNOTATION_STUDIO_URL="${accept_url}" node "${root}/packages/web/tests/renderer-failure.mjs" \
   | tee "${artifact_dir}/renderer-failure.log"
 
-if [[ "${ANNOTATION_STUDIO_SKIP_CONTAINER:-0}" != "1" ]] \
-  && command -v docker >/dev/null 2>&1; then
-  docker build --file "${root}/deploy/Dockerfile" --tag atomworks-studio:accept "${root}"
-  ANNOTATION_STUDIO_CONTAINER_PORT=18001 \
-    bash "${root}/scripts/accept_container.sh" atomworks-studio:accept \
-    >"${artifact_dir}/container-ready.json"
-fi
+ANNOTATION_STUDIO_URL="${accept_url}/" node "${root}/packages/web/tests/renderer-recovery.mjs" \
+  | tee "${artifact_dir}/renderer-recovery.log"
+ANNOTATION_STUDIO_URL="${accept_url}/" "${pnpm_cmd[@]}" --dir "${root}/packages/web" test:workbench \
+  | tee "${artifact_dir}/workbench.log"
+
+ANNOTATION_STUDIO_URL="${accept_url}/" node "${root}/packages/web/tests/docs.mjs" \
+  | tee "${artifact_dir}/docs.log"

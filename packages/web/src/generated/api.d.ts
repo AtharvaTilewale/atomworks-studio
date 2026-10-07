@@ -4,91 +4,6 @@
  */
 
 export interface paths {
-    "/api/v1/design-jobs/{job_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** V1 Get Design Job */
-        get: operations["v1_get_design_job_api_v1_design_jobs__job_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/design-jobs/{job_id}/cancel": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** V1 Cancel Design Job */
-        post: operations["v1_cancel_design_job_api_v1_design_jobs__job_id__cancel_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/design-jobs/{job_id}/outputs/{output_id}/align-to-input": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** V1 Align Design Output */
-        post: operations["v1_align_design_output_api_v1_design_jobs__job_id__outputs__output_id__align_to_input_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/design-jobs/{job_id}/outputs/{output_id}/open": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** V1 Open Design Output */
-        post: operations["v1_open_design_output_api_v1_design_jobs__job_id__outputs__output_id__open_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/design/schema": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** V1 Design Schema */
-        get: operations["v1_design_schema_api_v1_design_schema_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/health": {
         parameters: {
             query?: never;
@@ -100,125 +15,6 @@ export interface paths {
         get: operations["v1_health_api_v1_health_get"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/providers": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** V1 List Providers */
-        get: operations["v1_list_providers_api_v1_providers_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/providers/{name}/jobs/schema": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** V1 Provider Job Schema */
-        get: operations["v1_provider_job_schema_api_v1_providers__name__jobs_schema_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/providers/{name}/jobs/{job_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** V1 Get Provider Job */
-        get: operations["v1_get_provider_job_api_v1_providers__name__jobs__job_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/providers/{name}/jobs/{job_id}/cancel": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** V1 Cancel Provider Job */
-        post: operations["v1_cancel_provider_job_api_v1_providers__name__jobs__job_id__cancel_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/providers/{name}/jobs/{job_id}/outputs/{output_id}/align-to-input": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** V1 Align Provider Job Output */
-        post: operations["v1_align_provider_job_output_api_v1_providers__name__jobs__job_id__outputs__output_id__align_to_input_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/providers/{name}/jobs/{job_id}/outputs/{output_id}/artifacts/{artifact}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** V1 Download Provider Job Artifact */
-        get: operations["v1_download_provider_job_artifact_api_v1_providers__name__jobs__job_id__outputs__output_id__artifacts__artifact__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/providers/{name}/jobs/{job_id}/outputs/{output_id}/open": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** V1 Open Provider Job Output */
-        post: operations["v1_open_provider_job_output_api_v1_providers__name__jobs__job_id__outputs__output_id__open_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -515,23 +311,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/sessions/{session_id}/design-jobs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** V1 Submit Design Job */
-        post: operations["v1_submit_design_job_api_v1_sessions__session_id__design_jobs_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/sessions/{session_id}/distance-restraints": {
         parameters: {
             query?: never;
@@ -652,7 +431,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/sessions/{session_id}/providers/{name}/jobs": {
+    "/api/v1/sessions/{session_id}/protonate": {
         parameters: {
             query?: never;
             header?: never;
@@ -661,8 +440,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** V1 Submit Provider Job */
-        post: operations["v1_submit_provider_job_api_v1_sessions__session_id__providers__name__jobs_post"];
+        /** V1 Protonate */
+        post: operations["v1_protonate_api_v1_sessions__session_id__protonate_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -962,43 +741,6 @@ export interface components {
              */
             close_residue_gaps: boolean;
         };
-        /** DesignJobRequest */
-        DesignJobRequest: {
-            /**
-             * Batch Size
-             * @default 4
-             */
-            batch_size: number;
-            /** Config Yaml */
-            config_yaml?: string | null;
-            /** Metrics Tags */
-            metrics_tags?: string[];
-            /**
-             * Mode
-             * @default generate
-             * @enum {string}
-             */
-            mode: "generate" | "search";
-            /**
-             * Num Designs
-             * @default 8
-             */
-            num_designs: number;
-            /**
-             * Refolding Oracle
-             * @default of3
-             * @enum {string}
-             */
-            refolding_oracle: "of3" | "af3";
-            search?: components["schemas"]["SearchOptions"] | null;
-            /** Seed */
-            seed?: number | null;
-            /**
-             * Steps
-             * @default 100
-             */
-            steps: number;
-        };
         /** DistanceRestraintMutation */
         DistanceRestraintMutation: {
             /**
@@ -1079,21 +821,13 @@ export interface components {
             /** Target Atom Indices */
             target_atom_indices?: number[];
         };
-        /**
-         * ProviderSummary
-         * @description One installed provider as the browser sees it.
-         */
-        ProviderSummary: {
-            /** Conditions */
-            conditions: boolean;
-            /** Enabled */
-            enabled: boolean;
-            /** Jobs */
-            jobs: boolean;
-            /** Label */
-            label: string;
-            /** Name */
-            name: string;
+        /** ProtonationRequest */
+        ProtonationRequest: {
+            /**
+             * Ph
+             * @default 7.4
+             */
+            ph: number;
         };
         /** RealizeMutation */
         RealizeMutation: {
@@ -1111,27 +845,6 @@ export interface components {
             ][];
             /** Values */
             values: number[];
-        };
-        /** SearchOptions */
-        SearchOptions: {
-            /**
-             * Beam Width
-             * @default 2
-             */
-            beam_width: number;
-            /**
-             * N Branch
-             * @default 2
-             */
-            n_branch: number;
-            /** Reward Metrics Tags */
-            reward_metrics_tags?: string[];
-            /** Step Checkpoints */
-            step_checkpoints?: number[];
-            /** Weights */
-            weights?: {
-                [key: string]: number;
-            };
         };
         /** SegmentMutation */
         SegmentMutation: {
@@ -1206,162 +919,6 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    v1_get_design_job_api_v1_design_jobs__job_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                job_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    v1_cancel_design_job_api_v1_design_jobs__job_id__cancel_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                job_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    v1_align_design_output_api_v1_design_jobs__job_id__outputs__output_id__align_to_input_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                job_id: string;
-                output_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    v1_open_design_output_api_v1_design_jobs__job_id__outputs__output_id__open_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                job_id: string;
-                output_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    v1_design_schema_api_v1_design_schema_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-        };
-    };
     v1_health_api_v1_health_get: {
         parameters: {
             query?: never;
@@ -1380,229 +937,6 @@ export interface operations {
                     "application/json": {
                         [key: string]: string;
                     };
-                };
-            };
-        };
-    };
-    v1_list_providers_api_v1_providers_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProviderSummary"][];
-                };
-            };
-        };
-    };
-    v1_provider_job_schema_api_v1_providers__name__jobs_schema_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                name: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    v1_get_provider_job_api_v1_providers__name__jobs__job_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                name: string;
-                job_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    v1_cancel_provider_job_api_v1_providers__name__jobs__job_id__cancel_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                name: string;
-                job_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    v1_align_provider_job_output_api_v1_providers__name__jobs__job_id__outputs__output_id__align_to_input_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                name: string;
-                job_id: string;
-                output_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    v1_download_provider_job_artifact_api_v1_providers__name__jobs__job_id__outputs__output_id__artifacts__artifact__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                name: string;
-                job_id: string;
-                output_id: string;
-                artifact: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    v1_open_provider_job_output_api_v1_providers__name__jobs__job_id__outputs__output_id__open_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                name: string;
-                job_id: string;
-                output_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -2215,43 +1549,6 @@ export interface operations {
             };
         };
     };
-    v1_submit_design_job_api_v1_sessions__session_id__design_jobs_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                session_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["DesignJobRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     v1_get_distance_restraints_api_v1_sessions__session_id__distance_restraints_get: {
         parameters: {
             query?: never;
@@ -2538,21 +1835,18 @@ export interface operations {
             };
         };
     };
-    v1_submit_provider_job_api_v1_sessions__session_id__providers__name__jobs_post: {
+    v1_protonate_api_v1_sessions__session_id__protonate_post: {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 session_id: string;
-                name: string;
             };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": components["schemas"]["ProtonationRequest"];
             };
         };
         responses: {

@@ -55,9 +55,12 @@ try {
       throw new Error("Screenshot session did not include a valid embedded editor path.");
     }
     embeddedPath = sessionPayload.editor_path;
+    await page.locator("#editor-tab-annotations").click();
     await capture(page, "web-molstar-editor.png");
 
-    await page.locator("#atomworks-studio-menu > summary").click();
+    if (!(await page.locator("#atomworks-studio-menu").evaluate((menu) => menu.open))) {
+      await page.locator("#atomworks-studio-menu > summary").click();
+    }
     await page.waitForFunction(
       () => document.querySelector("#workspace")?.getAttribute("data-studio-tab") === "atomworks",
     );
@@ -72,14 +75,6 @@ try {
     }
     await capture(page, "web-annotations.png");
 
-    await page.locator("#rfd4-proteina-menu > summary").click();
-    await page.waitForFunction(
-      () => document.querySelector("#workspace")?.getAttribute("data-studio-tab") === "rfd4",
-    );
-    await page.locator("#atomworks-studio-popover").evaluate((panel) => {
-      panel.scrollTop = 0;
-    });
-    await capture(page, "web-rfd4-panel.png");
     await context.close();
   }
 

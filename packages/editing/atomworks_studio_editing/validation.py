@@ -7,9 +7,11 @@ shared editor primitive; see :mod:`atomworks_studio_editing.structure_mutations`
 import logging
 
 import numpy as np
+from atomworks.constants import HYDROGEN_LIKE_SYMBOLS
 from atomworks.io.config import PrepareConfig
 from atomworks.io.parser import prepare_atom_array
-from atomworks.io.utils.atom_array_plus import AtomArrayPlus
+from atomworks.io.utils.atom_array_plus import AtomArrayPlus, as_atom_array
+from atomworks.io.utils.ccd import custom_ccd_residues
 
 
 def validate_atom_array(array: AtomArrayPlus) -> list[dict[str, str]]:
@@ -34,7 +36,7 @@ def validate_atom_array(array: AtomArrayPlus) -> list[dict[str, str]]:
 
 
 def validate_atom_array_for_save(array: AtomArrayPlus) -> list[dict[str, str]]:
-    """Match the upstream PyMOL missing-heavy-atom check before saving."""
+    """Check heavy-atom completeness without changing the document or model annotations."""
     try:
         config = PrepareConfig(
             add_missing_atoms=True,
@@ -48,8 +50,11 @@ def validate_atom_array_for_save(array: AtomArrayPlus) -> list[dict[str, str]]:
             struct_conn_distance_policy="keep",
             hydrogen_policy="remove",
         )
-        prepared = prepare_atom_array(array.copy(), config=config)
-        n_added = len(prepared) - len(array)
+        # Completion only needs chemistry. A plain copy permits missing atoms to
+        # be inserted without requiring their editor annotations to already exist.
+        with custom_ccd_residues(array._custom_ccd_registry):
+            prepared = prepare_atom_array(as_atom_array(array.copy(), suppress_loss_warnings=True), config=config)
+        n_added = len(prepared) - int(np.count_nonzero(~np.isin(array.element, HYDROGEN_LIKE_SYMBOLS)))
         if n_added > 0:
             return [
                 {

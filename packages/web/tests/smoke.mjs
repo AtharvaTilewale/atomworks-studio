@@ -10,12 +10,6 @@ const viewerMode = process.env.VIEWER_MODE;
 if (viewerMode !== "patinae" && viewerMode !== "molstar") {
   throw new Error("Set VIEWER_MODE=patinae or VIEWER_MODE=molstar");
 }
-const expectDesignEnabled = process.env.EXPECT_DESIGN_ENABLED === "1";
-const runDesignJob = expectDesignEnabled && process.env.RUN_DESIGN_JOB !== "0";
-const expectQuantumEnabled = process.env.EXPECT_QUANTUM_ENABLED === "1";
-const runQuantumJob = expectQuantumEnabled && process.env.RUN_QUANTUM_JOB !== "0";
-// For an API running tests/fake_aq.py with FAKE_AQ_RUN=slow: the second stage runs until it is cancelled.
-const runQuantumCancel = runQuantumJob && process.env.RUN_QUANTUM_CANCEL === "1";
 const browser = await chromium.launch({
   executablePath: chromiumExecutable(),
   headless: true,
@@ -38,6 +32,13 @@ async function assertNoSevereAccessibilityIssues(page, context) {
   );
 }
 
+async function showEdit(page) {
+  await page.keyboard.press("Escape");
+  if (!(await page.locator("#atomworks-studio-menu").evaluate((menu) => menu.open))) {
+    await page.locator("#atomworks-studio-menu > summary").click();
+  }
+}
+
 try {
   const context = await browser.newContext({ viewport: { width: 1400, height: 900 } });
   const page = await context.newPage();
@@ -48,43 +49,21 @@ try {
 
   const studioUrl = new URL(baseUrl);
   studioUrl.searchParams.set("viewer", viewerMode);
-  const providersLoaded = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/v1/providers");
   await page.goto(studioUrl.toString(), { waitUntil: "networkidle" });
   await page.waitForFunction(() => document.querySelector("#status")?.textContent?.includes("Ready."));
-  await page.waitForFunction(
-    () => !document.querySelector("#design-availability")?.textContent?.includes("Checking"),
-  );
-  assert.match(
-    (await page.locator("#design-availability").textContent()) ?? "",
-    expectDesignEnabled ? /ready/ : /not configured/,
-  );
-  const providers = await (await providersLoaded).json();
-  assert.equal(
-    providers.some((provider) => provider.name === "quantum" && provider.jobs && provider.enabled),
-    expectQuantumEnabled,
-    "EXPECT_QUANTUM_ENABLED matches /api/providers",
-  );
-  if (expectQuantumEnabled) {
-    await page.waitForFunction(
-      () => document.querySelector("#quantum-availability")?.getAttribute("data-state") !== "checking",
-    );
-    assert.match((await page.locator("#quantum-availability").textContent()) ?? "", /ready/);
-    assert.equal(await page.locator("#quantum-menu").isVisible(), true, "an enabled quantum provider gets a tab");
-    assert.ok(
-      requested.some((url) => url.includes("quantum-controller")),
-      "the quantum panel is loaded as its own chunk",
-    );
-  }
+  assert.equal(await page.locator('#condition option[value="sequence"]').count(), 1,
+    "public AtomWorks annotations are available without an optional provider");
+  assert.equal(await page.locator("#submit-design, #quantum-menu").count(), 0);
   assert.ok(await page.locator("#viewer canvas").isVisible(), "molecular viewer canvas is visible");
   assert.equal(
     await page.locator("#viewer").getAttribute("data-backend"),
     viewerMode,
   );
   assert.deepEqual(await page.locator(".viewer-menu > summary").allTextContents(), [
-    "Style", "Select", "Analyze", "AtomWorks Studio", "RFD4-Proteina", "AtomWorks-Quantum", "View", "•••",
+    "Style", "Select", "Analyze", "Edit", "View", "More",
   ]);
   assert.deepEqual(await page.locator("#selection-syntax option").allTextContents(), [
-    "Patinae", "AtomWorks", "Path",
+    "PyMOL commands", "AtomWorks query",
   ]);
   assert.equal(await page.locator(".drawer-stack > details").count(), 3);
   if (viewerMode === "patinae") {
@@ -94,12 +73,12 @@ try {
     );
   }
   const manifest = await page.request.get(new URL("/manifest.webmanifest", baseUrl).toString());
-  assert.equal((await manifest.json()).name, "AtomWorks Annotation Studio");
+  assert.equal((await manifest.json()).name, "AtomWorks Studio");
   assert.equal((await page.request.get(new URL("/sw.js", baseUrl).toString())).ok(), true);
   assert.equal((await page.request.get(new URL("/atomworks_logo_dark.svg", baseUrl).toString())).ok(), true);
-  assert.equal(await page.locator(".eyebrow").first().innerText(), "ATOMWORKS");
+  assert.equal(await page.locator("h1").innerText(), "AtomWorks Studio");
 
-  await page.locator("#atomworks-studio-menu > summary").click();
+  await showEdit(page);
   assert.equal(await page.locator(".example-load").count(), 3);
   assert.equal(await page.locator('[data-example="ppi"]').isEnabled(), true);
   if (viewerMode === "molstar") {
@@ -116,19 +95,7 @@ try {
     await page.locator(".sequence-segment").click();
     await page.waitForFunction(() => !document.querySelector(".sequence-segment")?.classList.contains("realized"));
     assert.equal(await page.locator(".sequence-segment").innerText(), "[50–120]");
-    const selectedMetrics = await page.locator("#design-metrics").evaluate(
-      (select) => [...select.selectedOptions].map((option) => option.value),
-    );
-    assert.ok(
-      selectedMetrics.includes("hotspot_conditioning"),
-      "the PPI example selects its available hotspot metric preset",
-    );
-    assert.equal(await page.locator("#search-reward-tag").inputValue(), "interchain_interactions");
-    assert.equal(
-      await page.locator("#search-reward").inputValue(),
-      "interchain_interactions.hbond_atom_pair_count_coi",
-    );
-
+    await page.locator("#examples-panel").evaluate((panel) => { panel.open = true; });
     await page.locator('[data-example="mcsa"]').click();
     await page.waitForFunction(
       () => document.querySelector("#status")?.textContent?.includes("Loaded MCSA"),
@@ -136,10 +103,8 @@ try {
       { timeout: 30_000 },
     );
     assert.equal(await page.locator(".sequence-segment").innerText(), "[180–180]");
-    assert.equal(await page.locator("#search-reward-tag").inputValue(), "design");
-    assert.equal(await page.locator("#search-reward").inputValue(), "clash_metrics.frac_atoms_clashing_1p5A");
-    assert.equal(await page.locator("#search-weight").inputValue(), "-1");
 
+    await page.locator("#examples-panel").evaluate((panel) => { panel.open = true; });
     await page.locator('[data-example="disco"]').click();
     await page.waitForFunction(
       () => document.querySelector("#status")?.textContent?.includes("Loaded DISCO"),
@@ -151,38 +116,9 @@ try {
       await page.locator("#atomworks-studio-popover").evaluate(
         (element) => getComputedStyle(element).resize,
       ),
-      "both",
-      "AtomWorks Studio can be resized in both directions",
+      "none",
+      "Inspector stays docked beside the molecule",
     );
-    await page.locator("#design-mode").evaluate((select) => {
-      select.value = "search";
-      select.dispatchEvent(new Event("change"));
-    });
-    const refoldingAvailable = await page.locator("#search-reward-tag option").evaluateAll(
-      (options) => options.some((option) => option.value === "unconditional_refolding" && !option.disabled),
-    );
-    await page.locator("#search-reward-tag").evaluate((select, useAf3) => {
-      select.value = useAf3 ? "unconditional_refolding" : "interchain_interactions";
-      select.dispatchEvent(new Event("change"));
-    }, refoldingAvailable);
-    assert.equal(
-      await page.locator("#search-refolding-note").evaluate((element) => element.hidden),
-      !refoldingAvailable,
-    );
-    const expectedReward = refoldingAvailable
-      ? "oracle.ranking_score"
-      : "interchain_interactions.hbond_atom_pair_count_coi";
-    assert.equal(await page.locator("#search-reward").inputValue(), expectedReward);
-    assert.ok(
-      (await page.locator("#search-reward-options option").evaluateAll(
-        (options) => options.map((option) => option.value),
-      )).includes(expectedReward),
-      "reward metrics are offered as guided choices",
-    );
-    await page.locator("#design-mode").evaluate((select) => {
-      select.value = "generate";
-      select.dispatchEvent(new Event("change"));
-    });
   }
 
   await page.locator("#file-input").setInputFiles(
@@ -194,37 +130,14 @@ try {
     { timeout: 30_000 },
   );
 
-  const status = await page.locator("#status").innerText();
+  const status = await page.locator("#status").textContent();
   assert.match(status, /Native AtomWorks session ready/);
   assert.match(status, /(Patinae|Mol\*) loaded 66 atoms; lossless WASM found [1-9]\d* annotation categories/);
   assert.match(await page.locator("#structure-summary").innerText(), /66/);
   assert.equal(await page.locator("#download").isEnabled(), true);
-  assert.equal(await page.locator("#submit-design").isDisabled(), !expectDesignEnabled);
-  await page.locator("#rfd4-proteina-menu > summary").click();
-  assert.deepEqual(await page.locator(".design-recipe strong").allTextContents(), [
-    "Fast screen",
-    "Confidence-ranked binder",
-  ]);
-  if (expectDesignEnabled) {
-    const refoldingOptions = await page.locator("#design-refolding-oracle option").evaluateAll(
-      (options) => options.map((option) => option.value),
-    );
-    if (refoldingOptions.length) {
-      assert.equal(await page.locator("#design-refolding-oracle").inputValue(), refoldingOptions[0]);
-      assert.equal(await page.locator("#design-refolding-oracle-row").evaluate((element) => element.hidden), false);
-    }
-    await page.locator("#design-recipe-fast").click();
-    assert.equal(await page.locator("#design-count").inputValue(), "8");
-    assert.equal(await page.locator("#design-steps").inputValue(), "50");
-    assert.match(await page.locator("#design-recipe-summary").innerText(), /inline checks only/);
-    await page.locator("#design-recipe-confidence").click();
-    assert.equal(await page.locator("#design-count").inputValue(), "16");
-    assert.equal(await page.locator("#design-steps").inputValue(), "100");
-    assert.ok(await page.locator(".design-advanced").evaluate((element) => !element.open));
-  }
-  await page.locator("#atomworks-studio-menu > summary").click();
+  await showEdit(page);
   assert.deepEqual(await page.locator("#pick-scope option").allTextContents(), ["Atom", "Residue", "Chain"]);
-  await page.locator("#atomworks-studio-menu > summary").click();
+  await showEdit(page);
   assert.ok(await page.locator(".sequence-dock .sequence-token").count(), "top sequence dock has residues");
   const sequenceResidues = page.locator(".sequence-dock .sequence-token[data-atoms]");
   await sequenceResidues.first().click();
@@ -240,16 +153,16 @@ try {
   assert.equal(await page.locator("#sequence-toggle").innerText(), "Show sequence");
   await page.locator("#sequence-toggle").click();
   assert.equal(await page.locator("#sequence-view").isVisible(), true);
-  await page.locator("#atomworks-studio-menu > summary").click();
+  await showEdit(page);
   await page.waitForFunction(
     () => document.querySelector("#workspace")?.getAttribute("data-studio-tab") === "atomworks",
   );
   assert.equal(await page.locator("#atomworks-studio-menu").getAttribute("open"), "");
+  await page.locator("#editor-tab-annotations").click();
   assert.ok(await page.locator("#annotation-list").isVisible(), "AtomWorks annotations are in the Studio menu");
   await assertNoSevereAccessibilityIssues(page, "the loaded editor");
-  assert.equal(await page.locator("#design-card").isHidden(), true, "RFD4 controls are separate from AtomWorks");
   assert.equal(await page.locator("#workspace").getAttribute("data-studio-tab"), "atomworks");
-  const studioCards = page.locator('#atomworks-studio-popover > [data-studio-panel="atomworks"]');
+  const studioCards = page.locator('#editor-panel-annotations > .card');
   assert.equal(
     await studioCards.evaluateAll((cards) =>
       cards.every((card) => Math.abs(card.getBoundingClientRect().width - cards[0].getBoundingClientRect().width) < 1)
@@ -257,29 +170,7 @@ try {
     true,
     "AtomWorks cards use one full-width column",
   );
-  await page.locator("#rfd4-proteina-menu > summary").click();
-  await page.waitForFunction(
-    () =>
-      document.querySelector("#rfd4-proteina-menu")?.hasAttribute("open")
-      && !document.querySelector("#atomworks-studio-menu")?.hasAttribute("open"),
-  );
-  assert.equal(await page.locator("#design-card").isVisible(), true);
-  assert.equal(await page.locator("#annotation-list").isHidden(), true);
-  assert.equal(await page.locator("#workspace").getAttribute("data-studio-tab"), "rfd4");
-  assert.equal(await page.locator("#design-card #submit-design").count(), 1);
-  if (expectQuantumEnabled) {
-    await page.locator("#quantum-menu > summary").click();
-    await page.waitForFunction(
-      () => document.querySelector("#workspace")?.getAttribute("data-studio-tab") === "quantum",
-    );
-    assert.equal(await page.locator("#quantum-card").isVisible(), true);
-    assert.equal(await page.locator("#design-card").isHidden(), true, "RFD4 controls are separate from quantum");
-    assert.equal(await page.locator("#annotation-list").isHidden(), true);
-    assert.ok(await page.locator("#quantum-model option").count(), "installed quantum models are offered");
-    assert.equal(await page.locator("#submit-quantum").isEnabled(), true);
-    await assertNoSevereAccessibilityIssues(page, "the quantum panel");
-  }
-  await page.locator("#atomworks-studio-menu > summary").click();
+  await showEdit(page);
   assert.deepEqual(await page.locator("#charge-action option").allTextContents(), ["Set", "Add delta"]);
   assert.equal(await page.locator("#annotation-search").count(), 1);
   assert.equal(await page.locator("#condition-feedback").count(), 1);
@@ -420,15 +311,13 @@ try {
     });
   });
   for (const accept of [false, true]) {
-    const dialogShown = page.waitForEvent("dialog");
     const downloadStarted = accept ? page.waitForEvent("download") : null;
     const clicked = page.locator("#download").click();
-    const dialog = await dialogShown;
-    assert.equal(dialog.type(), "confirm");
-    assert.match(dialog.message(), /\[pipeline\] Controlled upstream validation finding/);
-    assert.match(dialog.message(), /Save anyway\?/);
-    if (accept) await dialog.accept();
-    else await dialog.dismiss();
+    const dialog = page.locator("dialog.confirmation");
+    await dialog.waitFor();
+    assert.match(await dialog.innerText(), /\[pipeline\] Controlled upstream validation finding/);
+    assert.match(await dialog.innerText(), /Save anyway\?/);
+    await dialog.locator(`button[value="${accept ? "confirm" : "cancel"}"]`).click();
     await clicked;
     await page.waitForFunction(
       (accepted) => document.querySelector("#status")?.textContent?.includes(
@@ -477,14 +366,12 @@ try {
     await page.locator("#condition").selectOption("coordinate");
     await page.locator("#enabled").check();
     for (const accept of [false, true]) {
-      const dialogShown = page.waitForEvent("dialog");
       const clicked = page.locator("#apply-condition").click();
-      const dialog = await dialogShown;
-      assert.equal(dialog.type(), "confirm");
-      assert.match(dialog.message(), /saved targets for 4 atoms/);
-      assert.match(dialog.message(), /outside the selection/);
-      if (accept) await dialog.accept();
-      else await dialog.dismiss();
+      const dialog = page.locator("dialog.confirmation");
+      await dialog.waitFor();
+      assert.match(await dialog.innerText(), /saved targets for 4 atoms/);
+      assert.match(await dialog.innerText(), /outside the selection/);
+      await dialog.locator(`button[value="${accept ? "confirm" : "cancel"}"]`).click();
       await clicked;
       await page.waitForFunction(() => !document.querySelector("#viewer-mode")?.disabled);
       assert.equal(editRequests.length, accept ? 3 : 1, "cancelled coordinate edits never issue a retry");
@@ -499,8 +386,9 @@ try {
     }, "consent is bound to the revision used for the target-loss preview");
     await page.unroute(`${authoringUrl}/conditions`);
   }
-  await page.locator("#atomworks-studio-menu > summary").click();
+  await showEdit(page);
   const alternateViewer = viewerMode === "patinae" ? "molstar" : "patinae";
+  await page.locator('[data-menu="overflow"]').evaluate((menu) => { menu.open = true; });
   await page.locator("#viewer-mode").selectOption(alternateViewer);
   await page.waitForFunction(
     (backend) => document.querySelector("#viewer")?.getAttribute("data-backend") === backend,
@@ -508,6 +396,7 @@ try {
     { timeout: 30_000 },
   );
   assert.match(await page.locator("#selection-count").innerText(), /^0 atoms/);
+  await page.locator('[data-menu="overflow"]').evaluate((menu) => { menu.open = true; });
   await page.locator("#viewer-mode").selectOption(viewerMode);
   await page.waitForFunction(
     (backend) => document.querySelector("#viewer")?.getAttribute("data-backend") === backend,
@@ -518,7 +407,7 @@ try {
   await page.locator("#viewer-command").fill("(atom_id == 1) | (atom_id == 2)");
   await page.locator("#run-viewer-command").click();
   await page.waitForFunction(() => document.querySelector("#selection-count")?.textContent?.startsWith("2 atoms"));
-  await page.locator("#atomworks-studio-menu > summary").click();
+  await showEdit(page);
   if (await page.locator('#condition option[value="distance"]').count()) {
     await page.locator("#condition").selectOption("distance");
     assert.equal(await page.locator("#pair-distance").getAttribute("type"), "number");
@@ -535,8 +424,8 @@ try {
       if (request.url().endsWith("/internal-coords/clear-targets")) clearRequests += 1;
     };
     page.on("request", trackClear);
-    page.once("dialog", (dialog) => dialog.dismiss());
     await page.locator("#clear-internal-targets").click();
+    await page.locator('dialog.confirmation button[value="cancel"]').click();
     await page.waitForTimeout(100);
     page.off("request", trackClear);
     assert.equal(clearRequests, 0, "cancelling saved-target discard must not mutate the document");
@@ -545,15 +434,17 @@ try {
       confirmedClear = route.request().postDataJSON();
       await route.fulfill({ json: authoringResponse });
     });
-    page.once("dialog", (dialog) => dialog.accept());
     await page.locator("#clear-internal-targets").click();
+    const cleared = page.waitForResponse(response => response.url().endsWith("/internal-coords/clear-targets"));
+    await page.locator('dialog.confirmation button[value="confirm"]').click();
+    await cleared;
     await page.waitForFunction(() => !document.querySelector("#viewer-mode")?.disabled);
     assert.ok(confirmedClear, "confirming explicit target clearing sends the edit");
     assert.equal(confirmedClear.expected_revision, authoringResponse.structure.revision);
     assert.equal(confirmedClear.atom_indices.length, 2);
     await page.unroute(`${authoringUrl}/internal-coords/clear-targets`);
   }
-  await page.locator("#atomworks-studio-menu > summary").click();
+  await showEdit(page);
   await page.locator('[data-menu="analyze"] > summary').click();
   assert.equal(
     await page.locator('[data-menu="analyze"] .viewer-menu-popover').evaluate((popover) => {
@@ -570,7 +461,7 @@ try {
     () => !document.querySelector("#measurement-list")?.textContent?.includes("No measurements"),
   );
   assert.notEqual((await page.locator("#measurement-list").innerText()).trim(), "");
-  await page.locator("#atomworks-studio-menu > summary").click();
+  await showEdit(page);
   for (const [kind, expression, count] of [
     ["angle", "(atom_id == 1) | (atom_id == 2) | (atom_id == 3)", 3],
     ["dihedral", "(atom_id == 1) | (atom_id == 2) | (atom_id == 3) | (atom_id == 4)", 4],
@@ -590,7 +481,7 @@ try {
       (measurementKind) => document.querySelector("#status")?.textContent?.includes(`${measurementKind} measurement added`),
       kind,
     );
-    await page.locator("#atomworks-studio-menu > summary").click();
+    await showEdit(page);
   }
   await page.locator('[data-menu="analyze"] > summary').click();
   await page.locator('input[name="interaction-type"]').evaluateAll((inputs) => {
@@ -608,7 +499,7 @@ try {
   assert.doesNotMatch(await page.locator("#measurement-list").innerText(), /hbond/i);
   await page.locator(".interaction-result").click();
   assert.match(await page.locator("#selection-count").innerText(), /^2 atoms/);
-  await page.locator("#atomworks-studio-menu > summary").click();
+  await showEdit(page);
   await page.locator('[data-menu="view"] > summary').click();
   await page.locator('[data-camera="reset"]').click();
   assert.equal(
@@ -649,7 +540,7 @@ try {
     await page.locator("#viewer-command").fill("show spheres, sele");
     await page.locator("#run-viewer-command").click();
     await page.waitForFunction(() => document.querySelector("#viewer-command")?.value === "");
-    assert.doesNotMatch(await page.locator("#status").innerText(), /Command failed/);
+    assert.doesNotMatch(await page.locator("#status").textContent(), /Command failed/);
   } else {
     assert.equal(await page.locator("#style-menu").isHidden(), true);
     assert.equal(await page.locator("#selection-syntax option").first().isDisabled(), true);
@@ -663,7 +554,7 @@ try {
   assert.equal(await page.evaluate(() => window.scrollY), 0, "application shell remains viewport-locked");
   const headerBox = await page.locator("header").boundingBox();
   assert.ok(headerBox && headerBox.height <= 150, "header remains compact at the responsive baseline");
-  await page.locator("#atomworks-studio-menu > summary").click();
+  await showEdit(page);
   await page.waitForFunction(
     () => document.querySelector("#workspace")?.getAttribute("data-studio-tab") === "atomworks",
   );
@@ -672,11 +563,12 @@ try {
   assert.ok(studioPanelBox.x >= 0 && studioPanelBox.x + studioPanelBox.width <= 608, "Studio panel stays within the viewport");
   assert.ok(studioPanelBox.y >= 0 && studioPanelBox.y + studioPanelBox.height <= 620, "Studio panel stays within the viewport height");
   await assertNoSevereAccessibilityIssues(page, "the narrow loaded editor");
-  await page.locator("#atomworks-studio-menu > summary").click();
+  await showEdit(page);
   await page.setViewportSize({ width: 1400, height: 900 });
-  await page.locator("#atomworks-studio-menu > summary").click();
+  await showEdit(page);
   assert.ok(await page.locator(".annotation-row").count(), "stored annotations are summarized");
   assert.ok(await page.locator(".annotation-field-row").count() >= 4);
+  await page.locator("#editor-tab-annotations").click();
   const inspectionRow = page.locator("#annotation-list > .annotation-row").first();
   const inspectionKey = await inspectionRow.getAttribute("data-view-key");
   assert.ok(inspectionKey);
@@ -714,133 +606,6 @@ try {
   );
   assert.equal(await page.locator("#viewer").getAttribute("data-annotation-groups"), "0");
 
-  if (runDesignJob) {
-    if (!(await page.locator("#rfd4-proteina-menu").evaluate((menu) => menu.hasAttribute("open")))) {
-      await page.locator("#rfd4-proteina-menu > summary").click();
-    }
-    await page.locator("#design-count").fill("1");
-    await page.locator("#submit-design").click();
-    await page.waitForFunction(
-      () => document.querySelector("#design-job-status")?.textContent?.includes("Completed"),
-      undefined,
-      { timeout: 30_000 },
-    );
-    assert.equal(await page.locator(".document-button").count(), 2);
-    await page.waitForFunction(
-      () => document.querySelector("#design-metric-summary")?.textContent?.includes("plddt coi"),
-    );
-    assert.match(await page.locator("#design-metric-summary").innerText(), /91.2/);
-    assert.ok(await page.locator("#design-metric-summary .metric-visual").count(), "output metrics include range visuals");
-    assert.equal(await page.locator("#design-position").innerText(), "2 / 2");
-    await page.locator("#previous-design").click();
-    await page.waitForFunction(
-      () => document.querySelector("#structure-summary")?.textContent?.includes("SAM_hbonds"),
-    );
-    assert.equal(await page.locator("#design-position").innerText(), "1 / 2");
-    await page.locator("#next-design").click();
-    await page.waitForFunction(() => document.querySelector("#design-position")?.textContent === "2 / 2");
-    await page.locator("#align-design").click();
-    await page.waitForFunction(
-      () => document.querySelector("#design-job-status")?.textContent?.includes("Aligned"),
-    );
-    assert.match(await page.locator("#design-metric-summary").innerText(), /alignment · rmsd after/i);
-    const comparisonChecks = page.locator(".document-compare");
-    for (let index = 0; index < await comparisonChecks.count(); index += 1) {
-      await comparisonChecks.nth(index).check();
-    }
-    assert.equal(await page.locator("#compare-designs").innerText(), "Visualize selected (2)");
-    await page.waitForFunction(
-      () => document.querySelector("#viewer")?.getAttribute("data-comparison-structures") === "2",
-    );
-    assert.match(await page.locator("#design-job-status").innerText(), /Comparing/);
-    await page.locator(".document-button").last().click();
-    await page.waitForFunction(
-      () => document.querySelector("#viewer")?.getAttribute("data-comparison-structures") === "2",
-    );
-    assert.equal(await page.locator("#clear-design-comparison").isEnabled(), true);
-    await page.locator("#clear-design-comparison").click();
-    await page.waitForFunction(
-      () => document.querySelector("#viewer")?.getAttribute("data-comparison-structures") === "0",
-    );
-    await page.locator("#previous-design").click();
-  }
-
-  if (runQuantumJob) {
-    if (!(await page.locator("#quantum-menu").evaluate((menu) => menu.hasAttribute("open")))) {
-      await page.locator("#quantum-menu > summary").click();
-    }
-    const calculation = page.locator("#quantum-calculation");
-    const parameterFields = async () => [
-      await page.locator("#quantum-fmax-row").isVisible(),
-      await page.locator("#quantum-steps-row").isVisible(),
-    ];
-    await calculation.selectOption("singlepoint");
-    assert.deepEqual(await parameterFields(), [false, false], "a single point takes no fmax or steps");
-    await calculation.selectOption("md");
-    assert.deepEqual(await parameterFields(), [false, true], "MD takes steps only");
-    await calculation.selectOption("optimize");
-    await page.locator("#quantum-fmax").fill("0.05");
-    await page.locator("#quantum-steps").fill("50");
-    // Typed values stay while the first stage is still an optimization.
-    await calculation.selectOption("optimize-frequencies");
-    assert.deepEqual(await parameterFields(), [true, true]);
-    const isSubmission = (request) => request.method() === "POST" && request.url().endsWith("/providers/quantum/jobs");
-    const [submission] = await Promise.all([
-      page.waitForRequest(isSubmission),
-      page.locator("#submit-quantum").click(),
-    ]);
-    assert.deepEqual(submission.postDataJSON(), {
-      schema: "atomworks-quantum.job/1",
-      charge: 0,
-      multiplicity: 1,
-      calculator: await page.locator("#quantum-model").inputValue(),
-      stages: [{ task: "optimize", fmax: 0.05, steps: 50 }, { task: "frequencies" }],
-    });
-    const waitForQuantumStatus = (pattern, timeout = 30_000) => page.waitForFunction(
-      (source) => new RegExp(source).test(document.querySelector("#quantum-job-status")?.textContent ?? ""),
-      pattern.source,
-      { timeout },
-    );
-    if (runQuantumCancel) {
-      await waitForQuantumStatus(/^Stage 2\/2/);
-      await page.locator("#cancel-quantum").click();
-      // Resubmit at once, while the cancelled job's finished stages are still being collected, and hold the
-      // POST back so that collection would end before it returns: the new job must stay cancellable.
-      await page.route("**/providers/quantum/jobs", async (route) => {
-        await new Promise((resolve) => setTimeout(resolve, 5_000));
-        await route.continue();
-      });
-      await page.locator("#submit-quantum").click();
-      await waitForQuantumStatus(/^Stage 2\/2/);
-      await page.unroute("**/providers/quantum/jobs");
-      assert.equal(await page.locator("#cancel-quantum").isEnabled(), true, "a resubmitted job can be cancelled");
-      assert.equal(await page.locator("#submit-quantum").isEnabled(), false);
-      await page.locator("#cancel-quantum").click();
-      await waitForQuantumStatus(/^Cancelled · 1 result$/);
-      assert.match((await page.locator("#quantum-progress-log").textContent()) ?? "", /\[aq\] job cancelled/);
-    } else {
-      await waitForQuantumStatus(/^(Completed|Failed|Cancelled|Submission failed)/, 60_000);
-      assert.match(await page.locator("#quantum-job-status").innerText(), /^Completed/);
-    }
-    const quantumResults = page.locator(".quantum-result");
-    assert.ok(await quantumResults.count() >= 2, "the quantum input and its outputs are listed");
-    const firstOutput = quantumResults.nth(1);
-    assert.match(await firstOutput.innerText(), /-?\d+\.\d{4} eV/);
-    const artifactHref = await firstOutput.locator(".artifact-link").first().getAttribute("href");
-    assert.ok(artifactHref, "quantum outputs link their artifacts");
-    assert.equal((await page.request.get(new URL(artifactHref, baseUrl).toString())).ok(), true);
-    await firstOutput.getByRole("button", { name: "Align to input" }).click();
-    await page.waitForFunction(
-      () => document.querySelector("#quantum-job-status")?.textContent?.startsWith("Aligned"),
-    );
-    assert.equal(await firstOutput.evaluate((row) => row.classList.contains("active")), true);
-    await assertNoSevereAccessibilityIssues(page, "the quantum results");
-    await quantumResults.first().getByRole("button", { name: "Open" }).click();
-    await page.waitForFunction(
-      () => document.querySelector("#structure-summary")?.textContent?.includes("SAM_hbonds"),
-    );
-  }
-
   const sessionId = await page.evaluate(() => sessionStorage.getItem("annotation-studio-session"));
   assert.ok(sessionId);
   const sessionResponse = await page.request.get(new URL(`/api/sessions/${sessionId}`, baseUrl).toString());
@@ -854,7 +619,7 @@ try {
   await embedded.waitForFunction(() => document.querySelector("#structure-summary")?.textContent?.includes("66"));
   assert.equal(await embedded.locator("body").getAttribute("class"), "embedded");
   assert.equal(await embedded.locator(".header-logo").isVisible(), true);
-  assert.equal(await embedded.locator(".eyebrow").first().innerText(), "ATOMWORKS");
+  assert.equal(await embedded.locator("h1").innerText(), "AtomWorks Studio");
   await assertNoSevereAccessibilityIssues(embedded, "the embedded loaded editor");
   await embedded.close();
   const host = await browser.newPage();
@@ -893,19 +658,10 @@ try {
     undefined,
     { timeout: 30_000 },
   );
-  assert.match(await page.locator("#status").innerText(), /Combined SAM_hbonds.cif/);
+  assert.match(await page.locator("#status").textContent(), /Combined SAM_hbonds.cif/);
   assert.match(await page.locator("#structure-summary").innerText(), /132/);
   const screenshot = await page.screenshot({ animations: "disabled" });
   assert.ok(screenshot.byteLength > 10_000, "responsive viewer screenshot is non-empty");
-  if (!expectQuantumEnabled) {
-    // Checked last, long after /api/providers answered, so a panel loaded by mistake has had time to appear.
-    assert.equal(await page.locator("#quantum-menu").isVisible(), false, "no quantum tab without the provider");
-    assert.deepEqual(
-      requested.filter((url) => url.includes("quantum-controller") || url.includes("/providers/quantum/jobs")),
-      [],
-      "the quantum panel is not loaded without an enabled quantum provider",
-    );
-  }
   assert.deepEqual(errors, []);
   console.log(
     `Browser smoke passed (${viewerMode}): viewer, deep-link embedding, annotations, and AtomWorks stayed in sync.`,

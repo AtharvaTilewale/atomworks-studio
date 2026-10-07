@@ -1,16 +1,9 @@
 SHELL := /usr/bin/env bash
 .DEFAULT_GOAL := test
 
-.PHONY: bootstrap format lint typecheck test build run accept-local accept-tools accept-brev
-
-.PHONY: rfd4
-RFD4_ENV ?= atomworks-studio-rfd4
-RFD4_PYMOLRC ?=
-rfd4:
-	bash scripts/setup_rfd4_pymol.sh "$(RFD4_ENV)" "$(RFD4_PYMOLRC)"
+.PHONY: bootstrap format lint typecheck test build run accept-local
 
 bootstrap:
-	git submodule update --init --recursive external/RFD4-Proteina-dev external/atomworks-dev
 	bash scripts/build_patinae_viewer.sh
 	corepack enable
 	pnpm install --frozen-lockfile
@@ -25,7 +18,7 @@ format:
 lint:
 	uv run ruff check packages providers scripts tests
 	cargo clippy --workspace --all-targets -- -D warnings
-	bash -n run.sh deploy/brev/*.sh deploy/local/*.sh deploy/lib/*.sh scripts/*.sh
+	bash -n run.sh scripts/*.sh
 
 typecheck:
 	bash scripts/generate_api_types.sh
@@ -33,17 +26,10 @@ typecheck:
 
 test:
 	cargo test --workspace --locked
-	@rfd4_root="$${ANNOTATION_STUDIO_RFD4_ROOT:-$${RFPROTEINA_ROOT:-$(CURDIR)/external/RFD4-Proteina-dev}}"; \
-	if [[ ! -d "$${rfd4_root}/src/rfproteina" ]]; then \
-		echo "RFD4 checkout not found: $${rfd4_root}" >&2; \
-		echo "Set ANNOTATION_STUDIO_RFD4_ROOT or place RFD4-Proteina-dev beside this repository." >&2; \
-		exit 1; \
-	fi; \
-	PYTHONPATH="$${rfd4_root}/src$${PYTHONPATH:+:$${PYTHONPATH}}" \
-		uv run python scripts/run_pytest.py -q
+	uv run python scripts/run_pytest.py -q
 	pnpm test
 
-build:
+build: docs
 	pnpm build
 	uv build --all-packages
 	cargo build --workspace --release --locked
@@ -54,8 +40,7 @@ run:
 accept-local:
 	bash scripts/accept_local.sh
 
-accept-tools:
-	bash scripts/accept_tools.sh
-
-accept-brev:
-	bash scripts/accept_brev.sh
+.PHONY: docs
+docs:
+	rm -rf docs/_build/html
+	uv run --no-project --with-requirements docs/requirements.txt sphinx-build -E -W --keep-going -b html -d docs/_build/doctrees docs docs/_build/html

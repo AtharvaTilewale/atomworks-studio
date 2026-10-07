@@ -8,6 +8,7 @@ export type ConditionDefinition = {
 };
 
 export type StudioSchema = {
+  editor_tabs: Array<{ id: string; label: string }>;
   conditions: Record<string, ConditionDefinition>;
   bond_types: string[];
   loading: {

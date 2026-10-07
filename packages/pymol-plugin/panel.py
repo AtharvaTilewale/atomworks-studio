@@ -19,8 +19,9 @@ from atomworks.io.utils.atom_array_plus import AtomArrayPlus
 from atomworks.io.utils.io_utils import to_cif_file
 from atomworks.io.utils.standard_annotations.base import STANDARD_ANNOTATIONS
 from atomworks.ml.conditions import C_CRD, C_CTR, C_DIS, C_IDX, C_NTR, C_SEQ
-from atomworks.ml.conditions.base import CONDITIONS, ConditionBase
+from atomworks.ml.conditions.base import ConditionBase
 from atomworks_studio_editing.annotations import editing_type, has_stored_mask
+from atomworks_studio_editing.layout import EDITOR_TABS
 from atomworks_studio_editing.loading import LOAD_FIELDS, build_load_config
 from atomworks_studio_editing.validation import validate_atom_array_for_save
 from atomworks_studio_pymol.bond_wizard import BondWizard
@@ -714,30 +715,28 @@ class MainPanel:
 
         layout.addStretch()
 
-        feedback_label = QtWidgets.QLabel(
-            "Please report bugs and/or feature requests to Max and the latent team on Mattermost!"
-        )
-        feedback_label.setWordWrap(True)
-        feedback_label.setStyleSheet("color: red; font-size: 15px;")
-        layout.addWidget(feedback_label)
-
-        tabs.addTab(main_widget, "Main")
 
         # ---- Annotations tab ----
         self._annotation_wizard = AnnotationWizard(state)
-        tabs.addTab(self._annotation_wizard.widget, "Annotations")
 
         # ---- Bonds tab ----
         self._bond_wizard = BondWizard(state)
-        tabs.addTab(self._bond_wizard.widget, "Bonds")
 
         # ---- Charges tab ----
         self._charge_wizard = ChargeWizard(state)
-        tabs.addTab(self._charge_wizard.widget, "Charges")
 
         # ---- Chains tab ----
         self._chain_wizard = ChainWizard(state)
-        tabs.addTab(self._chain_wizard.widget, "Chains")
+
+        tab_widgets = {
+            "main": main_widget,
+            "annotations": self._annotation_wizard.widget,
+            "bonds": self._bond_wizard.widget,
+            "charges": self._charge_wizard.widget,
+            "chains": self._chain_wizard.widget,
+        }
+        for key, label in EDITOR_TABS:
+            tabs.addTab(tab_widgets[key], label)
 
         # ---- Connections ----
         load_btn.clicked.connect(self._load_cif)
@@ -1200,10 +1199,11 @@ class AnnotationWizard:
         self._list.addItem(header_item)
         self._annotation_classes.append(None)
 
-        for cls in CONDITIONS:
-            if editing_type(cls) is None or is_excluded(cls):
+        for definition in self._state.condition_provider.definitions:
+            cls = definition.condition
+            if is_excluded(cls):
                 continue
-            self._list.addItem(cls.name)
+            self._list.addItem(definition.label)
             self._annotation_classes.append(cls)
 
         # Standard Annotations group (exclude conditions to avoid duplication)
@@ -1229,7 +1229,7 @@ class AnnotationWizard:
                 # Group headers are always visible
                 item.setHidden(False)
             else:
-                item.setHidden(text not in cls.name.lower())
+                item.setHidden(text not in cls.name.lower() and text not in item.text().lower())
 
     def _on_item_selected(self, row: int) -> None:
         if row < 0 or row >= len(self._annotation_classes):
@@ -1238,8 +1238,8 @@ class AnnotationWizard:
         if cls is None:
             return  # group header
 
-        editor_cls = editor_for(cls)
         try:
+            editor_cls = editor_for(cls)
             editor = editor_cls(cls, self._state)
         except Exception as e:
             logger.warning("Could not create editor for %s: %s", cls.name, e)

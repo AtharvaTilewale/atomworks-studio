@@ -2,7 +2,7 @@
 
 Moved into atomworks-studio (from atomworks ``io.utils.structure_mutations``, commit
 8e4b2c39) so these editor primitives live with the editors that use them -- the web API
-(annotation_studio) and the PyMOL plugin -- letting the atomworks submodule track ``dev``.
+(annotation_studio) and the PyMOL plugin.
 """
 
 import itertools

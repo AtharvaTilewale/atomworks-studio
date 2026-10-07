@@ -27,7 +27,7 @@ try {
   await page.waitForFunction(() => document.querySelector("#status")?.textContent?.includes("Ready."));
 
   assert.equal(await page.locator(".example-load").first().isEnabled(), true);
-  await page.locator('[data-menu="studio"] > summary').click();
+  assert.equal(await page.locator("#workspace").getAttribute("data-studio-tab"), "atomworks");
   await page.locator('.example-load[data-example="ppi"]').click();
   await page.waitForFunction(
     () => document.querySelector("#structure-summary")?.textContent?.includes("Atoms"),
@@ -43,7 +43,7 @@ try {
   await page.waitForFunction(
     () => document.querySelector("#structure-summary")?.textContent?.includes("mcsa_ph2"),
   );
-  assert.match((await page.locator("#status").innerText()), /renderer is unavailable/);
+  assert.match((await page.locator("#status").textContent()), /renderer is unavailable/);
 } finally {
   await browser.close();
 }

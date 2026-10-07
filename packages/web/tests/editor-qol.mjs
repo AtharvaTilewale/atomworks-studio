@@ -19,7 +19,7 @@ try {
   const loaded = await (await upload).json();
   const session = loaded.session_id;
   await page.waitForFunction(() => document.querySelector("#structure-summary")?.textContent?.includes("66"));
-  await page.locator("#atomworks-studio-menu > summary").click();
+  assert.equal(await page.locator("#workspace").getAttribute("data-studio-tab"), "atomworks");
 
   async function select(expression, count) {
     await page.locator("#selection-syntax").selectOption("expression");
@@ -39,6 +39,7 @@ try {
     return (await (await page.request.get(`${baseUrl}api/v1/sessions/${session}`)).json()).structure;
   }
 
+  await page.locator("#editor-tab-annotations").click();
   await page.locator("#condition").selectOption("index_group");
   await select("atom_id == 1", 1);
   const created = await edit("#group-new", "/groups");
@@ -87,7 +88,7 @@ try {
   await page.locator(".annotation-field-row").filter({ hasText: field.label }).click();
   await page.waitForFunction(() => document.querySelector("#annotation-detail")?.textContent?.includes("Raw field preview"));
   await edit("#undo", "/undo");
-  assert.doesNotMatch(await page.locator("#status").innerText(), /Error:/);
+  assert.doesNotMatch(await page.locator("#status").textContent(), /Error:/);
   assert.equal(await page.locator("#viewer").getAttribute("data-centroid-markers"), "0");
   await edit("#centroid-set", "/centroids");
   await edit("#centroid-clear", "/centroids");

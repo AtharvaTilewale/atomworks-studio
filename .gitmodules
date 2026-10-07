@@ -1,6 +1,0 @@
-[submodule "external/RFD4-Proteina-dev"]
-	path = external/RFD4-Proteina-dev
-	url = ../RFD4-Proteina-dev.git
-[submodule "external/atomworks-dev"]
-	path = external/atomworks-dev
-	url = ../atomworks-dev.git

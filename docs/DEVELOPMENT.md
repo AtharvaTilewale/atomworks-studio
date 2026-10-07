@@ -1,299 +1,80 @@
-# Building and extending AtomWorks Studio
+# Development
 
-This guide is for contributors building Studio, adding providers, or packaging
-desktop integrations. For product usage, start with the
-[main README](../README.md) or [browser guide](WEB.md).
-
-## Prerequisites
-
-Studio pins its development toolchain:
-
-- Python 3.12.10 (`.python-version`)
-- Node 22.22.0 (`.node-version`)
-- pnpm 11.16.0 (`package.json`)
-- Rust 1.97.1 with `wasm32-unknown-unknown` (`rust-toolchain.toml`)
-- `uv`
-- `wasm-pack` 0.13.1
-- `git` with access to the private `baker-laboratory` repositories
-
-AtomWorks and RFD4-Proteina are vendored as git submodules under `external/`,
-pinned to reviewed commits sourced from atomworks `dev` and RFD4 `main`. Clone
-with `git clone --recursive`, or run `git submodule update --init --recursive`
-before the first bootstrap. The patched Patinae viewer is a committed tarball.
-Configure Git authentication first if the submodule repositories are private
-to your account.
-
-## Repository layout
-
-The PyMOL and browser condition editors use `StudioDocument` for group actions,
-centroid targets, pair-restraint replacement, undo, and saved-target confirmation.
-Group IDs, reserved values, atom counts, labels, current distances, and centroid
-calculations come from Python. Keep new scientific editing rules there; Qt and
-TypeScript controls should call the shared operations. Load-option values and
-presets likewise come from `atomworks_studio_editing.loading` and AtomWorks
-`ParseConfig`.
-
-`tests/test_editor_qol_parity.py` compares actual Qt handlers with HTTP requests
-and checks historical behavior explicitly. The browser interaction regression
-is `packages/web/tests/editor-qol.mjs`; run it from the repository root with
-`ANNOTATION_STUDIO_URL` and `VIEWER_MODE=molstar` or `VIEWER_MODE=patinae`, as with
-the existing browser smoke suite. Pair-table edits are staged until Apply and
-bound to the document revision; stale drafts cannot overwrite a changed structure.
-
-- `packages/api` — FastAPI service, document sessions, and provider contracts
-- `packages/web` — Vite PWA and Patinae/Mol* renderer adapters
-- `packages/core` — lossless annotated-CIF inspector compiled to WASM
-- `packages/vscode` — thin VS Code/Cursor webview launcher
-- `packages/patinae-plugin` — thin Patinae desktop launcher
-- `packages/pymol-plugin` — model-neutral PyMOL authoring interface (`atomworks_studio_pymol`)
-- `packages/editing` — shared annotated-CIF editing primitives (`atomworks_studio_editing`)
-- `providers/rfd4` — optional RFD4 condition/validation/design provider, plus the
-  optional `[pymol]` extra with RFD4-specific PyMOL editors (`atomworks_studio_rfd4.pymol`)
-- `external/` — the atomworks and RFD4-Proteina git submodules (the pinned dependencies)
-- `vendor/patinae` — pinned Patinae source revision and reviewed patch series
-- `deploy` — container, Kubernetes, local GPU, and Brev assets
-- `tests` — API, provider, conformance, and cross-interface tests
-
-The FastAPI service owns document truth for the browser, PWA, VS Code/Cursor,
-and Patinae clients. The PyMOL plugin is a separate, fully local runtime:
-`AtomArrayPlus` owns its in-process document state, and no website or API
-service is required. See [Architecture](ARCHITECTURE.md) for the runtime
-boundaries.
-
-## Bootstrap and daily loop
-
-From the repository root:
+Use Python 3.12, the Node version in `.node-version`, pnpm from `package.json`,
+and Rust from `rust-toolchain.toml`. Install `wasm-pack` 0.13.1.
 
 ```bash
 make bootstrap
+make test
+make build
 make run
 ```
 
-`make bootstrap` initializes the `external/` submodules, verifies the committed
-Patinae viewer archive, installs the pnpm and uv workspaces (atomworks resolves
-from its submodule via a uv path source), and adds the Rust WASM target. `make
-run` rebuilds stale web assets and starts Uvicorn on `127.0.0.1:8000` by default.
+The pinned RFD4 source is used only for scientific annotation definitions.
+No checkpoints or model environment are needed. Both browser renderers are built
+into the release wheel. `make bootstrap` rebuilds the patched Patinae viewer.
 
-Useful overrides:
-
-```bash
-ANNOTATION_STUDIO_HOST=0.0.0.0 \
-ANNOTATION_STUDIO_PORT=18000 \
-  make run
-```
-
-Generated web, WASM, wheel, VSIX, cache, and acceptance outputs are ignored.
-The checksum-pinned Patinae viewer tarball in `packages/web/vendor/` is the one
-committed build artifact.
-
-## Verification
-
-Run the same top-level gates used by CI:
+## Checks
 
 ```bash
 make lint
 make typecheck
 make test
-make build
+make accept-local
+make docs
 ```
 
-Provider conformance tests import the RFD4 condition surface but do not require a
-GPU or model weights; they use the `external/RFD4-Proteina-dev` submodule by
-default. Point at a different checkout with:
+`make typecheck` regenerates API types before checking TypeScript.
+`make accept-local` tests the API and browser workflows in both renderers,
+including selections, annotations, protonation, Undo, save/reopen, embedding,
+responsive layouts, and accessibility. It writes logs to `artifacts/local/`.
+Browser automation uses `CHROME_PATH` when supplied; see `scripts/browser.mjs`.
+
+Native PyMOL tests need PyMOL and Qt. Create the environment described in the
+[PyMOL guide](PYMOL.md), install the source packages there, then run:
 
 ```bash
-export ANNOTATION_STUDIO_RFD4_ROOT=/path/to/RFD4-Proteina-dev
+QT_QPA_PLATFORM=offscreen python scripts/run_pytest.py -q packages/pymol-plugin/tests tests/test_pymol_conformance.py
 ```
 
-Tests that drive the RFD4 PyMOL editors or the full design pipeline need the
-complete RFD4 model runtime and skip automatically when it is absent.
+Use the wrapper so PyMOL shutdown cannot hide a failing test exit code.
 
-The test target uses `scripts/run_pytest.py` because embedded PyMOL shutdown
-hooks can otherwise replace pytest's nonzero exit status. Do not bypass that
-runner in CI or acceptance scripts.
+## VS Code extension
 
-Additional release gates and artifact locations are listed in
-[Acceptance](ACCEPTANCE.md). The behavioral matrix across clients is in
-[Desktop parity](PARITY.md).
+Run `pnpm --dir packages/vscode package` after bootstrap to build the VSIX in
+`packages/vscode/`. Install it using **Extensions → Install from VSIX…**, then run **AtomWorks: Open Studio**.
+The extension starts the installed Python backend. `pnpm --dir packages/vscode test`
+checks startup, reuse, failure recovery, and process cleanup.
 
-RFD4 model assets are not vendored. Verify the exact files selected by the
-pinned RFD4 config, plus their anonymous public-bucket copies, with:
+## Annotation changes
+
+Keep scientific definitions upstream. Studio adapts their editing metadata into
+controls and delegates mutation to the shared document. A new or changed editor
+needs coverage for stored values, scope, invalid input, Undo, and CIF round-trips
+across native PyMOL and HTTP. UI controls must report errors without losing selection.
+
+The same annotation loader is used by PyMOL and the API. Public AtomWorks conditions
+remain usable when developing the editing library without the RFD4 adapter.
+A broken installed adapter fails visibly instead of silently omitting annotations.
+
+See [architecture](ARCHITECTURE.md) for package boundaries and
+[releases](RELEASE.md) for distribution builds.
+
+## Workflow checks
+
+The browser acceptance suite runs the PPI, enzyme-motif and ligand cases in
+`tests/fixtures/workflow_cases.json` through both viewers. It compares exported
+atom identities, coordinates, bonds, charges, segment bounds, and all annotation
+values and masks. Segment expansion uses random lengths; the comparison checks
+the state restored by Undo, while each workflow checks expansion separately.
+
+With PyMOL available in the test Python environment, run the same cases through
+the native controls and compare their exports:
 
 ```bash
-DATA_PATH=/persistent/rfd4-data \
-uv run python scripts/check_rfd4_assets.py \
-  --rfd4-root external/RFD4-Proteina-dev --check-bucket
+STUDIO_WORKFLOW_OUTPUT=artifacts/local/workflows QT_QPA_PLATFORM=offscreen \
+  python scripts/run_pytest.py -q tests/test_design_workflows.py
+python scripts/check_workflow_outputs.py artifacts/local/workflows --hosts molstar patinae
 ```
 
-## Build outputs
-
-| Artifact | Command | Output |
-|---|---|---|
-| Browser/PWA | `pnpm --dir packages/web build` | `packages/web/dist/` |
-| API and provider distributions | `uv build --all-packages` | `dist/` |
-| VS Code/Cursor extension | `pnpm --dir packages/vscode package` | `packages/vscode/*.vsix` |
-| Rust crates and Patinae launcher | `cargo build --workspace --release --locked` | `target/release/` |
-| Full local build | `make build` | all of the above except VSIX packaging |
-| CPU container | Docker command below | local image |
-
-Build the production CPU image directly from the recursive checkout:
-
-```bash
-docker build -f deploy/Dockerfile -t atomworks-studio:local .
-```
-
-## Provider development
-
-Provider-neutral protocols live in `annotation_studio.contracts`:
-
-- `ConditionProvider` describes editable conditions and their value schemas.
-- `ValidationProvider` validates a document against model-specific rules.
-- `JobProvider` parses, submits, polls, and cancels jobs and serves their
-  outputs and artifacts (`DesignProvider` is its former name).
-
-### StandardAnnotation editing contract
-
-Semantic authoring metadata belongs on the upstream StandardAnnotation class,
-not in a Studio-, PyMOL-, or YAML-specific registry:
-
-- `editing_type` declares the writable value type; fixed-width vectors use a
-  NumPy subarray dtype such as `np.dtype((np.float32, (3,)))`.
-- `editing_is_mask_only` means readers may consume stored values but editors
-  only change the mask. Sequence, coordinate, index, and internal-coordinate
-  conditioning use this mode.
-- `aliases` are accepted only when reading or resolving names. AtomWorks
-  setters and CIF serialization write the canonical `full_name`/`mask_name`.
-
-The RFD4 provider derives browser and PyMOL schemas from those fields. Studio
-currently supports one-body masks, enums, integers, finite numeric scalars,
-three-vectors, and the `C_DIS` distance-pair editor. Other pair types and
-writable strings remain visible through stored-field inspection but are not
-offered by an incompatible generic widget.
-
-Internal-coordinate authoring stores only `C_INTCRD`/`C_CRD` masks and
-`C_CRDGRP`; RFD4 featurization is the sole production path that centers,
-randomly rotates, and writes `C_INTCRD` values.
-
-The API imports no model implementation in its document core. Optional provider
-packages register through the `atomworks_studio.providers` Python entry-point
-group, and Studio loads all of them: one supplies the document (condition and
-validation) providers, and any number add named job providers through
-`create_job_provider`. `providers/rfd4` is the reference document provider; the
-RFD4 design jobs are always registered as the job provider `rfd4`. A job
-provider that runs a local command builds on
-`annotation_studio.process_jobs.ProcessJobRunner`. Keep GPU runtimes,
-credentials, retries, and worker scaling behind the `JobProvider` boundary.
-
-Start with the [API provider guide](../packages/api/README.md), which lists the
-provider exports, selection variables, and generic job routes, then verify a
-new provider with:
-
-```bash
-PYTHONPATH=external/RFD4-Proteina-dev/src uv run python scripts/run_pytest.py -q \
-  tests/test_providers.py tests/test_design_jobs.py tests/test_process_jobs.py tests/test_job_routes.py
-```
-
-If a provider adds browser-visible API fields, regenerate and commit the client
-types:
-
-```bash
-bash scripts/generate_api_types.sh
-git diff -- packages/web/src/generated/api.d.ts
-```
-
-## Client and extension development
-
-### Website
-
-```bash
-pnpm --dir packages/web dev
-pnpm --dir packages/web test:unit
-```
-
-The two renderers implement one adapter contract but never silently fall back
-to each other. Test both modes through `packages/web/tests/smoke.mjs`.
-
-Documentation screenshots are reproducible against a running service. Set
-`CHROME_PATH` only when Chrome or Chromium is not installed in a standard
-location. The checked-in documentation uses Mol*/WebGL because it renders
-deterministically in headless CI; Patinae/WebGPU remains covered by its own
-browser E2E path:
-
-```bash
-ANNOTATION_STUDIO_URL=http://127.0.0.1:8000 \
-  node scripts/capture_docs_screenshots.mjs
-```
-
-### VS Code and Cursor
-
-```bash
-pnpm --dir packages/vscode compile
-pnpm --dir packages/vscode package
-cursor --install-extension packages/vscode/*.vsix --force
-```
-
-Reload the editor after reinstalling, configure a Studio server, choose a
-renderer, and invoke **AtomWorks: Open Annotation Studio**. Use `code` instead
-of `cursor` when testing VS Code.
-
-### PyMOL
-
-From the repository root:
-
-```bash
-make rfd4
-conda activate atomworks-studio-rfd4
-pymol
-```
-
-Open **Plugin → AtomWorks Studio**. Setup installs editable Studio packages, pinned
-sources, and CPU save-validation dependencies, then registers the startup hook.
-See the [PyMOL setup guide](../packages/pymol-plugin/README.md#setup) for migration
-and model-neutral installation. Run plugin and cross-interface conformance
-through `make accept-tools`.
-
-For isolated setup testing, `make rfd4 RFD4_ENV=/absolute/test/env
-RFD4_PYMOLRC=/absolute/test/pymolrc` uses a separate environment prefix and startup
-file. Ordinary users do not need either option.
-
-### Patinae desktop
-
-```bash
-cargo build --release --locked -p patinae-annotation-studio
-```
-
-Install the platform library as described in the
-[Patinae launcher guide](../packages/patinae-plugin/README.md). The launcher is
-intentionally thin: it opens the configured Studio service in Patinae mode.
-
-## Patinae viewer updates
-
-The browser package is reproduced from the revision and patch series recorded
-under `vendor/patinae`:
-
-```bash
-ATOMWORKS_STUDIO_REBUILD_PATINAE=1 \
-  bash scripts/build_patinae_viewer.sh
-```
-
-The script builds in an external cache, normalizes host paths, and verifies the
-result against the recorded SHA-256. Review [Source provenance](PROVENANCE.md)
-before changing the pin, patches, package version, or checksum.
-
-## Releases
-
-`VERSION` is authoritative. JavaScript, Python, and Rust package versions must
-match it; `python scripts/verify_distribution.py` enforces that contract.
-Releases use `vX.Y.Z` tags. The tag workflow builds wheels, the VSIX, the
-Patinae package, checksums, an SBOM, attestations, and the GHCR image.
-
-```bash
-python scripts/verify_distribution.py
-git tag -a v0.1.0 -m "AtomWorks Studio 0.1.0"
-git push origin v0.1.0
-```
-
-Production Kubernetes, local GPU, Brev, and AF3 operations are documented in
-the [deployment runbook](../deploy/README.md). The repository currently ships
-CI and tag-release workflows; Kubernetes application and rollout remain an
-operator action unless an external deployment workflow is configured.
+These are design-input preparation tests. Studio does not execute model inference.

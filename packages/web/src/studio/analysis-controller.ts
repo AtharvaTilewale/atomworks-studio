@@ -205,10 +205,18 @@ export class AnalysisController {
         count: number;
         bonds: Array<{ atom1: number; atom2: number; bond_type: string }>;
       }>(`/api/sessions/${sessionId}/bonds${query}`);
-      this.results.textContent = response.bonds.length
-        ? response.bonds.map((bond) => `Bond ${bond.atom1}–${bond.atom2} · ${bond.bond_type}`).join("\n")
-        : "No bonds found.";
-      element<HTMLDetailsElement>("measurements-drawer").open = true;
+      if (sessionId !== this.options.getSessionId()) return;
+      const list = element("bond-list");
+      list.replaceChildren();
+      if (!response.bonds.length) list.textContent = "No bonds found.";
+      for (const bond of response.bonds) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "interaction-result";
+        button.textContent = `Atoms ${bond.atom1}–${bond.atom2} · ${bond.bond_type}`;
+        button.addEventListener("click", () => this.options.selection.replace([bond.atom1, bond.atom2], true));
+        list.append(button);
+      }
     } catch (error) {
       this.options.log(`Bond inspection failed: ${String(error)}`);
     }
@@ -234,10 +242,11 @@ export class AnalysisController {
         + ` · current ${restraint.current_distance.toFixed(2)} Å`
       ).join("\n")
       : "No distance restraints.";
-    element<HTMLDetailsElement>("measurements-drawer").open = true;
+    this.openMeasurementsDrawer();
   }
 
   private openMeasurementsDrawer(): void {
+    element("editor-tab-main").click();
     element<HTMLDetailsElement>("measurements-drawer").open = true;
     this.studioMenu.open = true;
   }

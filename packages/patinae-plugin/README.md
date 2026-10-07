@@ -2,7 +2,7 @@
 
 This native Patinae plugin opens the shared AtomWorks Studio service in
 desktop-app mode with the Patinae renderer selected. It is intentionally a thin
-launcher: CIF documents, sessions, and optional RFD4 jobs remain in the Studio
+launcher: CIF documents and sessions remain in the Studio
 service.
 
 ## Prerequisites

@@ -21,6 +21,17 @@ export class StructureEditController {
   }
 
   bind(): void {
+    const phInput = element<HTMLInputElement>("protonation-ph");
+    phInput.addEventListener("input", () => this.updateSelectionUi(this.options.getSessionId() !== null));
+    element("protonate").addEventListener("click", async () => {
+      if (!phInput.reportValidity() || phInput.value === "") return;
+      element<HTMLButtonElement>("protonate").disabled = true;
+      try {
+        await this.options.mutate("/protonate", { ph: Number(phInput.value) });
+      } finally {
+        this.updateSelectionUi(this.options.getSessionId() !== null);
+      }
+    });
     const chargeInput = element<HTMLInputElement>("charge");
     const chargeAction = element<HTMLSelectElement>("charge-action");
     const updateChargeLabel = (): void => {
@@ -117,6 +128,8 @@ export class StructureEditController {
 
   updateSelectionUi(hasSession: boolean): void {
     const count = this.options.selection.size;
+    const ph = element<HTMLInputElement>("protonation-ph");
+    element<HTMLButtonElement>("protonate").disabled = !hasSession || ph.value === "" || !ph.validity.valid;
     element<HTMLButtonElement>("apply-charge").disabled = !hasSession || count === 0;
     element<HTMLButtonElement>("delete-atoms").disabled = !hasSession || count === 0;
     element<HTMLButtonElement>("assign-chain").disabled =

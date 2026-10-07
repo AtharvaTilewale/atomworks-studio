@@ -196,7 +196,7 @@ def get_atom_array_style_cmd(
     for chain_id in struc.get_chains(atom_array):
         if (~atom_array.hetero[atom_array.chain_id == chain_id]).any():
             commands.append(
-                f"spectrum resi, RFd_darkblue RFd_blue RFd_lightblue RFd_purple RFd_pink RFd_melon RFd_navaho, "
+                f"spectrum resi, blue cyan green yellow orange red, "
                 f"{obj} and chain {chain_id} and elem C"
             )
 

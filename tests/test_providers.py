@@ -49,5 +49,12 @@ def test_document_uses_explicit_model_providers() -> None:
 def test_document_defaults_are_model_neutral() -> None:
     document = StudioDocument.from_cif(FIXTURE.read_text(encoding="utf-8"))
 
-    assert document.annotation_details() == []
-    assert document.condition_provider.definitions == ()
+    assert {definition.key for definition in document.condition_provider.definitions} == {
+        "sequence",
+        "coordinate",
+        "index",
+        "distance",
+        "n_terminus",
+        "c_terminus",
+    }
+    assert "hotspot" not in document.condition_provider.definitions_by_name

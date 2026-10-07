@@ -1,4 +1,5 @@
 import { element } from "../dom";
+import { confirmAction } from "../confirmation";
 import { api } from "../api";
 import type { SelectionController } from "../selection-controller";
 import type { StudioSchema, ConditionEditorState, StructureSummary, Restraint, SessionResponse } from "../types";
@@ -206,18 +207,21 @@ export class ConditionController {
       clear.type = "button";
       clear.textContent = "Clear saved targets for selected groups";
       clear.disabled = !this.hasSession || this.options.selection.size === 0;
-      clear.addEventListener("click", () => {
+      clear.addEventListener("click", async () => {
         const revision = this.options.getRevision();
-        if (revision === undefined) return;
-        if (!window.confirm(
+        const session = this.options.getSessionId();
+        const atoms = [...this.options.selection.values];
+        const scope = this.scopeSelect.value;
+        if (revision === undefined || !session) return;
+        if (!await confirmAction(
           "Clear saved targets for every atom in the selected internal-coordinate groups, " +
           "including group members outside the selection? New targets will be derived from " +
-          "the structure when model inputs are prepared. Undo restores the saved targets.",
-        )) return;
+          "the structure when model inputs are prepared. Undo restores the saved targets.", "Clear targets",
+        ) || session !== this.options.getSessionId()) return;
         void this.options.mutate("/internal-coords/clear-targets", {
           expected_revision: revision,
-          atom_indices: [...this.options.selection.values],
-          scope: this.scopeSelect.value,
+          atom_indices: atoms,
+          scope,
         });
       });
       this.conditionValue.appendChild(clear);
@@ -392,7 +396,7 @@ export class ConditionController {
       this.selectedPair = null; this.renderPairTable();
     });
     const clear = document.createElement("button"); clear.id = "pair-clear"; clear.textContent = "Clear All";
-    clear.addEventListener("click", () => { this.pairs = []; this.pairDirty = true; this.selectedPair = null; this.renderPairTable(); });
+    clear.addEventListener("click", async () => { this.pairs = []; this.pairDirty = true; this.selectedPair = null; this.renderPairTable(); });
     const apply = document.createElement("button"); apply.id = "pair-apply"; apply.textContent = "Apply restraints";
     apply.disabled = this.pairDirty && this.pairDraftRevision !== this.revision;
     apply.addEventListener("click", () => {

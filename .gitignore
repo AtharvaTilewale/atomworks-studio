@@ -2,7 +2,7 @@
 **/.pytest_cache/
 **/.ruff_cache/
 **/target/
-**/node_modules/
+**/node_modules
 **/dist/
 **/build/
 **/*.egg-info/
@@ -17,3 +17,11 @@ artifacts/
 packages/web/src/wasm/
 packages/api/annotation_studio/web/
 !packages/web/public/annotation-studio.svg
+
+.venv/
+
+docs/_build/
+
+external/
+packages/api/annotation_studio/guide/
+examples/space/wheels/

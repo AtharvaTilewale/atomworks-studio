@@ -61,6 +61,10 @@ if [[ "${needs_build}" == true ]]; then
   )
 fi
 
+if [[ ! -f "${studio_dir}/docs/_build/html/index.html" ]]; then
+  make -C "${studio_dir}" docs
+fi
+
 cd "${studio_dir}"
 export PYTHONPATH="${api_dir}:${studio_dir}/providers/rfd4${PYTHONPATH:+:${PYTHONPATH}}"
 exec uv run --project "${studio_dir}" \

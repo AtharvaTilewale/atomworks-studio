@@ -1,15 +1,4 @@
-"""PyMOL editor registrations for rfproteina conditions.
-
-This module has no top-level PyMOL or Qt imports and is safe to import
-during model training.  It is only executed inside a running PyMOL
-process via the AtomWorks extension system.
-
-Semantic editability comes from each StandardAnnotation class. The PyMOL
-adapter adds only custom presentation, views, and pre-save validation.
-
-Register ``atomworks_studio_rfd4.pymol.editors`` from the base plugin's
-``Extensions...`` dialog.
-"""
+"""Native widgets for the same annotation contract used by the browser."""
 
 from atomworks.io.utils.atom_array_plus import AtomArrayPlus
 
@@ -23,12 +12,12 @@ from atomworks_studio_rfd4.pymol import condition_registry
 from atomworks_studio_rfd4.pymol.visualize import color_by_coord_group, color_by_index_group
 
 # ---------------------------------------------------------------------------
-# Pre-save pipeline validation hook
+# Pre-save annotation validation hook
 # ---------------------------------------------------------------------------
 
 
-def _run_pipeline_validation(arr: AtomArrayPlus) -> list[str]:
-    return [f"[{issue['check']}] {issue['message']}" for issue in validate_rfd4(arr, full_pipeline=True)]
+def _run_annotation_validation(arr: AtomArrayPlus) -> list[str]:
+    return [f"[{issue['check']}] {issue['message']}" for issue in validate_rfd4(arr, full_pipeline=False)]
 
 
 # ---------------------------------------------------------------------------
@@ -53,4 +42,4 @@ def register() -> None:
     condition_registry.apply()
 
     # Pre-save validation hooks.
-    register_pre_save_hook(_run_pipeline_validation)
+    register_pre_save_hook(_run_annotation_validation)

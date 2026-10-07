@@ -1,7 +1,6 @@
 """Studio authoring policy over AtomWorks' stored scientific annotations.
 
-The helpers accept both value-derived annotations and the earlier separate-mask
-format. They do not add editor attributes or methods to upstream classes.
+These helpers derive editor behavior from the public AtomWorks 3 annotation contract.
 """
 
 from __future__ import annotations
@@ -28,8 +27,6 @@ def normalize_annotation_aliases(array) -> None:
 
 
 def editing_type(annotation: type[StandardAnnotationBase]):
-    if hasattr(annotation, "editing_type"):
-        return annotation.editing_type
     if annotation.n_body == 0:
         return None
     if annotation.value_shape:
@@ -41,36 +38,27 @@ def editing_type(annotation: type[StandardAnnotationBase]):
 
 
 def is_boolean(annotation: type[StandardAnnotationBase]) -> bool:
-    if hasattr(annotation, "is_mask"):
-        return annotation.is_mask
     return np.issubdtype(annotation.storage_dtype(), np.bool_)
 
 
 def is_structure_derived(annotation: type[StandardAnnotationBase]) -> bool:
-    return getattr(annotation, "editing_is_mask_only", getattr(annotation, "has_ground_truth", False))
+    return getattr(annotation, "has_ground_truth", False)
 
 
 def has_stored_mask(annotation, array) -> bool:
-    if hasattr(annotation, "has_mask"):
-        return annotation.has_mask(array)
     return annotation.has_annotation(array)
 
 
 def display_mask_name(annotation) -> str:
-    return getattr(annotation, "mask_name", f"mask_{annotation.name}_{annotation.n_body}_{annotation.level.value}")
+    return f"mask_{annotation.name}_{annotation.n_body}_{annotation.level.value}"
 
 
 def default_mask(annotation, array):
-    if hasattr(annotation, "default_mask"):
-        return annotation.default_mask(array)
     return annotation.mask_from_annotation(annotation.default_annotation(array))
 
 
 def set_annotation_mask(annotation, array, mask) -> None:
-    """Write a legacy mask or clear inactive values in the value-derived format."""
-    if hasattr(annotation, "set_mask"):
-        annotation.set_mask(array, mask)
-        return
+    """Clear inactive values using the annotation's declared defaults."""
     mask = np.asarray(mask, dtype=bool)
     if is_boolean(annotation):
         annotation.set_annotation(array, mask)

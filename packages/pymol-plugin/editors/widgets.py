@@ -14,7 +14,7 @@ import logging
 import numpy as np
 from atomworks.io.utils.atom_array_plus import AnnotationList2D
 from atomworks.io.utils.standard_annotations.base import StandardAnnotationBase
-from atomworks_studio_editing.annotations import default_mask, set_annotation_mask
+from atomworks_studio_editing.annotations import set_annotation_mask
 from atomworks_studio_editing.mutations import set_condition_mask
 from atomworks_studio_pymol.bridge import (
     _pymol_resi_to_res_id_ins_code,
@@ -86,8 +86,22 @@ class BaseAnnotationEditor:
         indices = self._require_selection_indices()
         if indices is None:
             return False
-        arr = self._state.get_synced_array(obj_name)
-        set_condition_mask(arr, self._annotation_cls, indices, value)
+        document = self._state.document(obj_name)
+        definition = document.condition_provider.definitions_by_name.get(self._annotation_cls.name)
+        try:
+            if definition is not None:
+                document.set_condition(
+                    definition.key,
+                    indices,
+                    enabled=not value if definition.invert_mask else value,
+                    scope=definition.level.value,
+                )
+            else:
+                with document.edit():
+                    set_condition_mask(document.array, self._annotation_cls, indices, value)
+        except (ValueError, TypeError) as error:
+            _QtWidgets.QMessageBox.warning(self, "Annotation edit failed", str(error))
+            return False
         self._reload_or_recolor()
         self._clear_selection()
         return True
@@ -162,9 +176,15 @@ class MaskEditor(_QtWidgets.QWidget, BaseAnnotationEditor):
         obj_name = self._state.active
         if not obj_name or obj_name not in self._state.arrays:
             return
-        arr = self._state.get_synced_array(obj_name)
-        mask = default_mask(self._annotation_cls, arr)
-        set_annotation_mask(self._annotation_cls, arr, mask)
+        document = self._state.document(obj_name)
+        try:
+            with document.edit():
+                self._annotation_cls.set_annotation(
+                    document.array, self._annotation_cls.default_annotation(document.array)
+                )
+        except (ValueError, TypeError) as error:
+            _QtWidgets.QMessageBox.warning(self, "Annotation reset failed", str(error))
+            return
         self._reload_or_recolor()
 
     def apply_to_selection(self) -> None:
@@ -228,45 +248,27 @@ class ScalarEditor(_QtWidgets.QWidget, BaseAnnotationEditor):
         obj_name = self._state.active
         if not obj_name or obj_name not in self._state.arrays:
             return
-        arr = self._state.get_synced_array(obj_name)
         indices = self._require_selection_indices()
         if indices is None:
             return
-
-        mask_val = self._mask_chk.isChecked()
-
-        # Read both before modifying either (atomic snapshot).
+        document = self._state.document(obj_name)
         try:
-            mask = self._annotation_cls.mask(arr, default="generate").copy()
-        except Exception as e:
-            logger.warning("Could not read mask: %s", e)
-            return
-
-        annot = None
-        if mask_val:
-            try:
+            with document.edit():
+                arr = document.array
+                mask = self._annotation_cls.mask(arr, default="generate").copy()
+                mask[indices] = self._mask_chk.isChecked()
                 if isinstance(self._value_widget, _QtWidgets.QSpinBox | _QtWidgets.QDoubleSpinBox):
                     val = self._value_widget.value()
                 else:
                     val = self._value_widget.text()
-                annot = self._annotation_cls.annotation(arr, default="generate").copy()
-                annot[indices] = val
-            except Exception as e:
-                # Abort entirely rather than activating the mask with a stale value.
-                logger.warning("Could not read annotation; aborting apply: %s", e)
-                return
-
-        mask[indices] = mask_val
-        try:
-            set_annotation_mask(self._annotation_cls, arr, mask)
-        except Exception as e:
-            logger.warning("Could not set mask: %s", e)
-
-        if annot is not None:
-            try:
-                self._annotation_cls.set_annotation(arr, annot)
-            except Exception as e:
-                logger.warning("Could not set annotation: %s", e)
+                if self._mask_chk.isChecked():
+                    annot = self._annotation_cls.annotation(arr, default="generate").copy()
+                    annot[indices] = val
+                    self._annotation_cls.set_annotation(arr, annot)
+                set_annotation_mask(self._annotation_cls, arr, mask)
+        except (ValueError, TypeError) as error:
+            _QtWidgets.QMessageBox.warning(self, "Annotation edit failed", str(error))
+            return
 
         self._reload_or_recolor()
         self._clear_selection()

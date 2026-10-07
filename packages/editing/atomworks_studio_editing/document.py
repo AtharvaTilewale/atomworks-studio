@@ -11,6 +11,7 @@ from typing import Any, Literal
 import biotite.structure as struc
 import numpy as np
 from atomworks.constants import MASKED
+from atomworks.experimental.protonation import add_hydrogens
 from atomworks.io import parse
 from atomworks.io.template import infer_bonds_from_residue_names
 from atomworks.io.utils.atom_array_plus import (
@@ -19,8 +20,10 @@ from atomworks.io.utils.atom_array_plus import (
     as_atom_array_plus,
     concatenate_atom_array_plus,
 )
+from atomworks.io.utils.ccd import custom_ccd_residues
 from atomworks.io.utils.chain import create_chain_id_generator
 from atomworks.io.utils.io_utils import CIFWriteConfig, to_cif_string
+from atomworks.io.utils.query import AtomSelectionStack
 from atomworks.io.utils.standard_annotations import S_SEGMAX, S_SEGMIN
 from atomworks.io.utils.standard_annotations.base import STANDARD_ANNOTATIONS
 from atomworks.ml.conditions import C_DIS
@@ -36,7 +39,6 @@ from atomworks_studio_editing.loading import build_load_config
 from atomworks_studio_editing.mutations import edit_distance_restraint as mutate_distance_restraint
 from atomworks_studio_editing.mutations import replace_distance_restraints, set_condition_mask
 from atomworks_studio_editing.query import resolve_mask
-from atomworks_studio_editing.selection import AtomSelectionStack
 from atomworks_studio_editing.structure_mutations import (
     assign_chain_id,
     refresh_chain_derived_annotations,
@@ -51,7 +53,6 @@ from atomworks_studio_editing.structure_mutations import (
 from atomworks_studio_editing.validation import validate_atom_array, validate_atom_array_for_save
 
 from .contracts import (
-    NEUTRAL_CONDITION_PROVIDER,
     NEUTRAL_VALIDATION_PROVIDER,
     ConditionOperation,
     ConditionProvider,
@@ -170,7 +171,9 @@ class StudioDocument:
     ):
         self.array = array
         self.name = name
-        self.condition_provider = condition_provider or NEUTRAL_CONDITION_PROVIDER
+        from .conditions import CONDITION_PROVIDER
+
+        self.condition_provider = condition_provider if condition_provider is not None else CONDITION_PROVIDER
         self.validation_provider = validation_provider or NEUTRAL_VALIDATION_PROVIDER
         self._undo: list[AtomArrayPlus] = []
         self.revision = 0
@@ -667,7 +670,9 @@ class StudioDocument:
         if syntax == "expression":
             selected = np.flatnonzero(resolve_mask(self.array, expression))
         elif syntax == "path":
-            selected = np.flatnonzero(AtomSelectionStack.from_query(expression).get_mask(self.array))
+            selected = np.flatnonzero(
+                AtomSelectionStack.from_query(expression).get_mask(self.array, raise_on_empty=False)
+            )
         else:
             raise ValueError(f"unsupported AtomWorks query syntax: {syntax}")
         if len(selected) == 0:
@@ -927,6 +932,15 @@ class StudioDocument:
             },
             "restraints": self.distance_restraints(),
         }
+
+    def protonate(self, ph: float = 7.4) -> dict[str, Any]:
+        """Update the whole structure's protonation state as one undoable edit."""
+        if not np.isfinite(ph) or not 0 <= ph <= 14:
+            raise ValueError("pH must be a finite number between 0 and 14")
+        with self.edit(), custom_ccd_residues(self.array._custom_ccd_registry):
+            self.array = as_atom_array_plus(add_hydrogens(self.array, ph=ph))
+        count = int(np.count_nonzero(self.array.element == "H"))
+        return {"message": f"Protonated at pH {ph:g}; {count} hydrogen atoms.", "hydrogen_count": count}
 
     def set_charge(self, indices: list[int], value: int | None = None, delta: int | None = None) -> None:
         with self.edit():

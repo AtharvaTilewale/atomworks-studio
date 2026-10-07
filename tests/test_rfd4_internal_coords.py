@@ -5,9 +5,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 from annotation_studio.core import StudioDocument
-from annotation_studio.rfd4_provider import CONDITION_PROVIDER, VALIDATION_PROVIDER
 from atomworks.ml.conditions import C_CRD
 from atomworks_studio_editing.mutations import set_condition_mask
+from atomworks_studio_rfd4 import CONDITION_PROVIDER, VALIDATION_PROVIDER
 from atomworks_studio_rfd4.internal_coordinate import set_internal_coordinate_conditioning
 from atomworks_studio_rfd4.model import C_CRDGRP, C_INTCRD
 

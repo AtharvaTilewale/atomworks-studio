@@ -44,6 +44,17 @@ def test_installed_startup_opens_menu_and_loads_rfd4(monkeypatch, tmp_path):
         actions[0].trigger()
         app.processEvents()
         assert panel.get_main_panel() is not None
+        from atomworks_studio_editing.layout import EDITOR_TABS
+
+        tabs = window.findChild(QtWidgets.QTabWidget)
+        assert [tabs.tabText(i) for i in range(tabs.count())] == [label for _, label in EDITOR_TABS]
+        from atomworks_studio_editing.providers import load_providers
+
+        definitions = load_providers().condition_provider.definitions
+        condition_list = panel.get_main_panel()._annotation_wizard._list
+        assert [condition_list.item(i + 1).text() for i in range(len(definitions))] == [
+            definition.label for definition in definitions
+        ]
         assert window.findChildren(QtWidgets.QDockWidget)
         cmd._parser.parse(f"@{rc}")
         assert len([action for action in menu.actions() if action.text() == "AtomWorks Studio"]) == 1

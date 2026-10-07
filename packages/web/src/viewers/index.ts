@@ -71,6 +71,7 @@ export class MolecularViewer {
     private readonly backendLabel: HTMLElement,
     private mode: ViewerMode,
     private readonly onPick: (atomIndex: number, label?: string) => void,
+    private readonly onRenderError: (error: unknown) => void = (error) => { throw error; },
   ) {}
 
   get backend(): ViewerBackend {
@@ -183,7 +184,11 @@ export class MolecularViewer {
 
   setSelection(atomIndices: number[]): void {
     this.selectedAtomIndices = [...new Set(atomIndices)];
-    this.adapter?.setSelection(this.selectedAtomIndices);
+    try {
+      this.adapter?.setSelection(this.selectedAtomIndices);
+    } catch (error) {
+      this.onRenderError(error);
+    }
   }
 
   setRepresentation(
@@ -268,6 +273,7 @@ export class MolecularViewer {
   }
 
   async clearAllVisuals(): Promise<void> {
+    this.annotationGroups = [];
     this.interactionOverlays = [];
     this.measurementRequests = [];
     await this.setMarkers([]);

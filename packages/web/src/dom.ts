@@ -13,7 +13,10 @@ export function escapeHtml(value: string): string {
 
 export function closeToolbarMenus(except?: HTMLDetailsElement): void {
   for (const menu of document.querySelectorAll<HTMLDetailsElement>(".viewer-menu")) {
-    if (menu !== except) menu.open = false;
+    // Inspector tabs stay open while using viewer menus.
+    if (menu !== except && (!menu.classList.contains("studio-menu") || except?.classList.contains("studio-menu"))) {
+      menu.open = false;
+    }
   }
 }
 

@@ -8,12 +8,11 @@ from dataclasses import dataclass, field
 
 from atomworks.io.utils.atom_array_plus import AtomArrayPlus
 from atomworks_studio_editing.contracts import (
-    NEUTRAL_CONDITION_PROVIDER,
-    NEUTRAL_VALIDATION_PROVIDER,
     ConditionProvider,
     ValidationProvider,
 )
 from atomworks_studio_editing.document import StudioDocument
+from atomworks_studio_editing.providers import load_providers
 from pymol import cmd
 
 logger = logging.getLogger("atomworks_studio_pymol")
@@ -69,8 +68,8 @@ class PluginState:
     active: str | None = None
     hide_nans: bool = True
     show_seq_gaps: bool = False
-    condition_provider: ConditionProvider = NEUTRAL_CONDITION_PROVIDER
-    validation_provider: ValidationProvider = NEUTRAL_VALIDATION_PROVIDER
+    condition_provider: ConditionProvider = field(default_factory=lambda: load_providers().condition_provider)
+    validation_provider: ValidationProvider = field(default_factory=lambda: load_providers().validation_provider)
 
     def __post_init__(self) -> None:
         self.arrays = _DocumentArrays(self)

@@ -10,6 +10,7 @@ import numpy as np
 from atomworks.io.utils.atom_array_plus import AtomArrayPlus
 from atomworks_studio_pymol.bridge import reload_structure_in_pymol, selection_to_indices
 from atomworks_studio_pymol.state import PluginState
+from pymol import cmd
 from pymol.Qt import QtWidgets
 
 logger = logging.getLogger("atomworks_studio_pymol")
@@ -85,6 +86,25 @@ class ChargeWizard:
 
         layout.addSpacing(6)
 
+        layout.addWidget(QtWidgets.QLabel("<b>Protonation</b>"))
+        protonation_row = QtWidgets.QHBoxLayout()
+        protonation_row.addWidget(QtWidgets.QLabel("pH:"))
+        self._ph = QtWidgets.QDoubleSpinBox()
+        self._ph.setRange(0, 14)
+        self._ph.setDecimals(1)
+        self._ph.setSingleStep(0.1)
+        self._ph.setValue(7.4)
+        protonation_row.addWidget(self._ph)
+        self._protonate_button = QtWidgets.QPushButton("Protonate active object")
+        self._protonate_button.clicked.connect(self._protonate)
+        protonation_row.addWidget(self._protonate_button)
+        layout.addLayout(protonation_row)
+        note = QtWidgets.QLabel(
+            "Updates hydrogens and formal charges for the whole active object. Use Undo to restore it."
+        )
+        note.setWordWrap(True)
+        layout.addWidget(note)
+
         self._lbl_summary = QtWidgets.QLabel("")
         self._lbl_summary.setWordWrap(True)
         layout.addWidget(self._lbl_summary)
@@ -122,7 +142,11 @@ class ChargeWizard:
             self._lbl_selection.setText("Selection: (no active object)")
             self._lbl_current.setText("Current charges: —")
             return
-        indices = selection_to_indices("sele", self._state.index_maps[obj_name])
+        indices = (
+            selection_to_indices("sele", self._state.index_maps[obj_name])
+            if "sele" in cmd.get_names("selections")
+            else []
+        )
         arr = self._state.get_synced_array(obj_name)
         charges = _read_charges(arr)
         self._lbl_selection.setText(f"Selection: {len(indices)} atoms")
@@ -172,3 +196,20 @@ class ChargeWizard:
             return
         reload_structure_in_pymol(obj_name)
         self._refresh_selection_info()
+
+    def _protonate(self) -> None:
+        obj_name = self._state.active
+        if not obj_name or obj_name not in self._state.arrays:
+            QtWidgets.QMessageBox.warning(
+                self._widget, "No active object", "Load a CIF and choose an active object first."
+            )
+            return
+        self._protonate_button.setEnabled(False)
+        try:
+            self._state.document(obj_name).protonate(self._ph.value())
+            reload_structure_in_pymol(obj_name)
+            self._refresh_selection_info()
+        except Exception as error:
+            QtWidgets.QMessageBox.critical(self._widget, "Protonation failed", str(error))
+        finally:
+            self._protonate_button.setEnabled(True)

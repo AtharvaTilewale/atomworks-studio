@@ -5,12 +5,12 @@ from pathlib import Path
 import numpy as np
 import pytest
 from annotation_studio.core import StudioDocument
-from annotation_studio.rfd4_provider import CONDITION_PROVIDER, VALIDATION_PROVIDER
 from atomworks.io.utils.standard_annotations.base import STANDARD_ANNOTATIONS, StandardAnnotationBase
 from atomworks.ml.conditions import C_CHA, C_CRD, C_DIS, C_SEQ
 from atomworks_studio_editing.annotations import editing_type, is_structure_derived
 from atomworks_studio_editing.mutations import edit_distance_restraint
 from atomworks_studio_editing.validation import validate_atom_array
+from atomworks_studio_rfd4 import CONDITION_PROVIDER, VALIDATION_PROVIDER
 from atomworks_studio_rfd4.condition_contract import editable_condition_classes
 from atomworks_studio_rfd4.model import C_BP, C_CATH, C_PICATION, C_RAS
 

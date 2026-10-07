@@ -103,7 +103,7 @@ export class AnnotationController {
         ...atom.stored_fields.map((field) => `${field.name}: ${field.label}`),
         ...atom.scalar_fields.map((field) => `${field.label}: ${field.value.toFixed(2)}`),
       ].filter(Boolean);
-      if (!atom.annotations.length) lines.push("No active design annotations on this atom.");
+      if (!atom.annotations.length) lines.push("No active annotations on this atom.");
       this.detail.textContent = lines.join("\n");
       for (const row of this.list.querySelectorAll(".annotation-row")) row.classList.remove("active");
     } catch (error) {

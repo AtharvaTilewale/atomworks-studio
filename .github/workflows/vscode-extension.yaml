@@ -2,7 +2,7 @@ name: VS Code extension
 
 # Build the VS Code / Cursor extension on every push to main and publish it to a
 # rolling "vscode-latest" prerelease so there is always a stable download link:
-#   https://github.com/baker-laboratory/atomworks-studio-dev/releases/download/vscode-latest/atomworks-annotation-studio.vsix
+#   https://github.com/baker-laboratory/atomworks-studio/releases/download/vscode-latest/atomworks-annotation-studio.vsix
 # Versioned releases (on v* tags) are produced by release.yaml, which can also
 # publish to the VS Code Marketplace when a VSCE_PAT secret is configured.
 
@@ -35,6 +35,10 @@ jobs:
         with:
           name: vscode-extension
           path: packages/vscode/*.vsix
+      - name: Point the rolling source tag at this build
+        run: |
+          git tag --force vscode-latest "$GITHUB_SHA"
+          git push --force origin refs/tags/vscode-latest
       - name: Update the rolling "vscode-latest" prerelease
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         with:
@@ -49,11 +53,12 @@ jobs:
             2. `code --install-extension atomworks-annotation-studio.vsix --force`
                (or Extensions panel → `···` → *Install from VSIX…*), then reload.
 
-            **Point it at a Studio server** (the extension is a thin client):
-            - Command Palette → *AtomWorks: Configure Annotation Studio Server* → enter the URL
-              of a running Studio service (a hosted deployment, or a local `make run` at
-              `http://127.0.0.1:8000`).
-            - Command Palette → *AtomWorks: Open Annotation Studio*.
+            **Open Studio**
+            - Install the Studio Python wheels in your Python 3.12 environment.
+            - Run *AtomWorks: Open Studio* in the Command Palette. The extension
+              starts and stops the local backend automatically.
+            - For a hosted service,
+              use *AtomWorks: Configure Studio Server* to enter its URL.
 
             Full setup and troubleshooting: `packages/vscode/README.md`.
           files: |

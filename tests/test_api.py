@@ -7,7 +7,7 @@ import pytest
 from annotation_studio.core import StudioDocument
 from annotation_studio.identity import reset_current_owner, set_current_owner
 from annotation_studio.main import DocumentStore, SessionNotFoundError, app
-from annotation_studio.rfd4_provider import CONDITION_PROVIDER, VALIDATION_PROVIDER
+from atomworks_studio_rfd4 import CONDITION_PROVIDER, VALIDATION_PROVIDER
 from atomworks_studio_rfd4.model import C_CRDGRP, C_INTCRD, C_PISTACK
 from fastapi.testclient import TestClient
 from pytest import MonkeyPatch
@@ -144,21 +144,6 @@ def test_readiness_endpoint() -> None:
     assert response.json() == {"status": "ready"}
 
 
-def test_metrics_require_operator_token_and_stay_out_of_browser_schema(monkeypatch: MonkeyPatch) -> None:
-    monkeypatch.setenv("ANNOTATION_STUDIO_METRICS_TOKEN", "test-metrics-token")
-    monkeypatch.setattr(
-        "annotation_studio.main.design_jobs.operational_metrics",
-        lambda: {"jobs_queued": 2.0},
-        raising=False,
-    )
-    assert client.get("/api/v1/metrics").status_code == 401
-    response = client.get(
-        "/api/v1/metrics",
-        headers={"Authorization": "Bearer test-metrics-token"},
-    )
-    assert response.status_code == 200
-    assert "annotation_studio_jobs_queued 2.0" in response.text
-    assert "/api/v1/metrics" not in client.get("/openapi.json").json()["paths"]
 
 
 def test_full_condition_api_and_download_roundtrip() -> None:
@@ -524,3 +509,17 @@ def test_cath_condition_is_validated_and_roundtrips_through_http() -> None:
     downloaded = client.get(f"/api/sessions/{session_id}/cif")
     assert downloaded.status_code == 200
     assert "2.60.40.x" in downloaded.text
+
+
+def test_protonation_api_and_undo() -> None:
+    session_id = _session()
+    path = f"/api/sessions/{session_id}"
+    before = client.get(path).json()["structure"]
+    for ph in (-1, 15):
+        assert client.post(f"{path}/protonate", json={"ph": ph}).status_code == 422
+    response = client.post(f"{path}/protonate", json={"ph": 7.4})
+    assert response.status_code == 200, response.text
+    assert response.json()["edit_result"]["hydrogen_count"] > 0
+    assert response.json()["structure"]["revision"] == before["revision"] + 1
+    undone = client.post(f"{path}/undo").json()["structure"]
+    assert undone["atom_count"] == before["atom_count"]

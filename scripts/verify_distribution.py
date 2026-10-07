@@ -37,10 +37,9 @@ def main() -> None:
         if manifest.get("version") != version:
             raise SystemExit(f"{label} version {manifest.get('version')!r} does not match VERSION {version!r}")
     python_manifests = {
-        "Python API": STUDIO_ROOT / "packages" / "api" / "pyproject.toml",
+        "Studio application": STUDIO_ROOT / "pyproject.toml",
         "Editing core": STUDIO_ROOT / "packages" / "editing" / "pyproject.toml",
         "RFD4 provider": STUDIO_ROOT / "providers" / "rfd4" / "pyproject.toml",
-        "Quantum provider": STUDIO_ROOT / "providers" / "quantum" / "pyproject.toml",
         "PyMOL plugin": STUDIO_ROOT / "packages" / "pymol-plugin" / "pyproject.toml",
     }
     for label, path in python_manifests.items():
@@ -70,7 +69,7 @@ def main() -> None:
                 raise SystemExit(f"{workflow.name}: {action} is not pinned to a commit SHA: {revision}")
 
     tag = arguments.tag or os.environ.get("GITHUB_REF_NAME", "")
-    if tag and tag.startswith("v") and tag != f"v{version}":
+    if tag and (arguments.tag is not None or tag.startswith("v")) and tag != f"v{version}":
         raise SystemExit(f"release tag {tag!r} must equal v{version}")
 
     if arguments.github_output:
