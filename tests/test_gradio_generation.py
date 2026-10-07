@@ -25,6 +25,7 @@ def test_edit_generate_reopen(samples, stable_cif_metadata):
         return [cif] * options["samples"]
 
     demo = create_demo(app, provider=provider, generate_fn=generate)
+    assert any(event["api_name"] == "generate_cif" for event in demo.config["dependencies"])
     callbacks = {event.fn.__name__: event.fn for event in demo.fns.values() if event.fn}
 
     async def run():
@@ -54,12 +55,15 @@ def test_edit_generate_reopen(samples, stable_cif_metadata):
             assert len(archive.namelist()) == samples
         assert callbacks["inspect"](session, paths)[0] == session
         assert (await handoff.export(session, provider.warning_checks))["cif"] == snapshot["cif"]
+        direct = await callbacks["generate_cif"](source.read_text(), {"task": "inverse_folding", "samples": 1})
+        assert direct["designs"] == [submitted[-1][0]]
+        assert submitted[-1][1]["task"] == "inverse_folding"
         failed = await callbacks["generate"](session, task, "high", samples, 43, 0.25, 0.15)
         assert "Your input is unchanged" in failed[5].value and failed[1] == gr.skip()
         assert (await handoff.export(session, provider.warning_checks))["cif"] == snapshot["cif"]
         failed = await callbacks["generate"]("", task, "high", samples, 42, 0.25, 0.15)
         assert "Open a structure" in failed[5].value
-        assert failed[1] == gr.skip() and len(submitted) == 1
+        assert failed[1] == gr.skip() and len(submitted) == 2
 
     try:
         asyncio.run(run())

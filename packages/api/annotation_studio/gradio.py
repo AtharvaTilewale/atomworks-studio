@@ -125,6 +125,26 @@ def create_demo(
             "Open a CIF or choose an example in Studio, then generate a design.", elem_id="generation-status"
         )
         editor = gr.HTML(handoff.frame(), elem_id="studio-editor", js_on_load=HOST_BRIDGE)
+        api_cif = gr.Textbox(visible=False)
+        api_options = gr.JSON(visible=False)
+        api_result = gr.JSON(visible=False)
+        api_run = gr.Button(visible=False)
+
+        async def run_cifs(cif: str, options: dict) -> list[str]:
+            results = await asyncio.to_thread(generate_fn, cif, options)
+            if not results:
+                raise gr.Error("The model returned no structures")
+            return results
+
+        async def generate_cif(cif: str, options: dict) -> dict:
+            """Generate from an annotated CIF through the same Studio validation and model path."""
+            validated = provider.validate(options or {})
+            session_id, _ = await handoff.open("input.cif", cif)
+            snapshot = await handoff.export(session_id, provider.warning_checks)
+            return {
+                "designs": await run_cifs(snapshot["cif"], validated),
+                "warnings": [issue["message"] for issue in snapshot["issues"]],
+            }
 
         async def generate(
             session_id: str,
@@ -137,9 +157,7 @@ def create_demo(
                 snapshot = await handoff.export(session_id, provider.warning_checks)
                 with tempfile.TemporaryDirectory(prefix="studio-generation-") as directory:
                     progress(None, desc="Generating design (including any GPU wait)…")
-                    results = await asyncio.to_thread(generate_fn, snapshot["cif"], options)
-                    if not results:
-                        raise gr.Error("The model returned no structures")
+                    results = await run_cifs(snapshot["cif"], options)
                     progress(None, desc="Opening generated designs in Studio…")
                     archive_path = Path(directory) / "designs.zip"
                     with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as archive:
@@ -200,6 +218,14 @@ def create_demo(
             show_progress_on=status,
             js=CURRENT_SESSION,
             api_name="generate_from_studio",
+        )
+        api_run.click(
+            generate_cif,
+            [api_cif, api_options],
+            api_result,
+            api_name="generate_cif",
+            concurrency_limit=1,
+            show_progress="hidden",
         )
         view.input(inspect, [view, views], [session, editor, download], api_name=False, show_progress_on=status)
     return demo.queue(max_size=8)

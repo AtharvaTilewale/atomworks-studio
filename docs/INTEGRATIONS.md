@@ -104,6 +104,27 @@ receives a validated snapshot of the current edits. Its output becomes separate
 Studio documents; failed requests preserve the input. Download files before
 sessions expire. This in-memory queue does not persist or cancel running jobs.
 
+The same Gradio host exposes `/generate_cif` for scripts. It accepts an annotated
+CIF string and the provider's options, validates the CIF through Studio, and
+returns `designs` (CIF strings) and `warnings`. For a private Space:
+
+```python
+import os
+from pathlib import Path
+
+from gradio_client import Client
+
+client = Client("https://<space>.hf.space/design/", token=os.environ["HF_TOKEN"])
+result = client.predict(
+    Path("input.cif").read_text(),
+    {"task": "antibody_design", "thinking": "medium", "samples": 1, "seed": 42},
+    api_name="/generate_cif",
+)
+Path("design.cif").write_text(result["designs"][0])
+```
+
+The editor button and this endpoint call the same validated model callback.
+
 The deployment owns model weights, CUDA dependencies and execution. Pass native
 noise defaults from its inference configuration to the RFD4 provider. No Torch
 model, model download, GPU provisioning or job-provider registry is added to
@@ -132,10 +153,10 @@ Keep source, model and Space repositories private during qualification. Store
 commit. The deployment guide in the model repository owns the exact environment
 and launch instructions.
 
-The draft adapter currently returns final CIFs using eager execution. Compiled
-inference, trajectory handoff, detailed sampler progress and refolding metrics
-are not connected to this adapter. Test real generation and memory use on the
-intended GPU before deploying it; editor/handoff tests use a test callback.
+The ZeroGPU adapter uses validated AOT trunks; a dedicated GPU can use eager
+inference with the same editor and API. Refolding metrics are not connected.
+Test real generation and memory use on the intended GPU before release;
+editor/handoff tests use a test callback.
 
 ## NIM and other inference services
 
