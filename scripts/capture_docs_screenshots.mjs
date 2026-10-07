@@ -9,7 +9,7 @@ const { chromium } = require("playwright-core");
 
 const baseUrl = process.env.ANNOTATION_STUDIO_URL ?? "http://127.0.0.1:8000/";
 const outputDir = resolve("docs/images");
-const fixture = resolve("examples/ppi_pdl1.cif");
+const fixture = resolve("packages/api/annotation_studio/examples/protein_binder.cif");
 const browser = await chromium.launch({
   executablePath: chromiumExecutable(),
   headless: true,

@@ -525,12 +525,12 @@ def test_protonation_api_and_undo() -> None:
     assert undone["atom_count"] == before["atom_count"]
 
 
-def test_packaged_nim_examples_share_a_safe_catalog() -> None:
+def test_packaged_design_examples_share_a_safe_catalog() -> None:
     from annotation_studio.main import EXAMPLES_DIR
 
     catalog = client.get("/api/v1/examples").json()
-    assert len(catalog) == 8
-    assert len({item["id"] for item in catalog}) == 8
+    assert len(catalog) == 9
+    assert len({item["id"] for item in catalog}) == 9
     for item in catalog:
         response = client.get(f"/api/v1/examples/{item['id']}/cif")
         assert response.status_code == 200

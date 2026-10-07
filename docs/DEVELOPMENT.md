@@ -88,6 +88,24 @@ python scripts/check_workflow_outputs.py artifacts/local/workflows --hosts molst
 
 These tests prepare design inputs; they do not validate model inference.
 
+To test authoring the shipped examples from CIFs with their annotations removed,
+prepare temporary inputs, run the shared GUI driver, then compare saved and
+reopened CIFs with the originals. `make accept-local` runs this for both viewers.
+Against an already running standalone Studio server:
+
+```bash
+python scripts/reconstruct_examples.py artifacts/reconstruction
+STUDIO_RECONSTRUCTION=$PWD/artifacts/reconstruction/cases.json \
+  STUDIO_WORKFLOW_OUTPUT=$PWD/artifacts/reconstruction \
+  ANNOTATION_STUDIO_URL=http://127.0.0.1:8000/ VIEWER_MODE=molstar \
+  node packages/web/tests/design-workflows.mjs
+python scripts/reconstruct_examples.py artifacts/reconstruction --check molstar
+```
+
+Repeat with `VIEWER_MODE=patinae` and `--check patinae`. The unconditional
+case has no target structure, so the test uses a temporary atom to create its
+segment through the GUI, then deletes that atom.
+
 The optional Gradio host uses the same workflow driver. Against a running host:
 
 ```bash

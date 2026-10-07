@@ -4,8 +4,10 @@ import {fileURLToPath} from 'node:url';
 import {join} from 'node:path';
 
 export async function designWorkflows({page, ui=page, base, label, output, saveDownload=(download,path)=>download.saveAs(path), request=page.request, onLoaded=async()=>{}}) {
-  const cases=JSON.parse(await readFile(fileURLToPath(new URL('../../../tests/fixtures/workflow_cases.json',import.meta.url)),'utf8'));
-  cases.push(...JSON.parse(await readFile(fileURLToPath(new URL('../../../tests/fixtures/nim_workflow_cases.json',import.meta.url)),'utf8')));
+  const cases=process.env.STUDIO_RECONSTRUCTION
+    ? JSON.parse(await readFile(process.env.STUDIO_RECONSTRUCTION,'utf8'))
+    : JSON.parse(await readFile(fileURLToPath(new URL('../../../tests/fixtures/workflow_cases.json',import.meta.url)),'utf8'));
+  if(!process.env.STUDIO_RECONSTRUCTION) cases.push(...JSON.parse(await readFile(fileURLToPath(new URL('../../../tests/fixtures/nim_workflow_cases.json',import.meta.url)),'utf8')));
   await mkdir(output,{recursive:true});
   const logs=[];
   const expectedRenderer=label.endsWith('patinae')?'patinae':'molstar';
@@ -45,7 +47,9 @@ export async function designWorkflows({page, ui=page, base, label, output, saveD
     await ui.locator('#viewer-command').fill(query);
     const response=page.waitForResponse(r=>r.url().endsWith('/selections/query'));
     await ui.locator('#run-viewer-command').click();
-    const selected=await (await response).json();
+    const resolved=await response;
+    assert.equal(resolved.status(),200,await resolved.text());
+    const selected=await resolved.json();
     assert.ok(selected.count>0,query);
     await ui.waitForFunction(count=>document.querySelector('#selection-count').textContent.startsWith(`${count} atom`),selected.count);
     return selected;
@@ -56,7 +60,7 @@ export async function designWorkflows({page, ui=page, base, label, output, saveD
       await ui.locator('#editor-tab-main').click();
       await ui.locator('#examples-panel').evaluate(panel=>{panel.open=true});
       await ui.locator(`[data-example="${scenario.example_id}"]`).click();
-    } else await ui.locator('#file-input').setInputFiles(fileURLToPath(new URL('../../../examples/'+scenario.file,import.meta.url)));
+    } else await ui.locator('#file-input').setInputFiles(scenario.source ?? fileURLToPath(new URL('../../../examples/'+scenario.file,import.meta.url)));
     const session=await (await loaded).json();
     assert.equal(session.structure.atom_count,scenario.atoms);
     await settled();
@@ -71,15 +75,15 @@ export async function designWorkflows({page, ui=page, base, label, output, saveD
     for(const [i,action] of scenario.actions.entries()){
       let result;
       let indices=[];
-      if(['condition','group','pair'].includes(action.kind)){
+      if(['condition','internal','group','pair'].includes(action.kind)){
         await ui.locator('#editor-tab-annotations').click();
         await ui.locator('#condition').selectOption(action.key??'distance');
         const selected=await select(action.query);
         indices=selected.atom_indices;
-        if(action.kind==='condition'){
+        if(['condition','internal'].includes(action.kind)){
           await ui.locator('#enabled').setChecked(action.enabled);
           if(action.value!==undefined) await ui.locator('#condition-value-input').selectOption(String(action.value));
-          result=await post('#apply-condition','/conditions');
+          result=await post('#apply-condition',action.kind==='internal'?'/internal-coords':'/conditions');
         }else if(action.kind==='group')result=await post('#group-new','/groups');
         else{
           assert.equal(selected.count,2);
@@ -93,6 +97,25 @@ export async function designWorkflows({page, ui=page, base, label, output, saveD
         indices=(await select(action.query)).atom_indices;
         await ui.locator('#charge').fill(String(action.value));
         result=await post('#apply-charge','/charges');
+      }else if(action.kind==='delete'){
+        await ui.locator('#editor-tab-main').click();
+        await ui.getByText('Structure editing',{exact:true}).evaluate(el=>el.parentElement.open=true);
+        indices=(await select(action.query)).atom_indices;
+        result=await post('#delete-atoms','/delete');
+      }else if(action.kind==='segment'){
+        await ui.locator('#editor-tab-main').click();
+        await ui.getByText('Expandable segments',{exact:true}).evaluate(el=>el.parentElement.open=true);
+        await ui.locator('#segment-min').fill(String(action.minimum));
+        await ui.locator('#segment-max').fill(String(action.maximum));
+        if(action.chain){
+          await ui.locator('#segment-new-chain').check();
+          await ui.locator('#segment-chain-id').fill(action.chain);
+        }else{
+          await ui.locator('#segment-new-chain').uncheck();
+          await ui.locator('#segment-before').setChecked(action.before);
+          indices=(await select(action.query)).atom_indices;
+        }
+        result=await post('#insert-segment','/segments');
       }else if(action.kind==='undo')result=await post('#undo','/undo');
       else if(action.kind==='realize'){
         await ui.locator('#editor-tab-main').click();

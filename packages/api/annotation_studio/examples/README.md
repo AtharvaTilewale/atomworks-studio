@@ -1,4 +1,4 @@
-# NIM examples
+# Design examples
 
 Eight inputs from the private RFD4 NIM, revision
 `3a8a1f6f2ed6bab37757d2471b5007971175225d`, under `nim/examples/*/request.json`.
@@ -9,8 +9,11 @@ serializer. Antibody framework/target conditions and excluded CDR H3 are retaine
 
 `examples.json` pairs each CIF with its sampling task. Partial diffusion uses
 40% of the trajectory; inverse folding uses the native inverse-folding sampler.
-The ZeroGPU demo uses the NIM 50-step, 170-trunk-pass recycle schedule and one
-replicate per request. Example selection does not enable refolding or establish
-biological design quality.
+The model deployment chooses the native recycling preset and design count.
+Example selection does not enable refolding or establish biological design quality.
 
-Keep this directory private with the deployment branch until release review.
+`protein_binder.cif` comes from RFD4 `all_ppi.yaml:rfd3_pdl1`: a fixed PD-L1
+target, six hotspot atoms on residues 56, 115 and 123, and a separate 50–120
+residue binder segment. It uses the standard protein sampler with these conditions.
+
+Keep this directory nonpublic until release review.

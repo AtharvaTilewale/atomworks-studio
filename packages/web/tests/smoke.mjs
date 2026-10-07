@@ -82,7 +82,7 @@ try {
   assert.equal(await page.locator("h1").innerText(), "AtomWorks Studio");
 
   await showEdit(page);
-  assert.equal(await page.locator(".example-load").count(), 8);
+  assert.equal(await page.locator(".example-load").count(), 9);
   assert.equal(await page.locator('[data-example="antibody_design"]').isEnabled(), true);
   if (viewerMode === "molstar") {
     await page.locator('[data-example="unconditional"]').click();

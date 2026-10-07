@@ -37,6 +37,9 @@ for _ in {1..60}; do
 done
 curl --fail --silent "${accept_url}/api/ready" >/dev/null
 
+uv run --project "${root}" python "${root}/scripts/reconstruct_examples.py" \
+  "${artifact_dir}/reconstruction" | tee "${artifact_dir}/reconstruction-prepare.log"
+
 for viewer in patinae molstar; do
   VIEWER_MODE="${viewer}" ANNOTATION_STUDIO_URL="${accept_url}" \
     "${pnpm_cmd[@]}" --dir "${root}/packages/web" test:e2e \
@@ -59,6 +62,12 @@ for viewer in patinae molstar; do
   VIEWER_MODE="${viewer}" ANNOTATION_STUDIO_URL="${accept_url}/" \
     STUDIO_WORKFLOW_OUTPUT="${artifact_dir}/workflows" \
     node "${root}/packages/web/tests/design-workflows.mjs" | tee "${artifact_dir}/design-workflows-${viewer}.log"
+  VIEWER_MODE="${viewer}" ANNOTATION_STUDIO_URL="${accept_url}/" \
+    STUDIO_RECONSTRUCTION="${artifact_dir}/reconstruction/cases.json" \
+    STUDIO_WORKFLOW_OUTPUT="${artifact_dir}/reconstruction" \
+    node "${root}/packages/web/tests/design-workflows.mjs" | tee "${artifact_dir}/reconstruction-${viewer}.log"
+  uv run --project "${root}" python "${root}/scripts/reconstruct_examples.py" \
+    "${artifact_dir}/reconstruction" --check "${viewer}" | tee "${artifact_dir}/reconstruction-check-${viewer}.log"
 done
 uv run --project "${root}" python "${root}/scripts/check_workflow_outputs.py" \
   "${artifact_dir}/workflows" --reference molstar --hosts patinae | tee "${artifact_dir}/workflow-parity.log"

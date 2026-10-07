@@ -12,9 +12,12 @@ ROOT = Path(__file__).resolve().parents[1]
 annotate = run_path(str(ROOT / "examples/annotate.py"))["annotate"]
 
 
-@pytest.mark.parametrize("fixture", ["ppi_pdl1.cif", "mcsa_ph2.cif", "disco_iai.cif"])
+@pytest.mark.parametrize(
+    "fixture",
+    ["packages/api/annotation_studio/examples/protein_binder.cif", "examples/mcsa_ph2.cif", "examples/disco_iai.cif"],
+)
 def test_headless_example_preserves_structure_and_condition(fixture):
-    cif = (ROOT / "examples" / fixture).read_text()
+    cif = (ROOT / fixture).read_text()
     providers = load_providers()
     kwargs = {"condition_provider": providers.condition_provider, "validation_provider": providers.validation_provider}
     before = StudioDocument.from_cif(cif, **kwargs)

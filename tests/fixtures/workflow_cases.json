@@ -1,6 +1,6 @@
 [
   {
-    "name": "ppi", "file": "ppi_pdl1.cif", "atoms": 925,
+    "name": "ppi", "example_id": "protein_binder", "atoms": 925,
     "actions": [
       {"kind":"condition","key":"hotspot","query":"atom_name != ''","enabled":false},
       {"kind":"condition","key":"hotspot","query":"(chain_id == 'A') & ((res_id == 56) | (res_id == 115) | (res_id == 123))","enabled":true},

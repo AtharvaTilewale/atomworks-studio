@@ -1,5 +1,11 @@
 [
   {
+    "label": "Protein binder \u00b7 PD-L1",
+    "file": "protein_binder.cif",
+    "task": "unconditional",
+    "id": "protein_binder"
+  },
+  {
     "label": "Antibody \u00b7 HER2 CDR H3",
     "file": "antibody_design.cif",
     "task": "antibody_design",

@@ -37,12 +37,21 @@ controls:
 - **Remove waters** — optional water filtering
 
 Use **Combine CIF** to merge another file into the active document. The
-**Edit → Examples** panel includes the eight NIM inputs: antibody, VHH, enzyme,
-motif, SAM binder, inverse folding, partial diffusion, and unconditional design.
+**Edit → Examples** panel includes a **Protein binder · PD-L1** example and
+the eight NIM inputs: antibody, VHH, enzyme, motif, SAM binder, inverse folding,
+partial diffusion, and unconditional design.
 The same packaged catalog is used by the Gradio Space.
 
 The fixtures are described in
 [examples/README.md](https://github.com/baker-laboratory/atomworks-studio/blob/main/examples/README.md).
+
+To make the protein-binder input from an unannotated PD-L1 CIF, open the target
+and use **AtomWorks query** `chain_id == 'A'` to select it. In **Edit → Annotations**,
+enable **Sequence**, reselect chain A, then enable **Coordinate**. Mark these six target
+atoms as **Hotspot**: residue 56 CG and OH, residue 115 CG and SD, and residue
+123 CD2 and OH. Then use **Edit → Main → Expandable segments** to add a new
+protein chain B with a 50–120 residue segment. Save the CIF. These are the
+conditions in the packaged example; the same controls work in PyMOL.
 
 ## Navigate and select
 

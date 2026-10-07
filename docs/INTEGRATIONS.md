@@ -38,7 +38,7 @@ The executable [annotation example](https://github.com/baker-laboratory/atomwork
 uses these same calls. From the repository:
 
 ```bash
-python examples/annotate.py examples/ppi_pdl1.cif annotated.cif \
+python examples/annotate.py packages/api/annotation_studio/examples/protein_binder.cif annotated.cif \
   --query "sel('*/*/*/CA')" --condition hotspot
 ```
 

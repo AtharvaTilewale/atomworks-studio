@@ -40,7 +40,7 @@ try {
   await demo.locator('iframe[title="AtomWorks Studio"]').waitFor({timeout: 120000});
   let ui = await demo.locator('iframe[title="AtomWorks Studio"]').elementHandle().then(element => element.contentFrame());
   await ui.locator('#status-message').filter({hasText: 'Ready. Open a CIF'}).waitFor({timeout: 120000});
-  assert.equal(await ui.locator('.example-load').count(), 8);
+  assert.equal(await ui.locator('.example-load').count(), 9);
   const api = context.request;
   // The browser request client does not inherit route authentication.
   const authenticated = {
@@ -62,10 +62,12 @@ try {
   await demo.waitForFunction(() => !document.querySelector('iframe[title="AtomWorks Studio"]').dataset.task);
   assert.equal(await demo.getByRole('combobox').first().inputValue(), 'Inverse folding');
   if (process.env.STUDIO_TEST_GENERATE === '1') {
+    const generationExample = process.env.STUDIO_TEST_EXAMPLE ?? 'antibody_design';
     await ui.locator('#editor-tab-main').click();
     await ui.locator('#examples-panel').evaluate(element => element.open = true);
-    await ui.locator('[data-example="antibody_design"]').click();
-    await demo.waitForFunction(() => [...document.querySelectorAll('input')].some(input => input.value === 'Antibody / VHH'));
+    await ui.locator(`[data-example="${generationExample}"]`).click();
+    const task = examples.find(example => example.id === generationExample).task;
+    await demo.waitForFunction(label => [...document.querySelectorAll('input')].some(input => input.value === label), labels[task]);
     await page.screenshot({path: join(output, 'gradio-input.png'), fullPage: true});
     const inputSession = await demo.locator('iframe[title="AtomWorks Studio"]').getAttribute('data-session-id');
     await demo.getByRole('button', {name: 'Generate design', exact: true}).click();

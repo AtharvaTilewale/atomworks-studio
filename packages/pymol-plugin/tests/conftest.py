@@ -30,9 +30,9 @@ DATA_DIR = REPO_ROOT / "tests" / "fixtures"
 
 
 # Keep this list small — each entry spawns a real PyMOL load.
-CIF_FIXTURES: list[str] = [
-    "ppi_pdl1.cif",
-    "SAM_hbonds.cif",
+CIF_FIXTURES: list[Path] = [
+    REPO_ROOT / "packages/api/annotation_studio/examples/protein_binder.cif",
+    DATA_DIR / "SAM_hbonds.cif",
 ]
 
 # Exercise both NaN policies. With ``hide_nans=True`` (default plugin behaviour)
@@ -41,12 +41,12 @@ CIF_FIXTURES: list[str] = [
 # array row survives into PyMOL. Both paths must keep bridge invariants.
 HIDE_NANS_OPTIONS: list[bool] = [True, False]
 
-_FIXTURE_PARAMS = [(cif, hide) for cif in CIF_FIXTURES for hide in HIDE_NANS_OPTIONS]
+_FIXTURE_PARAMS = [(path, hide) for path in CIF_FIXTURES for hide in HIDE_NANS_OPTIONS]
 
 
-def _fixture_id(param: tuple[str, bool]) -> str:
-    cif, hide = param
-    return f"{Path(cif).stem}-{'hide' if hide else 'show'}_nans"
+def _fixture_id(param: tuple[Path, bool]) -> str:
+    path, hide = param
+    return f"{path.stem}-{'hide' if hide else 'show'}_nans"
 
 
 @pytest.fixture(autouse=True)
@@ -66,8 +66,7 @@ def loaded_cif(request: pytest.FixtureRequest) -> tuple[str, str]:
     Parametrized over ``hide_nans`` so each test runs once with NaN-coord
     atoms dropped from PyMOL and once with them zeroed into PyMOL.
     """
-    cif_name, hide_nans = request.param
-    path = DATA_DIR / cif_name
+    path, hide_nans = request.param
     if not path.exists():
         pytest.skip(f"test CIF missing: {path}")
     # Set before load so ``_load_array_into_pymol`` picks up the policy.
