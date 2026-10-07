@@ -20,8 +20,8 @@ below; the public AtomWorks dependency resolves automatically from PyPI.
 ## What the pip installation provides
 
 Run `atomworks-studio`, then open <http://127.0.0.1:8000/> in a browser.
-The server runs on your machine and includes both **Patinae/WebGPU** and
-**Mol*/WebGL**. Choose the renderer in **More**. You do not need a separate
+The server runs on your machine with **Mol*/WebGL** as the default viewer and
+**Patinae/WebGPU** available in **More → Renderer**. You do not need a separate
 Patinae installation, Node, Rust, or VS Code. The **Guide** link opens the
 bundled documentation at <http://127.0.0.1:8000/guide/>.
 
@@ -48,17 +48,17 @@ Studio wheel. Use the Conda environment below for the native plugin. A separate
 OS desktop wrapper is not needed for the browser application.
 
 The default editor does install AtomWorks' `ml` dependencies: its annotation,
-interaction, and expandable-segment operations use those APIs. Model weights,
-inference, job submission, and GPU provisioning are outside Studio.
+interaction, and expandable-segment operations use those APIs. Model weights
+and GPU provisioning belong to the model deployment. The optional
+[`gradio` extra](INTEGRATIONS.md#model-enabled-gradio-host) connects that deployment
+to the same editor.
 
 ## Install built wheels
 
 Build from a bootstrapped checkout:
 
 ```bash
-pnpm build
-make docs
-uv build --all-packages
+make build
 uv run scripts/check_distribution_assets.py dist
 ```
 
@@ -118,9 +118,5 @@ Open <http://127.0.0.1:8000/>. Set another address with
 
 ## Release checks
 
-See the [release guide](RELEASE.md) for version tags, publishing, and repository setup.
-
-- Run `scripts/pin_deps.py` and `scripts/verify_distribution.py`.
-- Build all Studio packages; check browser assets in wheels and source archives.
-- Install outside the checkout with public AtomWorks 3.0.0 and check both interfaces.
-- Test protonation, annotation edits, selections, undo, and CIF save/reopen.
+See [acceptance checks](ACCEPTANCE.md) for installed-package and interface tests,
+and the [release guide](RELEASE.md) for version tags and publishing.

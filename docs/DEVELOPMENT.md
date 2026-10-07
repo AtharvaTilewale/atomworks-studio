@@ -86,9 +86,9 @@ STUDIO_WORKFLOW_OUTPUT=artifacts/local/workflows QT_QPA_PLATFORM=offscreen \
 python scripts/check_workflow_outputs.py artifacts/local/workflows --hosts molstar patinae
 ```
 
-These are design-input preparation tests. Studio does not execute model inference.
+These tests prepare design inputs; they do not validate model inference.
 
-The RFD4 Gradio wrapper uses the same workflow driver. Against a running wrapper:
+The optional Gradio host uses the same workflow driver. Against a running host:
 
 ```bash
 ANNOTATION_STUDIO_URL=http://127.0.0.1:8791/ VIEWER_MODE=patinae \

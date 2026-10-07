@@ -1,6 +1,6 @@
 # AtomWorks Studio
 
-Studio edits annotated molecular structures in a browser or inside PyMOL.
+Studio edits annotated molecular structures in a browser, VS Code, or PyMOL.
 Open a CIF, select atoms, change annotations, and save a file that AtomWorks
 and RFD4 can read.
 

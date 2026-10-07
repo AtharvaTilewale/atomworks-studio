@@ -7,7 +7,9 @@ The browser and VS Code use one editor. The PyMOL plugin runs inside PyMOL.
 All three share annotation definitions, editing operations, CIF storage, and Undo.
 Hotspots and other RFD4 conditions come from pinned **RosettaCommons/RFD4-Proteina**
 definitions included in the annotation package. No model runtime or weights are needed.
-Studio does not submit designs or manage GPU jobs.
+The optional [Gradio host](docs/INTEGRATIONS.md#model-enabled-gradio-host) adds
+generation controls and result viewing around the same editor. The model
+deployment supplies inference; Studio does not manage GPU jobs.
 
 ## Install
 
@@ -39,6 +41,7 @@ Save with **Save CIF**. The resulting file opens in any Studio interface.
 - [Worked example](docs/TUTORIAL.md)
 - [Selection syntax](docs/SELECTIONS.md)
 - [Browser](docs/WEB.md) · [VS Code](docs/VSCODE.md) · [PyMOL](docs/PYMOL.md)
+- [Python, HTTP, and Gradio integration](docs/INTEGRATIONS.md)
 - [Development](docs/DEVELOPMENT.md) · [Releases](docs/RELEASE.md)
 
 ## Build from source

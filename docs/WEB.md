@@ -1,8 +1,7 @@
 # Browser guide
 
-The website is the complete AtomWorks Studio editor. It runs locally or from a
-shared deployment, keeps the authoritative annotated CIF in the Studio API,
-and supports two independent molecular renderers.
+The browser editor runs locally or on a shared server. The Studio API stores
+the annotated structure; Mol* or Patinae renders it.
 
 ![AtomWorks Studio with an annotated PPI design](images/web-molstar-editor.png)
 
@@ -59,7 +58,8 @@ The command field supports:
 - **PyMOL commands** selects and styles atoms through Patinae; for example,
   `select sele, name CA`, then `show spheres, sele`.
   It accepts supported PyMOL-style commands, but is not a PyMOL or Python console.
-  Commands that would change document data are blocked; use the editing panels.
+  `remove <selection>` deletes atoms through Studio and supports **Undo**.
+  Other structural commands are blocked; use the editing panels.
 
 The action reads **Select** for queries and **Run** for viewer commands. The
 field shows an example for the selected syntax.
@@ -132,6 +132,27 @@ open Studio as a standalone application. The service worker caches the
 application shell but never caches API responses, sessions, CIFs, or model
 results.
 
+## Generate in a Gradio deployment
+
+A model deployment can add generation controls around this same editor. The
+standalone browser, VS Code and PyMOL installations do not load a model.
+
+1. Open a CIF or choose a NIM example in **Edit → Main → Examples**.
+   The example selects the matching task in the generation controls.
+2. Edit the input and choose the recycling preset (**Thinking**), design count
+   and seed. **Sampling** contains the backbone and latent noise controls.
+3. Choose **Generate design**. Status appears above the editor while the model
+   runs. A failed request leaves the input unchanged.
+4. Use **View** to switch between **Input** and the generated designs. Each
+   result is a separate editable Studio document.
+5. **Download CIF** saves the original model output; **Download all** saves a ZIP.
+   After editing a result, use the editor's **Save CIF** to save those changes.
+
+Generation uses the document currently shown, so select **Input** before
+repeating the original request. Export files before leaving the app; sessions
+and the generation queue are temporary. See [integrations](INTEGRATIONS.md#model-enabled-gradio-host)
+to host a model with Studio.
+
 ## Use inside VS Code or Cursor
 
 The extension embeds the same service and UI:
@@ -147,9 +168,6 @@ sessions use VS Code's external-URI forwarding; the server must allow
 
 - **Blank or unsupported renderer** — switch explicitly to Mol* if the browser
   lacks WebGPU, or to Patinae if WebGL is unavailable.
-- **PyMOL changes disappeared** — direct PyMOL edits are not automatically
-  authoritative. Follow the round-trip guidance in the
-  [PyMOL guide](PYMOL.md).
 - **Embedded view refused** — add the exact parent origin to
   `ANNOTATION_STUDIO_FRAME_ANCESTORS`.
 
