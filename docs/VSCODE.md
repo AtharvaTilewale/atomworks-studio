@@ -29,8 +29,8 @@ Automatic startup requires a trusted workspace. The same setup works in Cursor.
 ## Download the extension
 
 Use the VSIX supplied with your Studio build. CI also provides a
-[build from main](https://github.com/baker-laboratory/atomworks-studio/releases/download/vscode-latest/atomworks-annotation-studio.vsix)
-and attaches versioned builds to [GitHub releases](https://github.com/baker-laboratory/atomworks-studio/releases).
+[build from main](https://github.com/RosettaCommons/atomworks-studio/releases/download/vscode-latest/atomworks-annotation-studio.vsix)
+and attaches versioned builds to [GitHub releases](https://github.com/RosettaCommons/atomworks-studio/releases).
 The repository currently requires GitHub access; Studio is not listed on the
 VS Code Marketplace yet.
 

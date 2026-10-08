@@ -34,7 +34,7 @@ jobs:
 
   publish:
     needs: [verify, checks]
-    if: github.repository == 'baker-laboratory/atomworks-studio'
+    if: github.repository == 'RosettaCommons/atomworks-studio'
     runs-on: ubuntu-latest
     environment:
       name: pypi

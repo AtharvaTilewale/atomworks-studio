@@ -43,7 +43,7 @@ partial diffusion, and unconditional design.
 The same packaged catalog is used by the Gradio Space.
 
 The fixtures are described in
-[examples/README.md](https://github.com/baker-laboratory/atomworks-studio/blob/main/examples/README.md).
+[examples/README.md](https://github.com/RosettaCommons/atomworks-studio/blob/main/examples/README.md).
 
 To make the protein-binder input from an unannotated PD-L1 CIF, open the target
 and use **AtomWorks query** `chain_id == 'A'` to select it. In **Edit → Annotations**,

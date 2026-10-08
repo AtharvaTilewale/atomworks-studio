@@ -1,7 +1,9 @@
 # AtomWorks Studio
 
+[Documentation](docs/index.md) · [Installation](docs/INSTALLATION.md) · [Tutorial](docs/TUTORIAL.md)
+
 Open, annotate, and edit molecular structures in a browser, VS Code, or PyMOL.
-Studio uses public **AtomWorks 3.0.0**, including its ML APIs and Torch.
+Studio uses public **AtomWorks 3.0.1**, including its ML APIs and Torch.
 
 The browser and VS Code use one editor. The PyMOL plugin runs inside PyMOL.
 All three share annotation definitions, editing operations, CIF storage, and Undo.
@@ -21,7 +23,8 @@ python -m pip install --find-links dist dist/atomworks_studio-0.1.0-*.whl
 atomworks-studio
 ```
 
-Open <http://127.0.0.1:8000/>. Patinae and Mol* are included in the wheel;
+Open <http://127.0.0.1:8000/>. The guide is at <http://127.0.0.1:8000/guide/>.
+Patinae and Mol* are included in the wheel;
 Node and Rust are only needed to build from source.
 
 For VS Code, install the release VSIX, then
@@ -37,12 +40,8 @@ Open a CIF, select atoms, and choose an annotation in **Edit → Annotations**. 
 values, change bonds or charges, protonate, or edit chains and expandable segments.
 Save with **Save CIF**. The resulting file opens in any Studio interface.
 
-- [Installation](docs/INSTALLATION.md)
-- [Worked example](docs/TUTORIAL.md)
-- [Selection syntax](docs/SELECTIONS.md)
-- [Browser](docs/WEB.md) · [VS Code](docs/VSCODE.md) · [PyMOL](docs/PYMOL.md)
-- [Python, HTTP, and Gradio integration](docs/INTEGRATIONS.md)
-- [Development](docs/DEVELOPMENT.md) · [Releases](docs/RELEASE.md)
+See the [documentation](docs/index.md) for selection syntax, interface guides,
+Python and HTTP integration, and development notes.
 
 ## Build from source
 

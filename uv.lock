@@ -43,7 +43,7 @@ wheels = [
 
 [[package]]
 name = "atomworks"
-version = "3.0.0"
+version = "3.0.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "biotite" },
@@ -67,9 +67,9 @@ dependencies = [
     { name = "urllib3" },
     { name = "zstandard" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/0d/42/80e71b3b8a0196141179872eb63d11636a5ea58f074e0b71c4e2acf1c29a/atomworks-3.0.0.tar.gz", hash = "sha256:dc2b7cd0f59bcafc6b3b73d9edd3107c69ab3b6612d502631754a08ee0b863c3", size = 678045, upload-time = "2026-10-05T04:40:46.463Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/9e/0f/ca0966591c8dfb8e0d08d464cd048a1bf3700a62868623558a35a1949955/atomworks-3.0.1.tar.gz", hash = "sha256:e8e9c2eeb62908afca58d223d3d50077dc0ae349d05c1f7e5ef0063a3c098eea", size = 679203, upload-time = "2026-10-08T17:39:55.785Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/52/ec/d60e72fb6255e6842ac2934e7763b96f4f17aad8ef9053b1b8a708d24d22/atomworks-3.0.0-py3-none-any.whl", hash = "sha256:eba07191466a16bcf4cf5cef40d4854018414d6b15df866d83d5c25c382d5299", size = 787442, upload-time = "2026-10-05T04:40:44.364Z" },
+    { url = "https://files.pythonhosted.org/packages/1e/48/0e0919286aae5595e107e6c76dbd983506ce7d9b47a228f09c8dfe732044/atomworks-3.0.1-py3-none-any.whl", hash = "sha256:cc7e22bbc3815f82b3ef9f3432f34269473cedadee6d475bd13ae5c42815ca9d", size = 788972, upload-time = "2026-10-08T17:39:53.817Z" },
 ]
 
 [package.optional-dependencies]
@@ -131,7 +131,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "atomworks", extras = ["ml"], specifier = "==3.0.0" },
+    { name = "atomworks", extras = ["ml"], specifier = "==3.0.1" },
     { name = "atomworks-annotation-studio-rfd4", editable = "providers/rfd4" },
     { name = "atomworks-studio-editing", editable = "packages/editing" },
     { name = "atomworks-studio-pymol", marker = "extra == 'pymol'", editable = "packages/pymol-plugin" },
@@ -160,7 +160,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "atomworks", extras = ["ml"], specifier = "==3.0.0" },
+    { name = "atomworks", extras = ["ml"], specifier = "==3.0.1" },
     { name = "numpy", specifier = ">=1.26,<3" },
 ]
 
@@ -185,7 +185,7 @@ test = [
 
 [package.metadata]
 requires-dist = [
-    { name = "atomworks", extras = ["ml"], specifier = "==3.0.0" },
+    { name = "atomworks", extras = ["ml"], specifier = "==3.0.1" },
     { name = "atomworks-annotation-studio-rfd4", editable = "providers/rfd4" },
     { name = "atomworks-studio-editing", editable = "packages/editing" },
     { name = "pymol-open-source", marker = "extra == 'pymol-pip'", specifier = ">=3.2.0a0" },

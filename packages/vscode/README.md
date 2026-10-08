@@ -18,5 +18,5 @@ backend when the VS Code window closes or reloads. Save your CIF first.
 Use **AtomWorks: Configure Studio Server** only to connect to an existing server;
 clear the URL to restore automatic startup.
 
-See the [VS Code guide](https://github.com/baker-laboratory/atomworks-studio/blob/main/docs/VSCODE.md)
+See the [VS Code guide](https://github.com/RosettaCommons/atomworks-studio/blob/main/docs/VSCODE.md)
 for downloads, remote connections, and renderer selection.
