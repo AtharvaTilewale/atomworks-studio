@@ -4,7 +4,7 @@ import { StudioServer, serviceIsHealthy } from "./server.js";
 
 const DEFAULT_SERVER_URL = "";
 const SETUP_URL =
-  "https://github.com/baker-laboratory/atomworks-studio#install";
+  "https://github.com/RosettaCommons/atomworks-studio#install";
 type ViewerBackend = "patinae" | "molstar";
 type HostTheme = "dark" | "light" | "high-contrast" | "high-contrast-light";
 const studioPanels = new Map<string, vscode.WebviewPanel>();

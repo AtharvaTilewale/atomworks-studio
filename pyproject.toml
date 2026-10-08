@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.12,<3.13"
 license = "BSD-3-Clause"
 dependencies = [
-    "atomworks[ml]==3.0.0",
+    "atomworks[ml]==3.0.1",
     "atomworks-studio-editing>=0.1.0,<0.2",
     "atomworks-annotation-studio-rfd4==0.1.0",
     "fastapi>=0.115,<2",
@@ -23,6 +23,10 @@ dependencies = [
 gradio = ["gradio>=6.29,<7", "httpx>=0.28,<1"]
 pymol = ["atomworks-studio-pymol==0.1.0"]
 test = ["httpx2>=2.8,<3", "pytest>=8.2,<9"]
+
+[project.urls]
+Documentation = "https://github.com/RosettaCommons/atomworks-studio/blob/main/docs/index.md"
+Source = "https://github.com/RosettaCommons/atomworks-studio"
 
 [project.scripts]
 atomworks-studio = "annotation_studio.cli:main"

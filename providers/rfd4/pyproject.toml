@@ -14,6 +14,10 @@ dependencies = [
     "numpy>=1.26,<3",
 ]
 
+[project.urls]
+Documentation = "https://github.com/RosettaCommons/atomworks-studio/blob/main/docs/INTEGRATIONS.md"
+Source = "https://github.com/RosettaCommons/atomworks-studio"
+
 [tool.uv.sources]
 atomworks-studio-editing = { workspace = true }
 

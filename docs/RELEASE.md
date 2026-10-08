@@ -6,18 +6,18 @@ and [tmol](https://github.com/uw-ipd/tmol/blob/master/.github/workflows/publish.
 build once, test the installed packages, then publish those artifacts in a separate job.
 Documentation builds separately, as in RFD4, and is included in every release.
 
-The editor keeps `atomworks[ml]==3.0.0`, including Torch. Native PyMOL is an optional host application; inference is outside Studio.
+The editor keeps `atomworks[ml]==3.0.1`, including Torch. Native PyMOL is an optional host application; inference is outside Studio.
 
 ## One-time setup
 
-The publishing repository is `baker-laboratory/atomworks-studio`.
-Development history stays in the private `atomworks-studio-dev` repository.
-Both repositories remain private until their owner changes visibility.
-Use reviewed snapshots for releases; do not copy the development Git history.
+The publishing repository is `RosettaCommons/atomworks-studio`.
+Development history stays in the private `baker-laboratory/atomworks-studio-dev` repository.
+Only reviewed source snapshots are copied to RosettaCommons; its Git history starts
+with one initial commit. Repository visibility is managed separately from releases.
 
 Create a GitHub environment named `pypi`. Register a
 [PyPI Trusted Publisher](https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/)
-for each distribution below, using owner `baker-laboratory`, repository
+for each distribution below, using owner `RosettaCommons`, repository
 `atomworks-studio`, workflow `release.yaml`, and environment `pypi`:
 
 - `atomworks-studio`
@@ -77,20 +77,15 @@ The RFD4 adapter bundles the definition files listed with SHA-256 hashes in
 including its BSD license. The build verifies every file; wheel and source
 archive checks verify the bundled copies. Users need no checkout to annotate.
 
-## Promote development to the private release repository
+## Promote development to RosettaCommons
 
-Work in `atomworks-studio-dev` first. Wait for the **CI** workflow to succeed
-on the exact development commit, including package, Docker Space, browser,
-and documentation checks. Do not use an older green run as approval for newer code.
+Work in `atomworks-studio-dev` first. Merge reviewed changes to `main`, then
+fast-forward `release/rosettacommons` to that exact commit. Wait for its **CI**
+workflow to pass, including package, Docker Space, browser, and documentation
+checks. Never substitute an older green run for the release commit.
 
-Copy the tracked tree into a clean release checkout without its `.git` directory.
-Commit that snapshot, then compare `git rev-parse HEAD^{tree}` in both checkouts;
-the hashes must match. Keep both repositories private. Before the first public
-release, the release repository may keep one initial snapshot commit; when
-replacing it, use an explicit `--force-with-lease=refs/heads/main:<previous-sha>`
-after verifying the remote has not moved. Never force-update published releases.
-
-Push the release snapshot only after development CI succeeds, then wait for its
-own **CI** and **VS Code extension** workflows. Record both commit SHAs, their
-shared tree hash, and the successful run URLs. Published release tags stay
-immutable and continue through the gated release workflow above.
+Copy only that branch's tracked files into a clean RosettaCommons checkout and
+commit them there. Compare the two `HEAD^{tree}` hashes before pushing; they
+must match. Keep the RosettaCommons commit history linear and do not rewrite
+published release tags. After pushing, wait for its **CI** and **VS Code
+extension** workflows before tagging a PyPI release.

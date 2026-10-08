@@ -10,9 +10,13 @@ description = "Shared annotated-CIF editing primitives for AtomWorks Studio edit
 requires-python = ">=3.12,<3.13"
 license = "BSD-3-Clause"
 dependencies = [
-    "atomworks[ml]==3.0.0",
+    "atomworks[ml]==3.0.1",
     "numpy>=1.26,<3",
 ]
+
+[project.urls]
+Documentation = "https://github.com/RosettaCommons/atomworks-studio/blob/main/docs/index.md"
+Source = "https://github.com/RosettaCommons/atomworks-studio"
 
 [tool.hatch.build.targets.wheel]
 packages = ["atomworks_studio_editing"]

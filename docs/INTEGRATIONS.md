@@ -34,7 +34,7 @@ updates hydrogens and formal charges. `to_cif()` serializes the current array.
 Call `document.validate(full_pipeline=True)` and inspect its returned issues
 when preparing model inputs; serialization alone is not a validation check.
 
-The executable [annotation example](https://github.com/baker-laboratory/atomworks-studio/blob/main/examples/annotate.py)
+The executable [annotation example](https://github.com/RosettaCommons/atomworks-studio/blob/main/examples/annotate.py)
 uses these same calls. From the repository:
 
 ```bash
@@ -71,7 +71,7 @@ server process. Export files before submitting a long-running inference job.
 
 ## Hugging Face Spaces
 
-The [Docker Space example](https://github.com/baker-laboratory/atomworks-studio/tree/main/examples/space)
+The [Docker Space example](https://github.com/RosettaCommons/atomworks-studio/tree/main/examples/space)
 serves the existing editor on port 7860, including this guide. It uses built
 wheels, so the deployed container needs no Node, Rust, PyMOL, or separate frontend
 build. It is an editor-only CPU recipe; it does not execute inference.
@@ -118,8 +118,7 @@ run the actual model on its intended host before releasing a deployment.
 
 ### RFD4-Proteina deployment
 
-The [ZeroGPU adapter](https://github.com/baker-laboratory/RFD4-Proteina-dev/pull/636)
-uses the shared host and RFD4 provider above.
+The RFD4 deployment uses the shared host and RFD4 provider above.
 
 Install Studio in RFD4's supported Python/CUDA environment, using the model
 repository's [installation guide](https://github.com/RosettaCommons/RFD4-Proteina/blob/main/docs/installation.rst).
@@ -127,15 +126,15 @@ The adapter loads a pinned Hugging Face checkpoint bundle once and invokes
 RFD4's native generation entry point for each request. The provider supplies
 task, recycling preset, design count, seed and noise controls.
 
-Keep source, model and Space repositories private during qualification. Store
+Keep model and Space repositories private during qualification. Store
 `HF_TOKEN` as a Space secret and pin `RFD4_MODEL_REVISION` to the verified model
 commit. The deployment guide in the model repository owns the exact environment
 and launch instructions.
 
-The draft adapter currently returns final CIFs using eager execution. Compiled
-inference, trajectory handoff, detailed sampler progress and refolding metrics
-are not connected to this adapter. Test real generation and memory use on the
-intended GPU before deploying it; editor/handoff tests use a test callback.
+The Studio adapter hands annotated CIFs to the model deployment and imports its
+result CIFs. The deployment owns eager or compiled execution, progress,
+trajectories, and refolding metrics. Test generation on the intended GPU;
+editor handoff tests use a test callback.
 
 ## NIM and other inference services
 

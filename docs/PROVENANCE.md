@@ -1,10 +1,7 @@
 # Source provenance
 
-AtomWorks Studio originated in
-`baker-laboratory/RFD4-Proteina-dev` at
-`db94ca937fba69c390731f7688b3a4bf0c0a6495`. The extraction used
-`git subtree split --prefix=apps/annotation-studio`; its imported tip is
-`6a33a68e29b11f4ac9d3fc1bbb6bf1208171ad3a`.
+AtomWorks Studio originated in RFD4-Proteina editor work. Its editor code is
+maintained in this repository; scientific condition definitions remain upstream.
 
 The Patinae browser bundle and optional desktop launcher are pinned to upstream
 [`ba03133`](https://github.com/zmactep/patinae/commit/ba03133e59243394a9c425d0538ca5d2f33d528d)
@@ -21,7 +18,7 @@ upstream's npm lockfile, and the patch series.
 
 ## Dependencies
 
-AtomWorks is the public 3.0.0 release from PyPI; `uv.lock` records its artifacts
+AtomWorks is the public 3.0.1 release from PyPI; `uv.lock` records its artifacts
 and hashes. Studio no longer vendors a separate private AtomWorks checkout.
 RFD4 definitions come from `RosettaCommons/RFD4-Proteina` at
 `66e4394d38a04a0b901a76507cd5528af2d7f845`. The five unchanged definition, vocabulary, and license files
