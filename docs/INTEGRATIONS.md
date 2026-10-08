@@ -104,6 +104,27 @@ receives a validated snapshot of the current edits. Its output becomes separate
 Studio documents; failed requests preserve the input. Download files before
 sessions expire. This in-memory queue does not persist or cancel running jobs.
 
+The same Gradio host exposes `/generate_cif` for scripts. It accepts an annotated
+CIF string and the provider's options, validates the CIF through Studio, and
+returns `designs` (CIF strings) and `warnings`. For a private Space:
+
+```python
+import os
+from pathlib import Path
+
+from gradio_client import Client
+
+client = Client("https://<space>.hf.space/design/", token=os.environ["HF_TOKEN"])
+result = client.predict(
+    Path("input.cif").read_text(),
+    {"task": "antibody_design", "thinking": "medium", "samples": 1, "seed": 42},
+    api_name="/generate_cif",
+)
+Path("design.cif").write_text(result["designs"][0])
+```
+
+The editor button and this endpoint call the same validated model callback.
+
 The deployment owns model weights, CUDA dependencies and execution. Pass native
 noise defaults from its inference configuration to the RFD4 provider. No Torch
 model, model download, GPU provisioning or job-provider registry is added to

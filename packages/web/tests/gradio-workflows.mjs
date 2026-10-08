@@ -84,6 +84,27 @@ try {
     await demo.waitForFunction(id => document.querySelector('iframe[title="AtomWorks Studio"]').dataset.sessionId === id, resultSession);
     await demo.frameLocator('iframe[title="AtomWorks Studio"]').locator('#status-message').filter({hasText: 'Restored native AtomWorks session.'}).waitFor({timeout: 120000});
     ui = await demo.locator('iframe[title="AtomWorks Studio"]').elementHandle().then(element => element.contentFrame());
+    let visiblePixels = 0;
+    const renderDeadline = Date.now() + 30000;
+    do {
+      await page.waitForTimeout(400);
+      const frame = await ui.locator('#viewer canvas').first().screenshot();
+      visiblePixels = await page.evaluate(async data => {
+        const bitmap = await createImageBitmap(await (await fetch(`data:image/png;base64,${data}`)).blob());
+        const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+        const context = canvas.getContext('2d');
+        context.drawImage(bitmap, 0, 0);
+        const pixels = context.getImageData(0, 0, bitmap.width, bitmap.height).data;
+        let count = 0;
+        for (let y = 3; y < bitmap.height - 3; y++) for (let x = 150; x < bitmap.width - 150; x++) {
+          const i = (y * bitmap.width + x) * 4;
+          if (Math.max(pixels[i], pixels[i + 1], pixels[i + 2]) > 50) count++;
+        }
+        return count;
+      }, frame.toString('base64'));
+    } while (visiblePixels <= 100 && Date.now() < renderDeadline);
+    assert.ok(visiblePixels > 100, `Generated design is visible (${visiblePixels} pixels)`);
+    await ui.locator('#viewer canvas').first().screenshot({path: join(output, 'gradio-rendered-canvas.png')});
     await demo.evaluate(() => window.scrollTo(0, 0));
     await page.evaluate(() => window.scrollTo(0, 0));
     await page.screenshot({path: join(output, 'gradio-result.png'), fullPage: true});
