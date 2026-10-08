@@ -107,4 +107,4 @@ All panel operations are also available as `aw_*` console commands for scripting
 
 Install the new plugin and annotation wheels in the same environment, then restart
 PyMOL. Source users can update the checkout and repeat the source installation.
-Report bugs in the [Studio issue tracker](https://github.com/baker-laboratory/atomworks-studio/issues).
+Report bugs in the [Studio issue tracker](https://github.com/RosettaCommons/atomworks-studio/issues).

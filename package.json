@@ -1,5 +1,5 @@
 {
-  "name": "@baker-laboratory/atomworks-studio",
+  "name": "@rosettacommons/atomworks-studio",
   "version": "0.1.0",
   "private": true,
   "packageManager": "pnpm@11.16.0",
