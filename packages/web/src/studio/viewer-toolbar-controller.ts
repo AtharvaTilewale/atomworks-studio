@@ -262,6 +262,7 @@ export class ViewerToolbarController {
   }
 
   async switchRenderer(mode: ViewerMode): Promise<void> {
+    closeToolbarMenus();
     await this.options.runViewerUpdate(async () => {
       const viewer = this.options.viewer();
       const notice = element("renderer-notice");
