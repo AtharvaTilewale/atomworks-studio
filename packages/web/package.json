@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@baker-laboratory/patinae-viewer": "file:vendor/patinae-viewer-0.5.1-studio.1.tgz",
-    "molstar": "5.11.0"
+    "molstar": "5.13.0"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
