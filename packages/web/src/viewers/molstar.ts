@@ -156,6 +156,7 @@ export class MolstarAdapter implements ViewerAdapter {
 
   async loadCifs(structures: ViewerStructure[]): Promise<void> {
     if (!this.viewer) throw new Error("Mol* is not initialized");
+    this.unpositionedAtoms = [];
     this.displayComponents.clear();
     this.comparisonColors.clear();
     this.annotationGroups = [];
