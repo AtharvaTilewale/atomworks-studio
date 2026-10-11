@@ -48,8 +48,8 @@ importers:
         specifier: ^1.63.0
         version: 1.63.0
       sass:
-        specifier: ^1.103.1
-        version: 1.103.1
+        specifier: ^1.105.1
+        version: 1.105.1
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -2442,8 +2442,8 @@ packages:
     resolution: {integrity: sha512-9u/sniCrY3D5WdsERHzHE4G2YCXqoG5FTHUiCC4SIbr6XcLZBY05ya9EKjYek9O5xOAwjGq+1JdGBAS7Q9ScoA==}
     engines: {node: '>= 6'}
 
-  readdirp@5.0.0:
-    resolution: {integrity: sha512-9u/XQ1pvrQtYyMpZe7DXKv2p5CNvyVwzUB6uhLAnQwHMSgKMBR62lc7AHljaeteeHXn11XTAaLLUVZYVZyuRBQ==}
+  readdirp@5.1.1:
+    resolution: {integrity: sha512-Kko+Y5XQ6fM+Ce3dq3m9YGxnacYZYl9cA1wZjaF3Vbry2L3i1qVg8+CAgNPsXRArPMUMCaOR7oa9Nqntc43JKA==}
     engines: {node: '>= 20.19.0'}
 
   remark-gfm@4.0.1:
@@ -2491,8 +2491,8 @@ packages:
   safer-buffer@2.1.2:
     resolution: {integrity: sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg==}
 
-  sass@1.103.1:
-    resolution: {integrity: sha512-9icZURbP51S6S0QGoyaeqk9uB06GNWxsFYWfH5RgpFgqK5FA8tJcM3AdVxrZEVJ7dz+L87nG95gBKf4VuaMHGw==}
+  sass@1.105.1:
+    resolution: {integrity: sha512-1CnAWPyrrnVQzXGB/DUep1vYCKCm1CIBr+YxjjiW6wk9qtzemnGP4qicH56T2F9S4Hjtv/Ne3jDz8JqfdDU4oA==}
     engines: {node: '>=20.19.0'}
     hasBin: true
 
@@ -3391,7 +3391,7 @@ snapshots:
       detect-libc: 2.1.2
       is-glob: 4.0.3
       node-addon-api: 7.1.1
-      picomatch: 4.0.5
+      picomatch: 4.0.7
     optionalDependencies:
       '@parcel/watcher-android-arm64': 2.6.0
       '@parcel/watcher-darwin-arm64': 2.6.0
@@ -3990,7 +3990,7 @@ snapshots:
 
   chokidar@5.0.0:
     dependencies:
-      readdirp: 5.0.0
+      readdirp: 5.1.1
 
   chownr@1.1.4:
     optional: true
@@ -5279,6 +5279,9 @@ snapshots:
 
   picomatch@4.0.7: {}
 
+  picomatch@4.0.7:
+    optional: true
+
   playwright-core@1.63.0: {}
 
   pluralize@2.0.0: {}
@@ -5399,7 +5402,7 @@ snapshots:
       util-deprecate: 1.0.2
     optional: true
 
-  readdirp@5.0.0: {}
+  readdirp@5.1.1: {}
 
   remark-gfm@4.0.1(supports-color@10.2.2):
     dependencies:
@@ -5484,11 +5487,11 @@ snapshots:
 
   safer-buffer@2.1.2: {}
 
-  sass@1.103.1:
+  sass@1.105.1:
     dependencies:
       chokidar: 5.0.0
       immutable: 5.1.9
-      source-map-js: 1.2.1
+      source-map-js: 1.2.2
     optionalDependencies:
       '@parcel/watcher': 2.6.0
 
@@ -5854,7 +5857,7 @@ snapshots:
       '@types/node': 26.6.3
       esbuild: 0.28.1
       fsevents: 2.3.3
-      sass: 1.103.1
+      sass: 1.105.1
 
   whatwg-encoding@3.1.1:
     dependencies:
