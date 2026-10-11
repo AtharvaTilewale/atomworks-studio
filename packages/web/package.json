@@ -19,7 +19,7 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
-    "@types/node": "^26.6.3",
+    "@types/node": "^26.6.4",
     "openapi-typescript": "^7.13.0",
     "playwright-core": "^1.63.0",
     "sass": "^1.105.1",
