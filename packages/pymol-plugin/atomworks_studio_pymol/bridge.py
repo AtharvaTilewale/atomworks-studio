@@ -26,11 +26,12 @@ from atomworks_studio_editing.structure_mutations import (
     deletion_would_create_res_id_gap,
     refresh_chain_derived_annotations,
 )
+from biotite.structure import AtomArrayStack
+from pymol import cmd
+
 from atomworks_studio_pymol.display import prepare_for_display
 from atomworks_studio_pymol.state import STATE
 from atomworks_studio_pymol.views import apply_current_view
-from biotite.structure import AtomArrayStack
-from pymol import cmd
 
 logger = logging.getLogger("atomworks_studio_pymol")
 

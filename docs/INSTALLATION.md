@@ -5,17 +5,14 @@ is needed. Python 3.12 is supported. RFD4 annotation definitions are included; n
 
 ## Choose an interface
 
-| Package | Use |
-| --- | --- |
-| `atomworks-studio` | Browser application, API, and launch command. |
-| `atomworks-studio-pymol` | Native PyMOL plugin, without the web server. |
+`atomworks-studio` is the only package. It provides the browser application,
+API and launch command, the shared editing library, the RFD4 annotation adapter,
+and the native PyMOL plugin. Install it in the Python environment that runs
+PyMOL to use the plugin; Conda supplies PyMOL, Qt, and compatible native
+libraries. Register the plugin once, then use **Plugin → AtomWorks Studio**.
 
-Pip installs either package. The PyMOL plugin belongs in the Python environment
-that runs PyMOL; Conda supplies PyMOL, Qt, and compatible native libraries.
-Register the plugin once, then use **Plugin → AtomWorks Studio**.
-
-Studio itself is still a review build. Use source or the built Studio wheels
-below; the public AtomWorks dependency resolves automatically from PyPI.
+The package is published on PyPI; the public AtomWorks dependency
+resolves automatically.
 
 ## What the pip installation provides
 
@@ -53,42 +50,34 @@ and GPU provisioning belong to the model deployment. The optional
 [`gradio` extra](INTEGRATIONS.md#model-enabled-gradio-host) connects that deployment
 to the same editor.
 
-## Install built wheels
-
-Build from a bootstrapped checkout:
-
-```bash
-make build
-uv run scripts/check_distribution_assets.py dist
-```
+## Install from PyPI
 
 The Studio wheel and source archive contain the API, compiled browser, WASM, and searchable guide.
 Installing built wheels does not require Node, Rust, or the source checkout.
-In a fresh Python 3.12 environment, with the Studio wheels in `dist/`:
+In a fresh Python 3.12 environment:
 
 ```bash
-python -m pip install --find-links dist dist/atomworks_studio-0.1.0-*.whl
+python -m pip install atomworks-studio
 atomworks-studio
 ```
 
 For an existing PyMOL environment, install only the plugin:
 
 ```bash
-python -m pip install --find-links dist dist/atomworks_studio_pymol-0.1.0-*.whl
+python -m pip install atomworks-studio
 atomworks-studio-pymol install
 ```
 
-`atomworks-studio[pymol]` is also available for an environment intentionally
-running both interfaces. Neither installation includes model weights or workers.
+The same installation serves the browser and PyMOL interfaces. It includes no model weights or workers.
 
 ## PyMOL from source
 
 From the Studio checkout:
 
 ```bash
-conda env create -f packages/pymol-plugin/pymol_env.yaml
+conda env create -f packages/pymol-plugin/atomworks_studio_pymol/pymol_env.yaml
 conda activate atomworks
-python -m pip install -e packages/editing -e providers/rfd4 -e packages/pymol-plugin
+python -m pip install -e .
 python -m atomworks_studio_pymol install
 pymol
 ```
@@ -108,7 +97,7 @@ Build the browser with the [development prerequisites](DEVELOPMENT.md), then:
 ```bash
 pnpm --dir packages/web build
 make docs
-python -m pip install -e packages/editing -e providers/rfd4 -e .
+python -m pip install -e .
 atomworks-studio
 ```
 
@@ -120,3 +109,13 @@ Open <http://127.0.0.1:8000/>. Set another address with
 
 See [acceptance checks](ACCEPTANCE.md) for installed-package and interface tests,
 and the [release guide](RELEASE.md) for version tags and publishing.
+
+## Install built wheels
+
+To test a local build, build from a bootstrapped checkout and install from `dist/`:
+
+```bash
+make build
+uv run scripts/check_distribution_assets.py dist
+python -m pip install --find-links dist atomworks-studio
+```

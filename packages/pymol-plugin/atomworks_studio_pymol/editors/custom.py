@@ -12,6 +12,7 @@ modules at class-definition time — only at registration time here.
 
 from atomworks.io.utils.standard_annotations import S_SEGMAX, S_SEGMIN
 from atomworks.ml.conditions import CONDITIONS
+
 from atomworks_studio_pymol.editors import exclude_annotation, register_editor
 from atomworks_studio_pymol.editors.widgets import CoordinateEditor, MaskEditor, SequenceEditor
 

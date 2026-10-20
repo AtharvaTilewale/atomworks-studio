@@ -17,6 +17,8 @@ import logging
 
 from atomworks.io.config import ParseConfig
 from atomworks.io.utils.io_utils import to_cif_file
+from pymol import cmd
+
 from atomworks_studio_pymol.bridge import (
     combine_visible,
     load_structure,
@@ -24,7 +26,6 @@ from atomworks_studio_pymol.bridge import (
     selection_to_indices,
 )
 from atomworks_studio_pymol.state import STATE
-from pymol import cmd
 
 logger = logging.getLogger("atomworks_studio_pymol")
 

@@ -8,10 +8,11 @@ import logging
 
 import numpy as np
 from atomworks.io.utils.atom_array_plus import AtomArrayPlus
-from atomworks_studio_pymol.bridge import reload_structure_in_pymol, selection_to_indices
-from atomworks_studio_pymol.state import PluginState
 from pymol import cmd
 from pymol.Qt import QtWidgets
+
+from atomworks_studio_pymol.bridge import reload_structure_in_pymol, selection_to_indices
+from atomworks_studio_pymol.state import PluginState
 
 logger = logging.getLogger("atomworks_studio_pymol")
 

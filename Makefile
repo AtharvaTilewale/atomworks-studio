@@ -7,7 +7,7 @@ bootstrap:
 	bash scripts/build_patinae_viewer.sh
 	corepack enable
 	pnpm install --frozen-lockfile
-	uv sync --all-packages --all-extras --all-groups
+	uv sync --all-extras --all-groups
 	rustup target add wasm32-unknown-unknown
 
 format:
@@ -31,7 +31,7 @@ test:
 
 build: docs
 	pnpm build
-	uv build --all-packages
+	uv build
 	cargo build --workspace --release --locked
 
 run:

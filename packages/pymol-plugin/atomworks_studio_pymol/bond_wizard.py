@@ -8,15 +8,16 @@ import logging
 import os
 
 from atomworks_studio_editing.document import BOND_TYPES
+from biotite.structure.bonds import BondType
+from pymol import cmd
+from pymol.Qt import QtCore, QtWidgets
+
 from atomworks_studio_pymol.bridge import (
     _pymol_resi_to_res_id_ins_code,
     reload_structure_in_pymol,
     selection_to_indices,
 )
 from atomworks_studio_pymol.state import PluginState
-from biotite.structure.bonds import BondType
-from pymol import cmd
-from pymol.Qt import QtCore, QtWidgets
 
 logger = logging.getLogger("atomworks_studio_pymol")
 

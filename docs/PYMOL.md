@@ -3,14 +3,14 @@
 Load, annotate, and save molecular structures inside PyMOL. The plugin uses the
 same editing library as the browser, with native Qt controls and no web server.
 Install it in the Python environment that runs PyMOL; PyMOL and Qt are host
-dependencies. See [installation](INSTALLATION.md) for wheel installs.
+dependencies. See [installation](INSTALLATION.md) for details.
 
 ## Setup
 
-Install the plugin wheel in the Python environment that runs PyMOL:
+Install the plugin from PyPI in the Python environment that runs PyMOL:
 
 ```bash
-python -m pip install --find-links dist dist/atomworks_studio_pymol-0.1.0-*.whl
+python -m pip install atomworks-studio
 atomworks-studio-pymol install
 pymol
 ```
@@ -18,9 +18,9 @@ pymol
 For a native environment and source installation:
 
 ```bash
-conda env create -f packages/pymol-plugin/pymol_env.yaml
+conda env create -f packages/pymol-plugin/atomworks_studio_pymol/pymol_env.yaml
 conda activate atomworks
-python -m pip install -e packages/editing -e providers/rfd4 -e packages/pymol-plugin
+python -m pip install -e .
 atomworks-studio-pymol install
 pymol
 ```

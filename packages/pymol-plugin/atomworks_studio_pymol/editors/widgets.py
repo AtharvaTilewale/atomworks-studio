@@ -16,6 +16,10 @@ from atomworks.io.utils.atom_array_plus import AnnotationList2D
 from atomworks.io.utils.standard_annotations.base import StandardAnnotationBase
 from atomworks_studio_editing.annotations import set_annotation_mask
 from atomworks_studio_editing.mutations import set_condition_mask
+from pymol import cmd
+from pymol.Qt import QtCore
+from pymol.Qt import QtWidgets as _QtWidgets
+
 from atomworks_studio_pymol.bridge import (
     _pymol_resi_to_res_id_ins_code,
     reload_structure_in_pymol,
@@ -23,9 +27,6 @@ from atomworks_studio_pymol.bridge import (
 )
 from atomworks_studio_pymol.state import PluginState
 from atomworks_studio_pymol.views import apply_current_view
-from pymol import cmd
-from pymol.Qt import QtCore
-from pymol.Qt import QtWidgets as _QtWidgets
 
 logger = logging.getLogger("atomworks_studio_pymol")
 

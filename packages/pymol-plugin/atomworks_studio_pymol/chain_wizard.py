@@ -10,12 +10,13 @@ import logging
 
 import numpy as np
 from atomworks.io.utils.chain import create_chain_id_generator
+from pymol.Qt import QtWidgets
+
 from atomworks_studio_pymol.bridge import (
     reload_structure_in_pymol,
     selection_to_indices,
 )
 from atomworks_studio_pymol.state import PluginState
-from pymol.Qt import QtWidgets
 
 logger = logging.getLogger("atomworks_studio_pymol")
 

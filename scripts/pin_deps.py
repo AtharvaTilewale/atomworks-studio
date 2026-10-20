@@ -27,17 +27,9 @@ def main() -> None:
     assert patches, "Patinae patch series is empty"
 
     atomworks_requirement = f"atomworks[ml]=={manifest['atomworks']['version']}"
-    dependency_manifests = (
-        ROOT / "pyproject.toml",
-        ROOT / "packages/editing/pyproject.toml",
-        ROOT / "packages/pymol-plugin/pyproject.toml",
-    )
-    for path in dependency_manifests:
-        dependencies = tomllib.loads(path.read_text())["project"]["dependencies"]
-        assert atomworks_requirement in dependencies, (
-            f"{path.relative_to(ROOT)} must require the reviewed public AtomWorks release"
-        )
-        assert all("../../../" not in item for item in dependencies)
+    dependencies = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["dependencies"]
+    assert atomworks_requirement in dependencies, "pyproject.toml must require the reviewed public AtomWorks release"
+    assert all("../../../" not in item for item in dependencies)
 
     rfd4 = manifest["rfd4"]
     assert re.fullmatch(r"[0-9a-f]{40}", rfd4["revision"]), "RFD4 revision must be a 40-hex commit"
