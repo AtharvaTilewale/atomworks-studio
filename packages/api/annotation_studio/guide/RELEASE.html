@@ -75,7 +75,7 @@ Run <code class="docutils literal notranslate"><span class="pre">python</span> <
 <li><p>Push the matching <code class="docutils literal notranslate"><span class="pre">v&lt;version&gt;</span></code> tag. A manual workflow run must also select
 that tag; branch refs and the rolling <code class="docutils literal notranslate"><span class="pre">vscode-latest</span></code> tag are rejected.</p></li>
 </ol>
-<p>The workflow runs the full CI suite for the tagged commit. The package job
+<p>The workflow runs the CI suite for the tagged commit (currently without the browser acceptance job; see the comment in <code class="docutils literal notranslate"><span class="pre">release.yaml</span></code>). The package job
 builds the wheel and source archive, rejects missing or stale artifacts,
 checks package metadata with Twine, and installs the built Studio wheel in a
 fresh environment outside the checkout. It exercises CLI startup, bundled
