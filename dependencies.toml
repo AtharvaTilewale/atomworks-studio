@@ -3,7 +3,7 @@
 
 [atomworks]
 package = "atomworks"
-version = "3.0.1"
+version = "3.0.4"
 repository = "https://github.com/RosettaCommons/atomworks.git"
 
 [rfd4]
