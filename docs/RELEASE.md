@@ -12,8 +12,9 @@ The editor keeps `atomworks[ml]==3.0.1`, including Torch. Native PyMOL is an opt
 
 The publishing repository is `RosettaCommons/atomworks-studio`.
 Development history stays in the private `baker-laboratory/atomworks-studio-dev` repository.
-Only reviewed source snapshots are copied to RosettaCommons; its Git history starts
-with one initial commit. Repository visibility is managed separately from releases.
+`release/rosettacommons` from the development repository is mirrored there commit for commit
+(see [Promote development to RosettaCommons](#promote-development-to-rosettacommons)).
+Repository visibility is managed separately from releases.
 
 Create a GitHub environment named `pypi`. Register a
 [PyPI Trusted Publisher](https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/)
@@ -74,13 +75,19 @@ archive checks verify the bundled copies. Users need no checkout to annotate.
 
 ## Promote development to RosettaCommons
 
-Work in `atomworks-studio-dev` first. Merge reviewed changes to `main`, then
-fast-forward `release/rosettacommons` to that exact commit. Wait for its **CI**
-workflow to pass, including package, Docker Space, browser, and documentation
-checks. Never substitute an older green run for the release commit.
+Work in `atomworks-studio-dev` first. `release/rosettacommons` is the clean branch
+that `RosettaCommons/atomworks-studio` mirrors: the same commits, never rewritten.
+It equals `main` plus the committed browser bundle and guide, so `pip install`
+from the public repository needs no Node, Rust or Sphinx.
 
-Copy only that branch's tracked files into a clean RosettaCommons checkout and
-commit them there. Compare the two `HEAD^{tree}` hashes before pushing; they
-must match. Keep the RosettaCommons commit history linear and do not rewrite
-published release tags. After pushing, wait for its **CI** and **VS Code
-extension** workflows before tagging a PyPI release.
+1. Merge reviewed changes to `main` (use merge commits, not squashes, so the release branch can merge `main` cleanly).
+2. `make build`, then `scripts/make_release_branch.sh`. It merges `origin/main` into
+   `release/rosettacommons` and commits the fresh bundle and guide.
+3. Push the branch to `origin`, wait for its **CI** workflow to pass, including
+   package, Docker Space, browser, and documentation checks. Never substitute an
+   older green run for the release commit.
+4. Push that same branch to the RosettaCommons remote as `main`
+   (`git push rosettacommons release/rosettacommons:main`), and wait for its **CI** and
+   **VS Code extension** workflows before tagging a PyPI release there.
+
+Do not rewrite published release tags.
