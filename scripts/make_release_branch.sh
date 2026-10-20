@@ -17,6 +17,12 @@ for dir in "${generated[@]}"; do
   test -f "$dir/index.html" || { echo "$dir is missing; run 'make build' first." >&2; exit 1; }
 done
 
+# The built output is tracked on the release branch, so switching to it would replace the fresh
+# build with the previously committed copy. Keep the fresh build aside and restore it afterwards.
+stash="$(mktemp -d)"
+trap 'rm -rf "$stash"' EXIT
+for dir in "${generated[@]}"; do cp -R "$dir" "$stash/$(basename "$dir")"; done
+
 git fetch --quiet origin
 if git show-ref --verify --quiet "refs/heads/$branch"; then
   git switch --quiet "$branch"
@@ -26,6 +32,10 @@ else
 fi
 
 # Built output is ignored on development branches but tracked on the release branch.
+for dir in "${generated[@]}"; do
+  rm -rf "$dir"
+  cp -R "$stash/$(basename "$dir")" "$dir"
+done
 sed -i.bak -e '\#^packages/api/annotation_studio/web/$#d' -e '\#^packages/api/annotation_studio/guide/$#d' .gitignore
 rm -f .gitignore.bak
 git rm -r --cached --quiet --ignore-unmatch "${generated[@]}"

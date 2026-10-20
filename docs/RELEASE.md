@@ -90,4 +90,5 @@ from the public repository needs no Node, Rust or Sphinx.
    (`git push rosettacommons release/rosettacommons:main`), and wait for its **CI** and
    **VS Code extension** workflows before tagging a PyPI release there.
 
-Do not rewrite published release tags.
+The release branch deletes the two build-output lines from `.gitignore`; keep edits to
+that file away from them on `main` to avoid merge conflicts. Do not rewrite published release tags.

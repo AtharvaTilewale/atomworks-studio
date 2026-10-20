@@ -61,7 +61,7 @@ python -m pip install atomworks-studio
 atomworks-studio
 ```
 
-For an existing PyMOL environment, install only the plugin:
+The PyMOL plugin is part of the same package. In an existing PyMOL environment:
 
 ```bash
 python -m pip install atomworks-studio
