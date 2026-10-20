@@ -185,7 +185,7 @@ jobs:
       - name: Install native host and browser test dependencies
         shell: bash -el {0}
         run: |
-          uv pip install --python "$CONDA_PREFIX/bin/python" --find-links dist -e '.[test,pymol]' 'numpy<2' 'scipy<1.17'
+          uv pip install --python "$CONDA_PREFIX/bin/python" --find-links dist -e '.[test]' 'numpy<2' 'scipy<1.17'
           pnpm install --frozen-lockfile
           pnpm --dir packages/web exec playwright-core install chromium --no-shell
       - name: Compare real PyMOL, Patinae and Mol* actions and saved structures
