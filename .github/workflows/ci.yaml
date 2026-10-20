@@ -2,6 +2,11 @@ name: CI
 
 on:
   workflow_call:
+    inputs:
+      acceptance:
+        description: Run the browser acceptance suite (scripts/accept_local.sh)
+        type: boolean
+        default: true
   pull_request:
   push:
     branches: [main, release/rosettacommons]
@@ -133,6 +138,7 @@ jobs:
             target/release/libpatinae_annotation_studio.so
 
   integration:
+    if: ${{ inputs.acceptance != false }}
     runs-on: ubuntu-latest
     needs: [policy, static, unit]
     steps:

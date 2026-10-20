@@ -57,7 +57,7 @@ try {
     viewerMode,
   );
   assert.deepEqual(await page.locator(".viewer-menu > summary").allTextContents(), [
-    "Style", "Analyze", "View", "Backend",
+    "Style", "Analyze", "Backend",
   ]);
   assert.deepEqual(await page.locator("#selection-syntax option").allTextContents(),
     viewerMode === "molstar" ? ["AtomWorks query"] : ["PyMOL commands", "AtomWorks query"]);
