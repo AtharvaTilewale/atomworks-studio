@@ -11,9 +11,8 @@ requires-python = ">=3.12,<3.13"
 license = "BSD-3-Clause"
 dependencies = [
     "atomworks[ml]==3.0.1",
-    "atomworks-studio-editing>=0.0.1,<0.1",
-    "atomworks-annotation-studio-rfd4==0.0.1",
     "fastapi>=0.115,<2",
+    "numpy>=1.26,<3",
     "pydantic>=2.10,<3",
     "python-multipart>=0.0.20,<1",
     "uvicorn>=0.34,<1",
@@ -21,7 +20,10 @@ dependencies = [
 
 [project.optional-dependencies]
 gradio = ["gradio>=6.29,<7", "httpx>=0.28,<1"]
-pymol = ["atomworks-studio-pymol==0.0.1"]
+# PyPI PyMOL/Qt for pip-only environments (CI). Do NOT install these into a conda
+# PyMOL environment -- packages/pymol-plugin/atomworks_studio_pymol/pymol_env.yaml already supplies
+# PyMOL and Qt there, and the PyPI wheels would clobber the conda build.
+pymol-pip = ["pymol-open-source>=3.2.0a0", "pyqt5>=5.15.11"]
 test = ["httpx2>=2.8,<3", "pytest>=8.2,<10"]
 
 [project.urls]
@@ -30,30 +32,42 @@ Source = "https://github.com/RosettaCommons/atomworks-studio"
 
 [project.scripts]
 atomworks-studio = "annotation_studio.cli:main"
+atomworks-studio-pymol = "atomworks_studio_pymol.installation:main"
+
+[project.entry-points."atomworks_studio.annotations"]
+rfd4 = "atomworks_studio_rfd4"
+
+[project.entry-points."pymol.plugins"]
+atomworks_studio = "atomworks_studio_pymol:__init_plugin__"
 
 [tool.hatch.build]
 exclude = ["packages/api/annotation_studio/web", "packages/api/annotation_studio/guide"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/atomworks_studio", "packages/api/annotation_studio"]
+packages = [
+    "src/atomworks_studio",
+    "packages/api/annotation_studio",
+    "packages/editing/atomworks_studio_editing",
+    "packages/pymol-plugin/atomworks_studio_pymol",
+    "providers/rfd4/atomworks_studio_rfd4",
+]
 
 [tool.hatch.build.targets.sdist]
-include = ["src/atomworks_studio", "packages/api/annotation_studio", "hatch_build.py", "pyproject.toml", "README.md", "LICENSE.md"]
+include = [
+    "src/atomworks_studio",
+    "packages/api/annotation_studio",
+    "packages/editing/atomworks_studio_editing",
+    "packages/pymol-plugin/atomworks_studio_pymol",
+    "providers/rfd4/atomworks_studio_rfd4",
+    "providers/rfd4/UPSTREAM.toml",
+    "hatch_build.py",
+    "pyproject.toml",
+    "README.md",
+    "LICENSE.md",
+]
 
 [tool.hatch.build.hooks.custom]
 path = "hatch_build.py"
-
-[tool.uv.workspace]
-members = [
-    "packages/editing",
-    "packages/pymol-plugin",
-    "providers/rfd4",
-]
-
-[tool.uv.sources]
-atomworks-studio-editing = { workspace = true }
-atomworks-studio-pymol = { workspace = true }
-atomworks-annotation-studio-rfd4 = { workspace = true }
 
 [tool.ruff]
 extend-exclude = ["providers/rfd4/atomworks_studio_rfd4/_upstream"]
@@ -67,8 +81,8 @@ select = ["B", "E", "F", "I", "N", "RUF", "UP"]
 # FastAPI uses calls in defaults to declare request parsing.
 "packages/api/annotation_studio/main.py" = ["B008"]
 # PyMOL/Qt plugin boundaries must contain arbitrary host and third-party plugin failures.
-"packages/pymol-plugin/*.py" = ["BLE001", "N807", "N999"]
-"packages/pymol-plugin/**/*.py" = ["BLE001", "N999"]
+"packages/pymol-plugin/atomworks_studio_pymol/*.py" = ["BLE001", "N807", "N999"]
+"packages/pymol-plugin/atomworks_studio_pymol/**/*.py" = ["BLE001", "N999"]
 # PyMOL must be initialized before importing modules that bind to its command API.
 "packages/pymol-plugin/tests/conftest.py" = ["E402"]
 # Optional RFD4 PyMOL editors follow Qt/PyMOL naming and broad-except conventions.

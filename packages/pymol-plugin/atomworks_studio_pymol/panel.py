@@ -23,6 +23,9 @@ from atomworks_studio_editing.annotations import has_stored_mask
 from atomworks_studio_editing.layout import EDITOR_TABS
 from atomworks_studio_editing.loading import LOAD_FIELDS, build_load_config, inspect_import
 from atomworks_studio_editing.validation import validate_atom_array_for_save
+from pymol import cmd
+from pymol.Qt import QtCore, QtWidgets
+
 from atomworks_studio_pymol.bond_wizard import BondWizard
 from atomworks_studio_pymol.bridge import (
     combine_visible,
@@ -43,8 +46,6 @@ from atomworks_studio_pymol.views import (
     get_default_view_name,
     set_default_view,
 )
-from pymol import cmd
-from pymol.Qt import QtCore, QtWidgets
 
 logger = logging.getLogger("atomworks_studio_pymol")
 

@@ -17,13 +17,8 @@ with one initial commit. Repository visibility is managed separately from releas
 
 Create a GitHub environment named `pypi`. Register a
 [PyPI Trusted Publisher](https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/)
-for each distribution below, using owner `RosettaCommons`, repository
-`atomworks-studio`, workflow `release.yaml`, and environment `pypi`:
-
-- `atomworks-studio`
-- `atomworks-studio-editing`
-- `atomworks-studio-pymol`
-- `atomworks-annotation-studio-rfd4`
+for `atomworks-studio`, using owner `RosettaCommons`, repository
+`atomworks-studio`, workflow `release.yaml`, and environment `pypi`.
 
 No PyPI API token or private dependency token is needed. CI uses the bundled,
 hash-verified scientific definitions.
@@ -46,13 +41,13 @@ Optional destinations:
    that tag; branch refs and the rolling `vscode-latest` tag are rejected.
 
 The workflow runs the full CI suite for the tagged commit. The package job
-builds all four wheels and source archives, rejects missing or stale artifacts,
+builds the wheel and source archive, rejects missing or stale artifacts,
 checks package metadata with Twine, and installs the built Studio wheel in a
 fresh environment outside the checkout. It exercises CLI startup, bundled
 browser/WASM assets, CIF loading, protonation, selections, export, and Undo.
 CI also checks the native PyMOL plugin, browser workflows and docs.
 
-Only after those jobs succeed does the `publish` job upload the eight Python
+Only after those jobs succeed does the `publish` job upload the Python
 artifacts to PyPI through OIDC. The GitHub release then receives the same
 packages, VSIX, docs archive, checksums, and build provenance.
 
@@ -66,7 +61,7 @@ can catch stale packages:
 ```bash
 pnpm build
 make docs
-uv build --all-packages --out-dir dist
+uv build --out-dir dist
 uv run scripts/check_distribution_assets.py dist
 uv run --no-project --with twine python -m twine check --strict dist/*
 ```

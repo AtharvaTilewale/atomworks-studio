@@ -12,6 +12,8 @@ and CIF parsing. Studio owns the editing interface and transactional Undo.
 | `packages/vscode` | Embeds the browser editor and forwards the host theme. |
 | `packages/pymol-plugin` | Native Qt controls and synchronization with PyMOL objects. |
 
+All components ship together in the single `atomworks-studio` Python distribution.
+
 Browser and VS Code use the API's document as their source of truth. PyMOL keeps
 a `StudioDocument` per object in process. All hosts load the same installed
 annotation provider. Files, values, levels, defaults, and coupled coordinate edits

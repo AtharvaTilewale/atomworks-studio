@@ -35,7 +35,7 @@ Node and Rust are only needed to build from source.
 For VS Code, install the release VSIX, then
 run **AtomWorks: Open Studio** from the Command Palette. Its Python backend starts automatically.
 
-For native PyMOL, install `atomworks-studio-pymol` in PyMOL's Python environment
+For native PyMOL, install `atomworks-studio` in PyMOL's Python environment
 and run `atomworks-studio-pymol install`. Open **Plugin → AtomWorks Studio**.
 PyMOL and Qt are supplied by the host environment, not the browser wheel.
 

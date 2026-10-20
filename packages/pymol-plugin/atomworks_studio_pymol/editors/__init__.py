@@ -17,6 +17,7 @@ from collections.abc import Callable
 
 from atomworks.io.utils.standard_annotations.base import StandardAnnotationBase
 from atomworks_studio_editing.annotations import editing_type, is_boolean, is_structure_derived
+
 from atomworks_studio_pymol.editors.widgets import BaseAnnotationEditor, MaskEditor, PairValueEditor, ScalarEditor
 
 _editor_registry: dict[type[StandardAnnotationBase], Callable[..., BaseAnnotationEditor]] = {}

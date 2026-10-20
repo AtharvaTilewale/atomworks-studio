@@ -5,16 +5,13 @@ is needed. Python 3.12 is supported. RFD4 annotation definitions are included; n
 
 ## Choose an interface
 
-| Package | Use |
-| --- | --- |
-| `atomworks-studio` | Browser application, API, and launch command. |
-| `atomworks-studio-pymol` | Native PyMOL plugin, without the web server. |
+`atomworks-studio` is the only package. It provides the browser application,
+API and launch command, the shared editing library, the RFD4 annotation adapter,
+and the native PyMOL plugin. Install it in the Python environment that runs
+PyMOL to use the plugin; Conda supplies PyMOL, Qt, and compatible native
+libraries. Register the plugin once, then use **Plugin → AtomWorks Studio**.
 
-Pip installs either package. The PyMOL plugin belongs in the Python environment
-that runs PyMOL; Conda supplies PyMOL, Qt, and compatible native libraries.
-Register the plugin once, then use **Plugin → AtomWorks Studio**.
-
-Both packages are published on PyPI; the public AtomWorks dependency
+The package is published on PyPI; the public AtomWorks dependency
 resolves automatically.
 
 ## What the pip installation provides
@@ -67,21 +64,20 @@ atomworks-studio
 For an existing PyMOL environment, install only the plugin:
 
 ```bash
-python -m pip install atomworks-studio-pymol
+python -m pip install atomworks-studio
 atomworks-studio-pymol install
 ```
 
-`atomworks-studio[pymol]` is also available for an environment intentionally
-running both interfaces. Neither installation includes model weights or workers.
+The same installation serves the browser and PyMOL interfaces. It includes no model weights or workers.
 
 ## PyMOL from source
 
 From the Studio checkout:
 
 ```bash
-conda env create -f packages/pymol-plugin/pymol_env.yaml
+conda env create -f packages/pymol-plugin/atomworks_studio_pymol/pymol_env.yaml
 conda activate atomworks
-python -m pip install -e packages/editing -e providers/rfd4 -e packages/pymol-plugin
+python -m pip install -e .
 python -m atomworks_studio_pymol install
 pymol
 ```
@@ -101,7 +97,7 @@ Build the browser with the [development prerequisites](DEVELOPMENT.md), then:
 ```bash
 pnpm --dir packages/web build
 make docs
-python -m pip install -e packages/editing -e providers/rfd4 -e .
+python -m pip install -e .
 atomworks-studio
 ```
 

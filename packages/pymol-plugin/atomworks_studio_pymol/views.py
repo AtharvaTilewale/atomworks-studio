@@ -15,6 +15,8 @@ import numpy as np
 from atomworks.io.utils.atom_array_plus import AtomArrayPlus
 from atomworks.io.utils.standard_annotations import S_ATM
 from atomworks_studio_editing.annotations import has_stored_mask
+from pymol import cmd
+
 from atomworks_studio_pymol.display import (
     _DISPLAY_PLACEHOLDER,
     display_atom_ids,
@@ -22,7 +24,6 @@ from atomworks_studio_pymol.display import (
     prepare_for_display,
 )
 from atomworks_studio_pymol.state import STATE
-from pymol import cmd
 
 logger = logging.getLogger("atomworks_studio_pymol")
 

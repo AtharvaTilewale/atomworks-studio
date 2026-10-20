@@ -10,7 +10,7 @@ dependencies. See [installation](INSTALLATION.md) for details.
 Install the plugin from PyPI in the Python environment that runs PyMOL:
 
 ```bash
-python -m pip install atomworks-studio-pymol
+python -m pip install atomworks-studio
 atomworks-studio-pymol install
 pymol
 ```
@@ -18,9 +18,9 @@ pymol
 For a native environment and source installation:
 
 ```bash
-conda env create -f packages/pymol-plugin/pymol_env.yaml
+conda env create -f packages/pymol-plugin/atomworks_studio_pymol/pymol_env.yaml
 conda activate atomworks
-python -m pip install -e packages/editing -e providers/rfd4 -e packages/pymol-plugin
+python -m pip install -e .
 atomworks-studio-pymol install
 pymol
 ```

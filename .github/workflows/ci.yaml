@@ -41,7 +41,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
         with: { toolchain: 1.97.1, components: "rustfmt,clippy" }
       - run: cargo install wasm-pack --locked --version 0.13.1
-      - run: uv sync --all-packages --all-extras --all-groups
+      - run: uv sync --all-extras --all-groups
       - run: bash scripts/build_patinae_viewer.sh
       - run: pnpm install --frozen-lockfile
       - run: bash scripts/generate_api_types.sh
@@ -64,7 +64,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
         with: { toolchain: 1.97.1 }
       - run: cargo install wasm-pack --locked --version 0.13.1
-      - run: uv sync --all-packages --all-extras --all-groups
+      - run: uv sync --all-extras --all-groups
       - run: bash scripts/build_patinae_viewer.sh
       - run: pnpm install --frozen-lockfile
       - run: cargo test --workspace --locked
@@ -93,14 +93,14 @@ jobs:
         with:
           name: documentation
           path: docs/_build/html
-      - run: uv build --all-packages
+      - run: uv build
       - run: uv run scripts/check_distribution_assets.py dist
       - run: uv run --no-project --with twine python -m twine check --strict dist/*
       - name: Install and exercise the release wheel outside the checkout
         run: |
           uv venv "$RUNNER_TEMP/studio" --python 3.12
           uv pip install --python "$RUNNER_TEMP/studio/bin/python" torch==2.7.1 --index-url https://download.pytorch.org/whl/cpu
-          uv pip install --python "$RUNNER_TEMP/studio/bin/python" --find-links dist dist/atomworks_studio-*.whl dist/atomworks_studio_editing-*.whl
+          uv pip install --python "$RUNNER_TEMP/studio/bin/python" --find-links dist dist/atomworks_studio-*.whl
           uv pip check --python "$RUNNER_TEMP/studio/bin/python"
           cp scripts/check_installed_studio.py "$RUNNER_TEMP/check_installed_studio.py"
           cp tests/fixtures/SAM_hbonds.cif "$RUNNER_TEMP/input.cif"
@@ -109,7 +109,7 @@ jobs:
       - name: Build and exercise the Docker Space recipe
         run: |
           mkdir -p examples/space/wheels
-          cp dist/atomworks_studio-*.whl dist/atomworks_studio_editing-*.whl dist/atomworks_annotation_studio_rfd4-*.whl examples/space/wheels/
+          cp dist/atomworks_studio-*.whl examples/space/wheels/
           docker build -t studio-space examples/space
           docker run -d --name studio-space -p 7860:7860 studio-space
           trap 'docker logs studio-space; docker rm -f studio-space' EXIT
@@ -145,7 +145,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
         with: { toolchain: 1.97.1, targets: wasm32-unknown-unknown }
       - run: cargo install wasm-pack --locked --version 0.13.1
-      - run: uv sync --all-packages --all-extras --all-groups
+      - run: uv sync --all-extras --all-groups
       - run: xvfb-run -a --server-args="-screen 0 1600x1200x24" bash scripts/accept_local.sh
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()

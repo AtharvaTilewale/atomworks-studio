@@ -2,14 +2,6 @@ version = 1
 revision = 3
 requires-python = "==3.12.*"
 
-[manifest]
-members = [
-    "atomworks-annotation-studio-rfd4",
-    "atomworks-studio",
-    "atomworks-studio-editing",
-    "atomworks-studio-pymol",
-]
-
 [[package]]
 name = "annotated-doc"
 version = "0.0.4"
@@ -83,29 +75,13 @@ ml = [
 ]
 
 [[package]]
-name = "atomworks-annotation-studio-rfd4"
-version = "0.0.1"
-source = { editable = "providers/rfd4" }
-dependencies = [
-    { name = "atomworks-studio-editing" },
-    { name = "numpy" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "atomworks-studio-editing", editable = "packages/editing" },
-    { name = "numpy", specifier = ">=1.26,<3" },
-]
-
-[[package]]
 name = "atomworks-studio"
 version = "0.0.1"
 source = { editable = "." }
 dependencies = [
     { name = "atomworks", extra = ["ml"] },
-    { name = "atomworks-annotation-studio-rfd4" },
-    { name = "atomworks-studio-editing" },
     { name = "fastapi" },
+    { name = "numpy" },
     { name = "pydantic" },
     { name = "python-multipart" },
     { name = "uvicorn" },
@@ -116,8 +92,9 @@ gradio = [
     { name = "gradio" },
     { name = "httpx" },
 ]
-pymol = [
-    { name = "atomworks-studio-pymol" },
+pymol-pip = [
+    { name = "pymol-open-source" },
+    { name = "pyqt5" },
 ]
 test = [
     { name = "httpx2" },
@@ -132,67 +109,22 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "atomworks", extras = ["ml"], specifier = "==3.0.1" },
-    { name = "atomworks-annotation-studio-rfd4", editable = "providers/rfd4" },
-    { name = "atomworks-studio-editing", editable = "packages/editing" },
-    { name = "atomworks-studio-pymol", marker = "extra == 'pymol'", editable = "packages/pymol-plugin" },
     { name = "fastapi", specifier = ">=0.115,<2" },
     { name = "gradio", marker = "extra == 'gradio'", specifier = ">=6.29,<7" },
     { name = "httpx", marker = "extra == 'gradio'", specifier = ">=0.28,<1" },
     { name = "httpx2", marker = "extra == 'test'", specifier = ">=2.8,<3" },
+    { name = "numpy", specifier = ">=1.26,<3" },
     { name = "pydantic", specifier = ">=2.10,<3" },
+    { name = "pymol-open-source", marker = "extra == 'pymol-pip'", specifier = ">=3.2.0a0" },
+    { name = "pyqt5", marker = "extra == 'pymol-pip'", specifier = ">=5.15.11" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=8.2,<10" },
     { name = "python-multipart", specifier = ">=0.0.20,<1" },
     { name = "uvicorn", specifier = ">=0.34,<1" },
 ]
-provides-extras = ["gradio", "pymol", "test"]
+provides-extras = ["gradio", "pymol-pip", "test"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "ruff", specifier = ">=0.16.9" }]
-
-[[package]]
-name = "atomworks-studio-editing"
-version = "0.0.1"
-source = { editable = "packages/editing" }
-dependencies = [
-    { name = "atomworks", extra = ["ml"] },
-    { name = "numpy" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "atomworks", extras = ["ml"], specifier = "==3.0.1" },
-    { name = "numpy", specifier = ">=1.26,<3" },
-]
-
-[[package]]
-name = "atomworks-studio-pymol"
-version = "0.0.1"
-source = { editable = "packages/pymol-plugin" }
-dependencies = [
-    { name = "atomworks", extra = ["ml"] },
-    { name = "atomworks-annotation-studio-rfd4" },
-    { name = "atomworks-studio-editing" },
-]
-
-[package.optional-dependencies]
-pymol-pip = [
-    { name = "pymol-open-source" },
-    { name = "pyqt5" },
-]
-test = [
-    { name = "pytest" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "atomworks", extras = ["ml"], specifier = "==3.0.1" },
-    { name = "atomworks-annotation-studio-rfd4", editable = "providers/rfd4" },
-    { name = "atomworks-studio-editing", editable = "packages/editing" },
-    { name = "pymol-open-source", marker = "extra == 'pymol-pip'", specifier = ">=3.2.0a0" },
-    { name = "pyqt5", marker = "extra == 'pymol-pip'", specifier = ">=5.15.11" },
-    { name = "pytest", marker = "extra == 'test'", specifier = ">=8.2,<9" },
-]
-provides-extras = ["test", "pymol-pip"]
 
 [[package]]
 name = "beartype"

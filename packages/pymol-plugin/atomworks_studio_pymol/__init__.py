@@ -49,7 +49,7 @@ def _register_unavailable_menu() -> None:
     except Exception:
         print(
             "AtomWorks plugin: atomworks is not installed in this Python environment.\n"
-            "Reinstall with: python -m pip install atomworks-studio-pymol"
+            "Reinstall with: python -m pip install atomworks-studio"
         )
 
 
@@ -62,13 +62,13 @@ def _show_install_error() -> None:
             None,
             "AtomWorks Not Installed",
             "atomworks is not installed in this Python environment.\n\n"
-            "Reinstall it with:\n    python -m pip install atomworks-studio-pymol\n\n"
+            "Reinstall it with:\n    python -m pip install atomworks-studio\n\n"
             "Ensure you install in the same conda/venv where PyMOL is running.",
         )
     except Exception:
         print(
             "AtomWorks is not installed.\n"
-            "Run: python -m pip install atomworks-studio-pymol "
+            "Run: python -m pip install atomworks-studio "
             "(in the environment where PyMOL runs)"
         )
 

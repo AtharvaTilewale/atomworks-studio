@@ -6,7 +6,6 @@ from pathlib import Path
 
 import atomworks_studio_pymol as plugin
 import pytest
-from packaging.requirements import Requirement
 
 
 def test_plugin_entry_point_is_importable() -> None:
@@ -67,18 +66,10 @@ def test_pymol_entry_point_targets_plugin_initializer() -> None:
     assert matching[0].load() is plugin.__init_plugin__
 
 
-def test_distribution_contains_only_the_standalone_namespace() -> None:
-    installed = distribution("atomworks-studio-pymol")
-    top_level = (installed.read_text("top_level.txt") or "").splitlines()
-    assert top_level == ["atomworks_studio_pymol"]
+def test_distribution_ships_the_plugin_namespace_without_legacy_modules() -> None:
+    installed = distribution("atomworks-studio")
+    assert plugin.__name__ == "atomworks_studio_pymol"
 
     files = [str(path) for path in installed.files or ()]
     assert not any(path.startswith("atomworks/pymol_plugin/") for path in files)
     assert not any(path.startswith("rfproteina/pymol/") for path in files)
-
-
-def test_distribution_has_no_studio_service_dependency() -> None:
-    installed = distribution("atomworks-studio-pymol")
-    dependency_names = {Requirement(requirement).name for requirement in installed.requires or ()}
-
-    assert "atomworks-studio-api" not in dependency_names
