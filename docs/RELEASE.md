@@ -6,7 +6,7 @@ and [tmol](https://github.com/uw-ipd/tmol/blob/master/.github/workflows/publish.
 build once, test the installed packages, then publish those artifacts in a separate job.
 Documentation builds separately, as in RFD4, and is included in every release.
 
-The editor keeps `atomworks[ml]==3.0.1`, including Torch. Native PyMOL is an optional host application; inference is outside Studio.
+The editor keeps `atomworks[ml]` pinned to the release in `dependencies.toml`, including Torch. Native PyMOL is an optional host application; inference is outside Studio.
 
 ## One-time setup
 

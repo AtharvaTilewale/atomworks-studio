@@ -18,7 +18,7 @@ upstream's npm lockfile, and the patch series.
 
 ## Dependencies
 
-AtomWorks is the public 3.0.1 release from PyPI; `uv.lock` records its artifacts
+AtomWorks is the public release pinned in `dependencies.toml`, from PyPI; `uv.lock` records its artifacts
 and hashes. Studio no longer vendors a separate private AtomWorks checkout.
 RFD4 definitions come from `RosettaCommons/RFD4-Proteina` at
 `e519afe329a0963172747e9f71e843a21b6995e8`. The five unchanged definition, vocabulary, and license files
