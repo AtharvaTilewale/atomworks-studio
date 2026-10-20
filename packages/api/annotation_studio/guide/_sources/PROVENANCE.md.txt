@@ -50,7 +50,7 @@ The base PyMOL plugin (`packages/pymol-plugin`) is published as
 
 Additional Studio-owned components extracted during the unified-editor refactor:
 
-- `packages/pymol-plugin/display.py`: display preparation and style generation from
+- `packages/pymol-plugin/atomworks_studio_pymol/display.py`: display preparation and style generation from
   AtomWorks `82fd08ae51688f48ff2949ae16ee320d87d434a1`, `ml/utils/visualize.py`.
 - `providers/rfd4/atomworks_studio_rfd4/reporting.py`: summaries and index-group
   synchronization from RFD4 `26094e08e6f979ee6da53d51bc34357ffc062025`,

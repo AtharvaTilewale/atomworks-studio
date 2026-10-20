@@ -42,10 +42,10 @@ owns the document. Neither interface needs a browser, Qt, a model runtime, or a
 GPU. Both currently install AtomWorks 3’s ML dependencies, including Torch.</p>
 <section id="python-primitives">
 <h2>Python primitives<a class="headerlink" href="#python-primitives" title="Link to this heading">¶</a></h2>
-<p>Install <code class="docutils literal notranslate"><span class="pre">atomworks-studio-editing</span></code> for base AtomWorks conditions. Add
-<code class="docutils literal notranslate"><span class="pre">atomworks-annotation-studio-rfd4</span></code> for the same hotspot, group, and other condition
-definitions that the full Studio installation uses. Until these packages are
-published, install the wheels from a verified build with <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">--find-links</span></code>.</p>
+<p><code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">atomworks-studio</span></code> provides the editing library
+(<code class="docutils literal notranslate"><span class="pre">atomworks_studio_editing</span></code>) for base AtomWorks conditions and the RFD4 adapter
+(<code class="docutils literal notranslate"><span class="pre">atomworks_studio_rfd4</span></code>) for the same hotspot, group, and other condition
+definitions that the full Studio installation uses.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">atomworks_studio_editing.document</span><span class="w"> </span><span class="kn">import</span> <span class="n">StudioDocument</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">atomworks_studio_editing.providers</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_providers</span>

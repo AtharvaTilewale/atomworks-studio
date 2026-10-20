@@ -44,15 +44,15 @@ dependencies. See <a class="reference internal" href="INSTALLATION.html"><span c
 <section id="setup">
 <h2>Setup<a class="headerlink" href="#setup" title="Link to this heading">¶</a></h2>
 <p>Install the plugin from PyPI in the Python environment that runs PyMOL:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>atomworks-studio-pymol
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>atomworks-studio
 atomworks-studio-pymol<span class="w"> </span>install
 pymol
 </pre></div>
 </div>
 <p>For a native environment and source installation:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>env<span class="w"> </span>create<span class="w"> </span>-f<span class="w"> </span>packages/pymol-plugin/pymol_env.yaml
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>env<span class="w"> </span>create<span class="w"> </span>-f<span class="w"> </span>packages/pymol-plugin/atomworks_studio_pymol/pymol_env.yaml
 conda<span class="w"> </span>activate<span class="w"> </span>atomworks
-python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>packages/editing<span class="w"> </span>-e<span class="w"> </span>providers/rfd4<span class="w"> </span>-e<span class="w"> </span>packages/pymol-plugin
+python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
 atomworks-studio-pymol<span class="w"> </span>install
 pymol
 </pre></div>

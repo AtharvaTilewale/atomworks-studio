@@ -41,25 +41,12 @@
 is needed. Python 3.12 is supported. RFD4 annotation definitions are included; no model checkout or weights are needed.</p>
 <section id="choose-an-interface">
 <h2>Choose an interface<a class="headerlink" href="#choose-an-interface" title="Link to this heading">¶</a></h2>
-<table class="docutils align-default">
-<thead>
-<tr class="row-odd"><th class="head"><p>Package</p></th>
-<th class="head"><p>Use</p></th>
-</tr>
-</thead>
-<tbody>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">atomworks-studio</span></code></p></td>
-<td><p>Browser application, API, and launch command.</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">atomworks-studio-pymol</span></code></p></td>
-<td><p>Native PyMOL plugin, without the web server.</p></td>
-</tr>
-</tbody>
-</table>
-<p>Pip installs either package. The PyMOL plugin belongs in the Python environment
-that runs PyMOL; Conda supplies PyMOL, Qt, and compatible native libraries.
-Register the plugin once, then use <strong>Plugin → AtomWorks Studio</strong>.</p>
-<p>Both packages are published on PyPI; the public AtomWorks dependency
+<p><code class="docutils literal notranslate"><span class="pre">atomworks-studio</span></code> is the only package. It provides the browser application,
+API and launch command, the shared editing library, the RFD4 annotation adapter,
+and the native PyMOL plugin. Install it in the Python environment that runs
+PyMOL to use the plugin; Conda supplies PyMOL, Qt, and compatible native
+libraries. Register the plugin once, then use <strong>Plugin → AtomWorks Studio</strong>.</p>
+<p>The package is published on PyPI; the public AtomWorks dependency
 resolves automatically.</p>
 </section>
 <section id="what-the-pip-installation-provides">
@@ -117,20 +104,19 @@ In a fresh Python 3.12 environment:</p>
 atomworks-studio
 </pre></div>
 </div>
-<p>For an existing PyMOL environment, install only the plugin:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>atomworks-studio-pymol
+<p>The PyMOL plugin is part of the same package. In an existing PyMOL environment:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>atomworks-studio
 atomworks-studio-pymol<span class="w"> </span>install
 </pre></div>
 </div>
-<p><code class="docutils literal notranslate"><span class="pre">atomworks-studio[pymol]</span></code> is also available for an environment intentionally
-running both interfaces. Neither installation includes model weights or workers.</p>
+<p>The same installation serves the browser and PyMOL interfaces. It includes no model weights or workers.</p>
 </section>
 <section id="pymol-from-source">
 <h2>PyMOL from source<a class="headerlink" href="#pymol-from-source" title="Link to this heading">¶</a></h2>
 <p>From the Studio checkout:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>env<span class="w"> </span>create<span class="w"> </span>-f<span class="w"> </span>packages/pymol-plugin/pymol_env.yaml
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>env<span class="w"> </span>create<span class="w"> </span>-f<span class="w"> </span>packages/pymol-plugin/atomworks_studio_pymol/pymol_env.yaml
 conda<span class="w"> </span>activate<span class="w"> </span>atomworks
-python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>packages/editing<span class="w"> </span>-e<span class="w"> </span>providers/rfd4<span class="w"> </span>-e<span class="w"> </span>packages/pymol-plugin
+python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
 python<span class="w"> </span>-m<span class="w"> </span>atomworks_studio_pymol<span class="w"> </span>install
 pymol
 </pre></div>
@@ -147,7 +133,7 @@ with the plugin. See the <a class="reference internal" href="PYMOL.html"><span c
 <p>Build the browser with the <a class="reference internal" href="DEVELOPMENT.html"><span class="std std-doc">development prerequisites</span></a>, then:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pnpm<span class="w"> </span>--dir<span class="w"> </span>packages/web<span class="w"> </span>build
 make<span class="w"> </span>docs
-python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>packages/editing<span class="w"> </span>-e<span class="w"> </span>providers/rfd4<span class="w"> </span>-e<span class="w"> </span>.
+python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
 atomworks-studio
 </pre></div>
 </div>

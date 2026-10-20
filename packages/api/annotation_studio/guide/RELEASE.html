@@ -47,18 +47,13 @@ Documentation builds separately, as in RFD4, and is included in every release.</
 <h2>One-time setup<a class="headerlink" href="#one-time-setup" title="Link to this heading">¶</a></h2>
 <p>The publishing repository is <code class="docutils literal notranslate"><span class="pre">RosettaCommons/atomworks-studio</span></code>.
 Development history stays in the private <code class="docutils literal notranslate"><span class="pre">baker-laboratory/atomworks-studio-dev</span></code> repository.
-Only reviewed source snapshots are copied to RosettaCommons; its Git history starts
-with one initial commit. Repository visibility is managed separately from releases.</p>
+<code class="docutils literal notranslate"><span class="pre">release/rosettacommons</span></code> from the development repository is mirrored there commit for commit
+(see <a class="reference internal" href="#promote-development-to-rosettacommons">Promote development to RosettaCommons</a>).
+Repository visibility is managed separately from releases.</p>
 <p>Create a GitHub environment named <code class="docutils literal notranslate"><span class="pre">pypi</span></code>. Register a
 <a class="reference external" href="https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/">PyPI Trusted Publisher</a>
-for each distribution below, using owner <code class="docutils literal notranslate"><span class="pre">RosettaCommons</span></code>, repository
-<code class="docutils literal notranslate"><span class="pre">atomworks-studio</span></code>, workflow <code class="docutils literal notranslate"><span class="pre">release.yaml</span></code>, and environment <code class="docutils literal notranslate"><span class="pre">pypi</span></code>:</p>
-<ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">atomworks-studio</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">atomworks-studio-editing</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">atomworks-studio-pymol</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">atomworks-annotation-studio-rfd4</span></code></p></li>
-</ul>
+for <code class="docutils literal notranslate"><span class="pre">atomworks-studio</span></code>, using owner <code class="docutils literal notranslate"><span class="pre">RosettaCommons</span></code>, repository
+<code class="docutils literal notranslate"><span class="pre">atomworks-studio</span></code>, workflow <code class="docutils literal notranslate"><span class="pre">release.yaml</span></code>, and environment <code class="docutils literal notranslate"><span class="pre">pypi</span></code>.</p>
 <p>No PyPI API token or private dependency token is needed. CI uses the bundled,
 hash-verified scientific definitions.</p>
 <p>Optional destinations:</p>
@@ -81,12 +76,12 @@ Run <code class="docutils literal notranslate"><span class="pre">python</span> <
 that tag; branch refs and the rolling <code class="docutils literal notranslate"><span class="pre">vscode-latest</span></code> tag are rejected.</p></li>
 </ol>
 <p>The workflow runs the full CI suite for the tagged commit. The package job
-builds all four wheels and source archives, rejects missing or stale artifacts,
+builds the wheel and source archive, rejects missing or stale artifacts,
 checks package metadata with Twine, and installs the built Studio wheel in a
 fresh environment outside the checkout. It exercises CLI startup, bundled
 browser/WASM assets, CIF loading, protonation, selections, export, and Undo.
 CI also checks the native PyMOL plugin, browser workflows and docs.</p>
-<p>Only after those jobs succeed does the <code class="docutils literal notranslate"><span class="pre">publish</span></code> job upload the eight Python
+<p>Only after those jobs succeed does the <code class="docutils literal notranslate"><span class="pre">publish</span></code> job upload the Python
 artifacts to PyPI through OIDC. The GitHub release then receives the same
 packages, VSIX, docs archive, checksums, and build provenance.</p>
 <p>If an upload fails partway through, rerun the failed jobs while the build
@@ -96,7 +91,7 @@ versions are immutable: use a new version and tag for changed code.</p>
 can catch stale packages:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pnpm<span class="w"> </span>build
 make<span class="w"> </span>docs
-uv<span class="w"> </span>build<span class="w"> </span>--all-packages<span class="w"> </span>--out-dir<span class="w"> </span>dist
+uv<span class="w"> </span>build<span class="w"> </span>--out-dir<span class="w"> </span>dist
 uv<span class="w"> </span>run<span class="w"> </span>scripts/check_distribution_assets.py<span class="w"> </span>dist
 uv<span class="w"> </span>run<span class="w"> </span>--no-project<span class="w"> </span>--with<span class="w"> </span>twine<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>twine<span class="w"> </span>check<span class="w"> </span>--strict<span class="w"> </span>dist/*
 </pre></div>
@@ -109,15 +104,23 @@ archive checks verify the bundled copies. Users need no checkout to annotate.</p
 </section>
 <section id="promote-development-to-rosettacommons">
 <h2>Promote development to RosettaCommons<a class="headerlink" href="#promote-development-to-rosettacommons" title="Link to this heading">¶</a></h2>
-<p>Work in <code class="docutils literal notranslate"><span class="pre">atomworks-studio-dev</span></code> first. Merge reviewed changes to <code class="docutils literal notranslate"><span class="pre">main</span></code>, then
-fast-forward <code class="docutils literal notranslate"><span class="pre">release/rosettacommons</span></code> to that exact commit. Wait for its <strong>CI</strong>
-workflow to pass, including package, Docker Space, browser, and documentation
-checks. Never substitute an older green run for the release commit.</p>
-<p>Copy only that branch’s tracked files into a clean RosettaCommons checkout and
-commit them there. Compare the two <code class="docutils literal notranslate"><span class="pre">HEAD^{tree}</span></code> hashes before pushing; they
-must match. Keep the RosettaCommons commit history linear and do not rewrite
-published release tags. After pushing, wait for its <strong>CI</strong> and <strong>VS Code
-extension</strong> workflows before tagging a PyPI release.</p>
+<p>Work in <code class="docutils literal notranslate"><span class="pre">atomworks-studio-dev</span></code> first. <code class="docutils literal notranslate"><span class="pre">release/rosettacommons</span></code> is the clean branch
+that <code class="docutils literal notranslate"><span class="pre">RosettaCommons/atomworks-studio</span></code> mirrors: the same commits, never rewritten.
+It equals <code class="docutils literal notranslate"><span class="pre">main</span></code> plus the committed browser bundle and guide, so <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span></code>
+from the public repository needs no Node, Rust or Sphinx.</p>
+<ol class="arabic simple">
+<li><p>Merge reviewed changes to <code class="docutils literal notranslate"><span class="pre">main</span></code> (use merge commits, not squashes, so the release branch can merge <code class="docutils literal notranslate"><span class="pre">main</span></code> cleanly).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">build</span></code>, then <code class="docutils literal notranslate"><span class="pre">scripts/make_release_branch.sh</span></code>. It merges <code class="docutils literal notranslate"><span class="pre">origin/main</span></code> into
+<code class="docutils literal notranslate"><span class="pre">release/rosettacommons</span></code> and commits the fresh bundle and guide.</p></li>
+<li><p>Push the branch to <code class="docutils literal notranslate"><span class="pre">origin</span></code>, wait for its <strong>CI</strong> workflow to pass, including
+package, Docker Space, browser, and documentation checks. Never substitute an
+older green run for the release commit.</p></li>
+<li><p>Push that same branch to the RosettaCommons remote as <code class="docutils literal notranslate"><span class="pre">main</span></code>
+(<code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">push</span> <span class="pre">rosettacommons</span> <span class="pre">release/rosettacommons:main</span></code>), and wait for its <strong>CI</strong> and
+<strong>VS Code extension</strong> workflows before tagging a PyPI release there.</p></li>
+</ol>
+<p>The release branch deletes the two build-output lines from <code class="docutils literal notranslate"><span class="pre">.gitignore</span></code>; keep edits to
+that file away from them on <code class="docutils literal notranslate"><span class="pre">main</span></code> to avoid merge conflicts. Do not rewrite published release tags.</p>
 </section>
 </section>
 

@@ -6,10 +6,10 @@ GPU. Both currently install AtomWorks 3's ML dependencies, including Torch.
 
 ## Python primitives
 
-Install `atomworks-studio-editing` for base AtomWorks conditions. Add
-`atomworks-annotation-studio-rfd4` for the same hotspot, group, and other condition
-definitions that the full Studio installation uses. Until these packages are
-published, install the wheels from a verified build with `pip --find-links`.
+`pip install atomworks-studio` provides the editing library
+(`atomworks_studio_editing`) for base AtomWorks conditions and the RFD4 adapter
+(`atomworks_studio_rfd4`) for the same hotspot, group, and other condition
+definitions that the full Studio installation uses.
 
 ```python
 from pathlib import Path

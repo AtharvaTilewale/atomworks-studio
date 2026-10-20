@@ -1,4 +1,4 @@
-const CACHE = "annotation-studio-shell-development-1792423249379";
+const CACHE = "annotation-studio-shell-development-1792496179508";
 const SHELL = ["/", "/manifest.webmanifest", "/annotation-studio.svg", "/atomworks_logo_dark.svg"];
 
 self.addEventListener("install", (event) => {
