@@ -41,7 +41,7 @@ Optional destinations:
 3. Push the matching `v<version>` tag. A manual workflow run must also select
    that tag; branch refs and the rolling `vscode-latest` tag are rejected.
 
-The workflow runs the full CI suite for the tagged commit. The package job
+The workflow runs the CI suite for the tagged commit (currently without the browser acceptance job; see the comment in `release.yaml`). The package job
 builds the wheel and source archive, rejects missing or stale artifacts,
 checks package metadata with Twine, and installs the built Studio wheel in a
 fresh environment outside the checkout. It exercises CLI startup, bundled

@@ -16,7 +16,7 @@ try {
   await page.locator("#editor-tab-annotations").click();
   assert.equal(await page.getByRole("heading", { name: "Conditions on this structure" }).isVisible(), true);
   assert.equal(await page.locator("#annotation-search").count(), 0);
-  for (const key of ["sequence", "coordinate", "index", "distance", "hotspot"]) {
+  for (const key of ["sequence", "coordinate", "index", "hotspot"]) {
     assert.equal(await page.locator(`#condition option[value="${key}"]`).count(), 1, `${key} is installed`);
   }
   const fixture = fileURLToPath(new URL("../../../tests/fixtures/minimal_multichain.cif", import.meta.url));

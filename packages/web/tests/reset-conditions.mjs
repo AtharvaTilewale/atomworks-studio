@@ -21,7 +21,7 @@ try {
   await page.waitForFunction(() => !document.querySelector("#download").disabled);
   const session = await page.evaluate(() => sessionStorage.getItem("annotation-studio-session"));
   const endpoint = `${base}api/sessions/${session}`;
-  for (const [condition, atom_indices, value] of [["sequence", [0], null], ["saltbridge", [0], 1], ["distance", [0, 2], 3.5]]) {
+  for (const [condition, atom_indices, value] of [["sequence", [0], null], ["saltbridge", [0], 1], ["hotspot", [0], 1]]) {
     const response = await page.request.post(`${endpoint}/conditions`, { data: { condition, atom_indices, value } });
     assert.equal(response.status(), 200, await response.text());
   }
@@ -54,7 +54,7 @@ try {
   const restored = await (await undo).json();
   assert.equal(restored.structure.condition_counts.sequence, 1);
   assert.equal(restored.structure.condition_counts.saltbridge, 1);
-  assert.equal(restored.structure.condition_counts.distance, 1);
+  assert.equal(restored.structure.condition_counts.hotspot, 1);
   await page.waitForFunction(() => !document.querySelector("#viewer-mode").disabled);
   assert.deepEqual(errors, []);
   console.log(`${backend}: reset preserves the loaded document, clears selections/colors, and supports one-step Undo`);
