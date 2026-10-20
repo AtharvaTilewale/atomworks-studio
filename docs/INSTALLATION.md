@@ -1,6 +1,6 @@
 # Installation and packaging
 
-Studio uses **public AtomWorks 3.0.1 from PyPI**. No private AtomWorks checkout
+Studio uses a **reviewed public AtomWorks release from PyPI**, pinned in `pyproject.toml`. No private AtomWorks checkout
 is needed. Python 3.12 is supported. RFD4 annotation definitions are included; no model checkout or weights are needed.
 
 ## Choose an interface
