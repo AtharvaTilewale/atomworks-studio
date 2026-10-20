@@ -35,7 +35,7 @@ wheels = [
 
 [[package]]
 name = "atomworks"
-version = "3.0.1"
+version = "3.0.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "biotite" },
@@ -59,9 +59,9 @@ dependencies = [
     { name = "urllib3" },
     { name = "zstandard" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/9e/0f/ca0966591c8dfb8e0d08d464cd048a1bf3700a62868623558a35a1949955/atomworks-3.0.1.tar.gz", hash = "sha256:e8e9c2eeb62908afca58d223d3d50077dc0ae349d05c1f7e5ef0063a3c098eea", size = 679203, upload-time = "2026-10-08T17:39:55.785Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/9c/a2/c4243f421df1dfbf1472d7c7486ec5b252091902401615e74434311d698a/atomworks-3.0.4.tar.gz", hash = "sha256:84ab61c76b2fc2d3e2be11d558c5ac11b39431817793b032bee2d1be5aae7d60", size = 679903, upload-time = "2026-10-19T22:40:42.366Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/1e/48/0e0919286aae5595e107e6c76dbd983506ce7d9b47a228f09c8dfe732044/atomworks-3.0.1-py3-none-any.whl", hash = "sha256:cc7e22bbc3815f82b3ef9f3432f34269473cedadee6d475bd13ae5c42815ca9d", size = 788972, upload-time = "2026-10-08T17:39:53.817Z" },
+    { url = "https://files.pythonhosted.org/packages/dd/32/b79629a896463d14a8513dc2ba50b47968e3f02cdbf6e5d2ec1f6756a87c/atomworks-3.0.4-py3-none-any.whl", hash = "sha256:7333368062076833f408e99daf5fb2da430a8d5d1569c16e72d050746a72a69b", size = 789584, upload-time = "2026-10-19T22:40:40.138Z" },
 ]
 
 [package.optional-dependencies]
@@ -76,7 +76,7 @@ ml = [
 
 [[package]]
 name = "atomworks-studio"
-version = "0.0.1"
+version = "0.0.2"
 source = { editable = "." }
 dependencies = [
     { name = "atomworks", extra = ["ml"] },
@@ -108,7 +108,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "atomworks", extras = ["ml"], specifier = "==3.0.1" },
+    { name = "atomworks", extras = ["ml"], specifier = "==3.0.4" },
     { name = "fastapi", specifier = ">=0.115,<2" },
     { name = "gradio", marker = "extra == 'gradio'", specifier = ">=6.29,<7" },
     { name = "httpx", marker = "extra == 'gradio'", specifier = ">=0.28,<1" },

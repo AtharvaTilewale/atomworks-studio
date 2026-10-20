@@ -31,7 +31,7 @@ jobs:
     needs: verify
     uses: ./.github/workflows/ci.yaml
     with:
-      # 0.0.1 only: the browser acceptance suite has stale expectations after #89 and still runs on every push/PR.
+      # 0.0.x releases: the browser acceptance suite has stale expectations after #89 and still runs on every push/PR.
       # Re-enable (remove this input) once scripts/accept_local.sh is green again.
       acceptance: false
     secrets: inherit
