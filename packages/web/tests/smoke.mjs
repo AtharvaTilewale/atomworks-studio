@@ -568,7 +568,7 @@ try {
   assert.equal(inspectionResult.status(), 200);
   const inspectedAnnotation = (await inspectionResult.json()).annotation;
   assert.ok(inspectedAnnotation);
-  // An earlier inspection can leave the clear button enabled while this request is pending.
+  // Wait for this inspection to finish rather than an earlier highlight.
   await page.waitForFunction(
     (label) =>
       (document.querySelector("#selection-count")?.textContent?.startsWith("0 atoms") &&
@@ -578,7 +578,7 @@ try {
     inspectedAnnotation.label,
   );
   assert.doesNotMatch(await page.locator("#annotation-detail").innerText(), /Could not inspect annotation/);
-  assert.equal(await page.locator("#clear-annotation-view").isEnabled(), true);
+  assert.equal(await inspectionRow.getAttribute("aria-pressed"), "true");
   assert.match(await page.locator("#selection-count").innerText(), /^0 atoms/, "inspection clears unrelated selection markers");
   await page.waitForFunction(
     () => Number(document.querySelector("#viewer")?.getAttribute("data-annotation-atoms")) > 0,
@@ -588,7 +588,7 @@ try {
     Number(await page.locator("#viewer").getAttribute("data-annotation-groups")) >= 1,
     "annotation groups render independently from active selection",
   );
-  await page.locator("#clear-annotation-view").click();
+  await inspectionRow.click();
   await page.waitForFunction(
     () => document.querySelector("#viewer")?.getAttribute("data-annotation-atoms") === "0",
   );

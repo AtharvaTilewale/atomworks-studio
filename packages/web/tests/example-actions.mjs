@@ -118,9 +118,9 @@ try {
         await page.locator("#editor-tab-annotations").click();
         for (const row of await page.locator("#annotation-list [data-view-key]").all()) {
           await row.click();
-          await page.waitForFunction(() => !document.querySelector("#clear-annotation-view").disabled);
+          await page.waitForFunction(() => Number(document.querySelector("#viewer").dataset.annotationAtoms) > 0);
           await row.click();
-          await page.waitForFunction(() => document.querySelector("#clear-annotation-view").disabled);
+          await page.waitForFunction(() => document.querySelector("#viewer").dataset.annotationAtoms === "0");
         }
       });
       await check("condition-edit-undo", async () => {
