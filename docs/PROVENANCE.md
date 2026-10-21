@@ -128,3 +128,14 @@ geometry. Its 27 heavy-atom coordinates match RFD4
 at `42d82947c2590c7e2dc73e93a073a3fdd03590f7`, mapped from custom atom names
 to SAM CCD names with matching elements and bond connectivity. Only coordinates
 are transferred; Studio's ligand chemistry and conditions remain unchanged.
+
+## PTE, PTM, MART-1, and BHRF1 examples
+
+The hit-based catalog supersedes the earlier PD-L1 protein-binder and 2KL8
+inverse-folding entries described above. The PTE p2H11, H3pS10 hit04, and MART-1
+c23 sources are the paper's curated hit files; BHRF1 is the supplied generated
+design. See `examples/README.md` for exact task definitions and retained source
+limitations. `hit-example-provenance.json` records input/output hashes, and
+`hit-example-validation.json` records model validation findings. The old 2KL8
+and minimal catalytic-motif structures remain regression fixtures under
+`tests/fixtures/`.

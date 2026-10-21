@@ -19,10 +19,7 @@ try {
     if (await page.locator('#examples-panel').getAttribute('open') === null) {
       await page.locator('#examples-panel > summary').click();
     }
-    const inspected = page.waitForResponse(response => response.url().endsWith('/import/inspect'));
     await page.locator(`[data-example="${example.id}"]`).click();
-    const inspection = await (await inspected).json();
-    assert.ok(inspection.preset, `${example.id}: ${inspection.message}`);
     try {
       await page.waitForFunction(label => document.querySelector('#status-message')?.textContent.includes(`Loaded ${label}`), example.label);
     } catch (error) {
@@ -46,8 +43,8 @@ try {
       await page.screenshot({path: `artifacts/local/example-imports/${mode}-sam-conformer.png`});
     }
     if (example.id === 'enzyme_design') {
-      assert.match(await page.locator('#structure-summary').innerText(), /22/);
-      assert.match(await page.locator('#coordinate-summary').innerText(), /15 atoms/);
+      assert.match(await page.locator('#structure-summary').innerText(), /107/);
+      assert.match(await page.locator('#coordinate-summary').innerText(), /2 atoms/);
       await page.screenshot({path: `artifacts/local/example-imports/${mode}-enzyme.png`});
     }
     if (example.id === 'protein_binder') {
@@ -75,8 +72,8 @@ try {
   }
   await page.locator('#editor-tab-main').click();
   await page.locator('#examples-panel > summary').click();
-  await page.locator('[data-example="inverse_folding"]').click();
-  await page.waitForFunction(() => document.querySelector('#status-message')?.textContent.includes('Loaded Inverse folding'));
+  await page.locator('[data-example="pte_partial_diffusion"]').click();
+  await page.waitForFunction(() => document.querySelector('#status-message')?.textContent.includes('Loaded Partial diffusion'));
   assert.equal(await page.locator('#unpositioned-state').isVisible(), false);
   assert.equal(await page.locator('[data-representation="sticks"]').isEnabled(), true);
   assert.deepEqual(errors, []);

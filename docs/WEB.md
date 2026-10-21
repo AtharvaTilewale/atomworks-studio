@@ -53,21 +53,20 @@ controls:
 - **Remove waters** — optional water filtering
 
 Use **Combine CIF** to merge another file into the active document. The
-**Main → Examples** panel includes a **Protein binder · PD-L1** example and
-the eight NIM inputs: antibody, VHH, enzyme, motif, SAM binder, inverse folding,
-partial diffusion, and unconditional design.
-The same packaged catalog is used by the Gradio Space.
+**Main → Examples** panel includes BHRF1 protein binding, H3pS10 PTM binding,
+PTE enzyme scaffolding and partial diffusion, MART-1 c23 partial diffusion,
+antibody, VHH, motif scaffolding, SAM binding, and unconditional design.
+The same packaged catalog is used by the Gradio Space. Bundled examples always
+use the annotated-CIF preset, independently of the settings for uploaded files.
 
-The fixtures are described in
-[examples/README.md](https://github.com/RosettaCommons/atomworks-studio/blob/main/examples/README.md).
+See [examples/README.md](https://github.com/RosettaCommons/atomworks-studio/blob/main/examples/README.md)
+for conditions, source provenance, and validation limitations.
 
-To make the protein-binder input from an unannotated PD-L1 CIF, open the target
-and use **AtomWorks query** `chain_id == 'A'` to select it. In **Annotations**,
-enable **Sequence**, reselect chain A, then enable **Coordinate**. Mark these six target
-atoms as **Hotspot**: residue 56 CG and OH, residue 115 CG and SD, and residue
-123 CD2 and OH. Then use **Main → Expandable segments** to add a new
-protein chain B with a 50–120 residue segment. Save the CIF. These are the
-conditions in the packaged example; the same controls work in PyMOL.
+The BHRF1 example keeps target chain B sequence-conditioned and places its
+N/CA/C/O atoms in one internal-coordinate group. Chain A is a 50–120 residue
+expandable binder. To reproduce this in the editor, keep target chain B, enable
+**Sequence** on it, select its backbone atoms, and enable **Internal coordinates**.
+Then add a new protein chain A with a 50–120 residue segment.
 
 ## Navigate and select
 
@@ -134,7 +133,7 @@ absolute coordinate conditioning, and positive groups preserve internal geometry
 The bundled MZB1 antibody example keeps the heavy/light framework backbones in
 one shared internal group, preserving their relative arrangement. The target
 backbone uses **Absolute coordinates (group 0)**; all six CDRs are expandable
-segments for sequence and structure design. The PD-L1 protein-binder example
+segments for sequence and structure design. The BHRF1 protein-binder example
 instead uses an internal group for the target backbone, with no absolute targets.
 Value legends show names, atom counts, and their highlight colors. Unchecking
 **Enable condition** hides the value input while retaining its draft for re-enabling.

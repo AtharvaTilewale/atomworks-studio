@@ -1,0 +1,81 @@
+{
+  "pte_partial_diffusion.cif": {
+    "source_file": "PTE_p2H11__design.cif",
+    "source_sha256": "b21808ee08b43d33ffedf9e59e7484030cb779da9bc62c257de25b7971aaedf4",
+    "sha256": "919e302a340d695317affbbdec4a8f1a58777de30f993b8febbc9171f01af32a",
+    "atoms": 1739,
+    "sequence_atoms": 105,
+    "absolute_coordinate_atoms": 951,
+    "internal_coordinate_atoms": 0,
+    "unindexed_residues": 0,
+    "studio_validation": [
+      {
+        "severity": "error",
+        "check": "missing_atoms",
+        "message": "Structure is missing 1 heavy atoms that would be added by prepare_atom_array. Check for incomplete residues."
+      }
+    ],
+    "roundtrip": "atom identities, coordinates, bonds, charges and saved annotations match"
+  },
+  "enzyme_design.cif": {
+    "source_file": "PTE_p2H11__design.cif",
+    "source_sha256": "b21808ee08b43d33ffedf9e59e7484030cb779da9bc62c257de25b7971aaedf4",
+    "sha256": "6720f6a7b253d5ca6d919f37cb2ab44f294dab2611ad657a410b729bfc09e4bb",
+    "atoms": 107,
+    "sequence_atoms": 105,
+    "absolute_coordinate_atoms": 71,
+    "internal_coordinate_atoms": 0,
+    "unindexed_residues": 7,
+    "studio_validation": [],
+    "roundtrip": "atom identities, coordinates, bonds, charges and saved annotations match"
+  },
+  "ptm_binder.cif": {
+    "source_file": "H3S10_hit04__design.cif",
+    "source_sha256": "f0a27c3fba603ec1d20acc5a361b754d1d601c308085aee583e6749cf1fd5654",
+    "sha256": "a38f8028c41848792695f9dd84e161e02fe84e7c33f39b5b464df47f092035f7",
+    "atoms": 97,
+    "sequence_atoms": 96,
+    "absolute_coordinate_atoms": 0,
+    "internal_coordinate_atoms": 0,
+    "unindexed_residues": 0,
+    "studio_validation": [
+      {
+        "severity": "error",
+        "check": "missing_atoms",
+        "message": "Structure is missing 1 heavy atoms that would be added by prepare_atom_array. Check for incomplete residues."
+      }
+    ],
+    "roundtrip": "atom identities, coordinates, bonds, charges and saved annotations match"
+  },
+  "protein_binder.cif": {
+    "source_file": "29_BHRF1_rep6_job18_generated.cif",
+    "source_sha256": "a0ba838ceacc226eecdf4a7016df78168f94e047315e299897ccc1170c09d69f",
+    "sha256": "ee1fc92dde76c607578eef476e767cdafb0e244c74590235978df9cce37d237a",
+    "atoms": 1267,
+    "sequence_atoms": 1266,
+    "absolute_coordinate_atoms": 0,
+    "internal_coordinate_atoms": 628,
+    "unindexed_residues": 0,
+    "studio_validation": [
+      {
+        "severity": "error",
+        "check": "missing_atoms",
+        "message": "Structure is missing 1 heavy atoms that would be added by prepare_atom_array. Check for incomplete residues."
+      }
+    ],
+    "roundtrip": "atom identities, coordinates, bonds, charges and saved annotations match"
+  },
+  "partial_diffusion.cif": {
+    "source_file": "MART_c23__design.cif",
+    "sha256": "70d668ee699ff005eb065fdc5de20b9fbe622dbdd9f673a27d15fd3ccc898d26",
+    "source_sha256": "70d668ee699ff005eb065fdc5de20b9fbe622dbdd9f673a27d15fd3ccc898d26",
+    "unchanged_source_bytes": true,
+    "studio_validation": [
+      {
+        "severity": "error",
+        "check": "missing_atoms",
+        "message": "Structure is missing 4 heavy atoms that would be added by prepare_atom_array. Check for incomplete residues."
+      }
+    ]
+  }
+}
