@@ -85,6 +85,27 @@ try {
   await page.locator("#pick-scope").selectOption("atom");
   await page.locator("#editor-tab-main").click();
   await page.getByText("Expandable segments", { exact: true }).click();
+  await page.locator("#clear-selection").click();
+  assert.equal(await page.locator("#insert-segment").isEnabled(), false);
+  // Sequence picks select whole residues. Reversed clicks must still use structure order.
+  for (const before of [true, false]) {
+    await page.locator("#segment-before").setChecked(before);
+    for (const orders of [[0], [1, 0], [0, 1]]) {
+      await page.locator("#clear-selection").click();
+      for (const order of orders) await page.locator(`.sequence-token[data-order="${order}"]`).click();
+      assert.equal(await page.locator("#insert-segment").isEnabled(), true);
+      const request = page.waitForRequest(r => r.url().endsWith("/segments") && r.method() === "POST");
+      const result = await edit("#insert-segment", "/segments");
+      const anchor = before ? 0 : orders.length === 1 ? 1 : 3;
+      assert.equal((await request).postDataJSON().atom_index, anchor);
+      const chain = result.structure.sequence.find(chain => chain.chain_id.startsWith(anchor < 2 ? "A" : "B"));
+      assert.ok(chain);
+      assert.equal(chain.items[before ? 0 : chain.items.length - 1].kind, "segment");
+      await edit("#undo", "/undo");
+      assert.equal(await page.locator(".sequence-segment").count(), 0);
+    }
+  }
+  await page.locator("#clear-selection").click();
   await page.locator("#segment-new-chain").check();
   assert.equal(await page.locator("#segment-chain-id").inputValue(), "C");
   const inserted = await edit("#insert-segment", "/segments");

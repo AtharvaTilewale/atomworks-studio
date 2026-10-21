@@ -332,7 +332,7 @@
               <label>Min<input id="segment-min" type="number" min="1" value="5" /></label>
               <label>Max<input id="segment-max" type="number" min="1" value="10" /></label>
             </div>
-            <label class="checkbox"><input id="segment-before" type="checkbox" checked /> Insert before picked atom</label>
+            <label class="checkbox"><input id="segment-before" type="checkbox" checked /> Insert before selection</label>
             <label class="checkbox"><input id="segment-new-chain" type="checkbox" /> Create as a new chain</label>
             <div id="segment-chain-options" class="inline-fields" hidden>
               <label>Chain ID<input id="segment-chain-id" maxlength="8" placeholder="Next available" /></label>
@@ -345,7 +345,8 @@
                 </select>
               </label>
             </div>
-            <button id="insert-segment" disabled>Insert expandable segment</button>
+            <p id="segment-selection-help" class="muted">Select atoms or residues to insert before the first selected residue, or after the last when unchecked. A new chain needs no selection.</p>
+            <button id="insert-segment" aria-describedby="segment-selection-help" disabled>Insert expandable segment</button>
           </details>
 
           <section class="drawer-stack" data-editor-card="main" aria-label="Viewer data drawers">
