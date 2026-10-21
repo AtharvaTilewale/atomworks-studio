@@ -30,6 +30,7 @@ import {
   type ViewerStructure,
   type ViewerTarget,
   type ViewerMarker,
+  type AtomCharge,
 } from "./contract";
 
 function flattenMeasurements(groups: MeasurementInfo[]): ViewerMeasurement[] {
@@ -262,6 +263,28 @@ export class PatinaeAdapter implements ViewerAdapter {
   async clearAnnotation(): Promise<void> {
     if (this.cif !== null) await this.applyBaseStyle();
     else this.clearSelection();
+  }
+
+  async showCharges(charges: AtomCharge[]): Promise<void> {
+    if (!this.viewer) return;
+    const name = "_studio_formal_charges";
+    if (this.viewer.getObjectNames().includes(name)) await this.executeCommand(`delete ${name}`);
+    this.context.container.dataset.chargeLabels = "0";
+    if (this.cif === null) return;
+    const hidden = new Set(unpositionedAtomIndices(this.cif));
+    const available = new Set(this.atomIdentities.map(atom => atom.document_index));
+    const groups = new Map<number, number[]>();
+    for (const atom of charges) {
+      if (!atom.charge || hidden.has(atom.atomIndex) || !available.has(atom.atomIndex)) continue;
+      const indices = groups.get(atom.charge) ?? [];
+      indices.push(atom.atomIndex);
+      groups.set(atom.charge, indices);
+    }
+    for (const [charge, indices] of groups) {
+      const text = charge > 0 ? `+${charge}` : String(charge);
+      await this.executeCommand(`label ${this.nativeSelection(indices)}, "${text}", object=${name}`);
+    }
+    this.context.container.dataset.chargeLabels = String([...groups.values()].reduce((sum, indices) => sum + indices.length, 0));
   }
 
   async showMarkers(markers: ViewerMarker[]): Promise<void> {

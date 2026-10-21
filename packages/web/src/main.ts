@@ -142,8 +142,6 @@ function updateSelectionUi(): void {
   structureEditController?.updateSelectionUi(hasSession);
   element<HTMLButtonElement>("run-analysis").disabled = !hasSession;
   analysisController?.updateSelectionUi(hasSession);
-  element<HTMLButtonElement>("inspect-bonds").disabled = !hasSession;
-  element<HTMLButtonElement>("infer-bonds").disabled = !hasSession;
   sequenceController?.syncSelection();
   viewerToolbarController?.renderDrawers();
 }
@@ -279,6 +277,7 @@ async function refreshFromServer(summary?: StructureSummary, preserveSelection =
       selectionController.clear();
     }
     await refreshCentroidMarkers();
+    await structureEditController?.updateStructure(summary ?? lastSummary);
   };
   try {
     await refresh();
@@ -405,7 +404,6 @@ async function initialize(): Promise<void> {
     getSessionId: () => sessionId,
     getAtomCount: () => lastSummary?.atom_count ?? 0,
     getSequence: () => lastSummary?.sequence ?? [],
-    mutate,
     renderViewerDrawers: () => viewerToolbarController?.renderDrawers(),
     log,
     onSelectionUiChange: updateSelectionUi,
@@ -427,6 +425,8 @@ async function initialize(): Promise<void> {
     inspectAtom: (atomIndex) => annotationController!.inspectAtom(atomIndex),
   });
   structureEditController = new StructureEditController({
+    viewer: () => molecularViewer,
+    runViewerUpdate,
     selection: selectionController,
     getSessionId: () => sessionId,
     mutate,

@@ -287,7 +287,10 @@
               </label>
               <label>Charge<input id="charge" type="number" min="-10" max="10" value="0" /></label>
             </div>
-            <button id="apply-charge" disabled>Apply charge</button>
+            <div class="button-row">
+              <button id="apply-charge" disabled>Apply charge</button>
+              <button id="show-charges" class="secondary compact" aria-pressed="false" disabled>Show charges</button>
+            </div>
           </details>
 
           <details class="card" data-editor-card="structure">
@@ -308,9 +311,9 @@
               <button id="remove-bond" class="secondary" disabled>Remove bond</button>
             </div>
             <div class="button-row">
-              <button id="inspect-bonds" class="secondary" aria-expanded="false" aria-controls="bond-list" disabled>Inspect bonds</button>
-              <button id="infer-bonds" class="secondary" disabled>Infer CCD bonds</button>
+              <button id="inspect-bonds" class="secondary" aria-expanded="false" aria-controls="bond-list" disabled>Inspect bonds for selection</button>
             </div>
+            <p class="muted">Inspect bonds touching the selected atoms.</p>
             <div id="bond-list" class="drawer-list muted" aria-live="polite" hidden></div>
           </details>
 
