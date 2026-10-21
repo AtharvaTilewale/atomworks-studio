@@ -2,12 +2,12 @@
   {
     "name": "antibody_design",
     "example_id": "antibody_design",
-    "atoms": 4235,
+    "atoms": 2053,
     "actions": [
       {
         "kind": "condition",
         "key": "hotspot",
-        "query": "chain_id == 'T'",
+        "query": "chain_id == 'A'",
         "enabled": true
       },
       {

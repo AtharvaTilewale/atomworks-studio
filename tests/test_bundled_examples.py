@@ -62,26 +62,91 @@ def test_completion_preserves_pair_annotations_and_original_source(tmp_path: Pat
     assert inspect_import(tmp_path / "complete.cif")["preset"] == "minimal"
 
 
-def test_antibody_has_separate_ig_groups_and_a_free_h3() -> None:
-    from atomworks_studio_rfd4.model import C_CRDGRP, C_INTCRD
+def test_antibody_has_shared_fv_backbone_group_and_six_expandable_cdrs() -> None:
+    from atomworks_studio_rfd4.model import C_CATH, C_CRDGRP, C_INTCRD
 
     path = ROOT / "packages/api/annotation_studio/examples/antibody_design.cif"
-    document = StudioDocument.from_cif(path.read_text(), condition_provider=PROVIDERS.condition_provider)
+    document = StudioDocument.from_cif(
+        path.read_text(),
+        condition_provider=PROVIDERS.condition_provider,
+        validation_provider=PROVIDERS.validation_provider,
+    )
     array = document.array
     groups = C_CRDGRP.annotation(array)
-    seq = C_SEQ.mask(array, default="generate")
+    antibody = np.isin(array.chain_id, ["H", "L"])
     resolved = np.isfinite(array.coord).all(axis=1)
-    free = (array.chain_id == "H") & np.isin(array.res_id, np.arange(99, 110))
-    np.testing.assert_array_equal(~seq, free)
-    np.testing.assert_array_equal(groups == 1, (array.chain_id == "H") & seq & resolved)
-    np.testing.assert_array_equal(groups == 2, (array.chain_id == "L") & seq & resolved)
-    np.testing.assert_array_equal(groups == 0, C_CRD.mask(array, default="generate"))
-    assert set(array.chain_id[groups == 0]) == {"T"}
-    assert set(groups[free]) == {-1}
-    lys30 = (array.chain_id == "H") & (array.res_id == 30) & resolved
-    assert lys30.sum() == 5
-    assert (groups[lys30] == 1).all()
+    backbone = resolved & np.isin(array.atom_name, ["N", "CA", "C", "O"])
+    np.testing.assert_array_equal(groups == 1, antibody & backbone)
+    np.testing.assert_array_equal(groups == 0, (array.chain_id == "A") & backbone)
+    np.testing.assert_array_equal(C_CRD.mask(array, default="generate"), groups == 0)
+    np.testing.assert_array_equal(np.isfinite(C_INTCRD.annotation(array)).all(axis=1), groups == 1)
+    free = ~C_SEQ.mask(array, default="generate")
+    assert list(zip(array.chain_id[free], array.res_name[free], strict=True)) == [
+        ("H", "13-15"),
+        ("H", "9-10"),
+        ("H", "11-22"),
+        ("L", "11-14"),
+        ("L", "8-8"),
+        ("L", "8-12"),
+    ]
+    assert np.isnan(array.coord[free]).all()
+    assert (groups[free] == -1).all()
+    assert (C_CATH.annotation(array)[antibody] == "2.60.40.x").all()
+    assert not document.validate(full_pipeline=True)
+
+
+def test_protein_binder_conditions_only_internal_target_backbone() -> None:
+    from atomworks_studio_rfd4.model import C_CRDGRP, C_HOT, C_INTCRD
+
+    path = ROOT / "packages/api/annotation_studio/examples/protein_binder.cif"
+    document = StudioDocument.from_cif(
+        path.read_text(),
+        condition_provider=PROVIDERS.condition_provider,
+        validation_provider=PROVIDERS.validation_provider,
+    )
+    array = document.array
+    target = array.chain_id == "A"
+    backbone = target & np.isin(array.atom_name, ["N", "CA", "C", "O"])
+    assert backbone.sum() == 460
+    np.testing.assert_array_equal(C_CRDGRP.annotation(array) == 1, backbone)
+    assert not C_CRD.mask(array, default="generate").any()
     assert not np.isfinite(C_INTCRD.annotation(array, default="generate")).any()
+    assert C_SEQ.mask(array, default="generate")[target].all()
+    assert C_IDX.mask(array, default="generate")[target].all()
+    hotspots = C_HOT.mask(array, default="generate")
+    assert hotspots.sum() == 6
+    assert set(array.res_id[hotspots]) == {56, 115, 123}
+    assert list(array.res_name[~target]) == ["50-120"]
+    assert not document.validate(full_pipeline=True)
+
+
+def test_vhh_display_is_near_target_and_preserves_saved_internal_geometry() -> None:
+    from atomworks_studio_rfd4.model import C_CRDGRP, C_INTCRD
+
+    path = ROOT / "packages/api/annotation_studio/examples/nanobody.cif"
+    document = StudioDocument.from_cif(
+        path.read_text(),
+        condition_provider=PROVIDERS.condition_provider,
+        validation_provider=PROVIDERS.validation_provider,
+    )
+    array = document.array
+    resolved = np.isfinite(array.coord).all(axis=1)
+    target = array.coord[(array.chain_id == "A") & resolved]
+    vhh = array.coord[(array.chain_id == "H") & resolved]
+    separation = np.linalg.norm(vhh[:, None] - target[None, :], axis=2).min()
+    assert separation == pytest.approx(8.0, abs=0.002)
+    internal = C_CRDGRP.annotation(array) == 1
+    assert internal.sum() == 332
+    saved = C_INTCRD.annotation(array)[internal]
+    displayed = array.coord[internal]
+    np.testing.assert_allclose(
+        np.linalg.norm(displayed[:, None] - displayed[None, :], axis=2),
+        np.linalg.norm(saved[:, None] - saved[None, :], axis=2),
+        atol=0.003,
+    )
+    absolute = C_CRD.mask(array, default="generate")
+    assert set(array.chain_id[absolute]) == {"A"}
+    np.testing.assert_allclose(array.coord[absolute], C_CRD.annotation(array)[absolute], atol=0.001)
     assert not document.validate(full_pipeline=True)
 
 
