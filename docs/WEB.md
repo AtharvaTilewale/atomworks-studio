@@ -116,11 +116,17 @@ restore the previous colors. Pick an atom to inspect its values.
 The clickable list shows active conditions without needing to search by name.
 Up to seven values use distinct annotation colors. With more values, choose one
 group to highlight from the selector; colors are never reused within that view.
-Condition colors never move the camera. Atom-level conditions show temporary
-sticks for the affected residues, with the conditioned atoms colored. Switching
-conditions or clearing colors removes those temporary sticks; atoms without
+Condition colors never move the camera. Atom-level conditions and coordinate
+groups show temporary sticks for the affected residues, with the conditioned
+atoms colored. Coordinate and coordinate-group highlights gray out the remaining
+atoms so unconditioned side chains are easy to distinguish. Switching conditions
+or toggling the active condition off restores the previous colors and removes
+those temporary sticks; atoms without
 coordinates remain in the document and are not rendered.
-The editor displays supported design conditions only. Raw fields, stored defaults,
+The web editor currently omits nucleic acid secondary structure and sequence
+probability from the editing options. Their definitions, API support, and saved
+annotations remain available. The editor displays supported design conditions
+only. Raw fields, stored defaults,
 and B-factors/confidence are preserved in the document but not listed as conditions.
 N- and C-terminus fields and the internal-coordinate payload are also hidden.
 Use **Coordinate Group** to edit internal-coordinate membership; group 0 represents

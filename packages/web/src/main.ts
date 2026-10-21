@@ -160,7 +160,6 @@ function renderSummary(summary: StructureSummary): void {
       <dt>Name</dt><dd>${escapeHtml(summary.name)}</dd>
       <dt>Atoms</dt><dd>${summary.atom_count.toLocaleString()}</dd>
       <dt>Chains</dt><dd>${escapeHtml(summary.chain_ids.join(", ") || "—")}</dd>
-      <dt>Undo</dt><dd>${summary.undo_depth}/10</dd>
     </dl>`;
   sequenceController?.render(summary.sequence);
   annotationController?.render(summary.annotations);
@@ -479,7 +478,6 @@ async function initialize(): Promise<void> {
   viewerToolbarController.bind();
   element("empty-open").addEventListener("click", () => element<HTMLInputElement>("file-input").click());
   analysisController.bind();
-  annotationController.bind();
   conditionController.bind();
   sequenceController.bind();
   structureEditController.bind();

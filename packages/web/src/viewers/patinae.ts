@@ -9,6 +9,7 @@ import {
 import { documentAtomIndices, nativeAtomIndices } from "./atom-identity";
 import { unpositionedAtomIndices } from "./unpositioned-atoms";
 import {
+  ANNOTATION_CONTEXT_COLOR,
   ANNOTATION_PALETTE,
   annotationRenderResult,
   normalizedAnnotationGroups,
@@ -238,6 +239,9 @@ export class PatinaeAdapter implements ViewerAdapter {
       ...group, atomIndices: group.atomIndices.filter(index => !excluded.has(index)),
     })));
     await this.applyBaseStyle();
+    if (normalized.some(group => group.dimUnhighlighted)) {
+      await this.executeCommand(`color 0x${ANNOTATION_CONTEXT_COLOR.toString(16)}, all`);
+    }
     for (const [index, group] of normalized.entries()) {
       const selection = this.nativeSelection(group.atomIndices);
       const selectedCount = this.viewer!.countAtoms(selection);
