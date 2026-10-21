@@ -509,8 +509,8 @@ def test_packaged_design_examples_share_a_safe_catalog() -> None:
     from annotation_studio.main import EXAMPLES_DIR
 
     catalog = client.get("/api/v1/examples").json()
-    assert len(catalog) == 9
-    assert len({item["id"] for item in catalog}) == 9
+    assert len(catalog) == 10
+    assert len({item["id"] for item in catalog}) == len(catalog)
     for item in catalog:
         response = client.get(f"/api/v1/examples/{item['id']}/cif")
         assert response.status_code == 200
