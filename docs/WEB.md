@@ -101,6 +101,11 @@ The inspector stays open while using viewer menus.
 The inspector uses the same **Main**, **Annotations**, and **Structure** tabs as PyMOL.
 Structure contains Charges, Protonation, and Bonds, in that order. Main contains examples, structure edits,
 and expandable segments. Tab names and order come from the shared Python package.
+For in-chain segment insertion, select one or more atoms or residues. **Insert
+before selection** uses the first selected residue in structure order; unchecking
+it inserts after the last. Pick order does not affect placement. **Create as a
+new chain** needs no selection. Insertion uses the same residue-boundary and undo
+logic as the PyMOL plugin.
 The browser and VS Code use the same UI code. Select atoms or residues, choose an operation,
 then apply it. **Undo** reverts the last document edit.
 
