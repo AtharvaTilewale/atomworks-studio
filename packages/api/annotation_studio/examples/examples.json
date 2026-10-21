@@ -6,7 +6,7 @@
     "id": "protein_binder"
   },
   {
-    "label": "Antibody \u00b7 HER2 CDR H3",
+    "label": "Antibody \u00b7 MZB1 / adalimumab Fv",
     "file": "antibody_design.cif",
     "task": "antibody_design",
     "id": "antibody_design"

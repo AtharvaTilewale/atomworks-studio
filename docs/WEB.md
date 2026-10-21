@@ -120,9 +120,11 @@ and B-factors/confidence are preserved in the document but not listed as conditi
 N- and C-terminus fields and the internal-coordinate payload are also hidden.
 Use **Coordinate Group** to edit internal-coordinate membership; group 0 represents
 absolute coordinate conditioning, and positive groups preserve internal geometry.
-The bundled antibody keeps its heavy and light chains in separate internal groups
-1 and 2, with HER2 in **Absolute coordinates (group 0)**. H99–H109 is free for
-sequence and structure design.
+The bundled MZB1 antibody example keeps the heavy/light framework backbones in
+one shared internal group, preserving their relative arrangement. The target
+backbone uses **Absolute coordinates (group 0)**; all six CDRs are expandable
+segments for sequence and structure design. The PD-L1 protein-binder example
+instead uses an internal group for the target backbone, with no absolute targets.
 Value legends show names, atom counts, and their highlight colors. Unchecking
 **Enable condition** hides the value input while retaining its draft for re-enabling.
 
