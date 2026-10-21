@@ -42,7 +42,7 @@
     "id": "nanobody"
   },
   {
-    "label": "Partial diffusion · MART-1 c23",
+    "label": "Partial diffusion · BHRF1",
     "file": "partial_diffusion.cif",
     "task": "partial_diffusion",
     "id": "partial_diffusion"

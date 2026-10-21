@@ -66,15 +66,15 @@
     "roundtrip": "atom identities, coordinates, bonds, charges and saved annotations match"
   },
   "partial_diffusion.cif": {
-    "source_file": "MART_c23__design.cif",
-    "sha256": "70d668ee699ff005eb065fdc5de20b9fbe622dbdd9f673a27d15fd3ccc898d26",
-    "source_sha256": "70d668ee699ff005eb065fdc5de20b9fbe622dbdd9f673a27d15fd3ccc898d26",
+    "source_file": "29_BHRF1_rep6_job18_generated.cif",
+    "source_sha256": "a0ba838ceacc226eecdf4a7016df78168f94e047315e299897ccc1170c09d69f",
+    "sha256": "a0ba838ceacc226eecdf4a7016df78168f94e047315e299897ccc1170c09d69f",
     "unchanged_source_bytes": true,
     "studio_validation": [
       {
         "severity": "error",
         "check": "missing_atoms",
-        "message": "Structure is missing 4 heavy atoms that would be added by prepare_atom_array. Check for incomplete residues."
+        "message": "Structure is missing 2 heavy atoms that would be added by prepare_atom_array. Check for incomplete residues."
       }
     ]
   }

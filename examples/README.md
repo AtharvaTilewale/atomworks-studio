@@ -11,7 +11,7 @@ when using the file picker; the example buttons choose this preset automatically
 | `ptm_binder.cif` | H3pS10 hit04 target chain B, including phosphoserine: sequence only, no coordinate/hotspot conditions; new chain A: exactly 150 residues. |
 | `enzyme_design.cif` | PTE p2H11's eight complete motif residues and all original ligand/metal components. Seven canonical residues are unindexed in separate groups. KCX stays indexed, flanked by independent 75–100 residue segments on chain A. Original tip/ligand coordinates and motif/ligand sequence conditions are retained. |
 | `inverse_folding.cif` | Complete PTE p2H11 hit: original motif/ligand sequence conditions, original tip/ligand coordinate targets, plus absolute N/CA/C/O coordinates across chain A. Other protein residues have free sequence. |
-| `partial_diffusion.cif` | MART-1 c23 generated complex, copied byte-for-byte with its existing conditions for partial diffusion. |
+| `partial_diffusion.cif` | BHRF1 generated complex (111-residue binder A and 157-residue target B), copied byte-for-byte with its existing conditions for partial diffusion. |
 | `antibody_design.cif` | MZB1 / adalimumab Fv with six expandable CDRs. |
 | `nanobody.cif` | PD-L1 / VHH with expandable CDRs. |
 | `motif_scaffolding.cif` | 1QJG motif-scaffolding input. |
@@ -21,36 +21,38 @@ when using the file picker; the example buttons choose this preset automatically
 All segments remain collapsed. The two PTE scaffold ranges sample independently:
 150–200 generated residues in total, with KCX between them and seven unindexed
 motif residues placed by the model. The PTE full-hit example uses the
-`inverse_folding` task. MART-1 uses `partial_diffusion`; enable partial-diffusion
-sampling for MART-1 in the runner.
+`inverse_folding` task. The BHRF1 complex uses `partial_diffusion`; enable partial-diffusion
+sampling for the BHRF1 complex in the runner.
 The PTM binder uses the general protein-design task with its CIF conditions.
 
 ### Hit provenance and validation
 
-PTE p2H11, H3pS10 hit04, and MART-1 c23 come from the
+PTE p2H11 and H3pS10 hit04 come from the
 `RFD4-Proteina-paper/structures/figures_4_6_non_idr_hits` collection. BHRF1 comes
 from the supplied `29_BHRF1_rep6_job18_generated.cif`. Source hashes and saved-file
 hashes are recorded in `hit-example-provenance.json` beside the CIFs.
 `scripts/build_hit_examples.py` rebuilds the five inputs from explicit source
 paths and checks save/reload preservation of atom identities, coordinates, bonds,
 charges, and stored annotations. No ligand chemistry or metal coordination was
-invented, and no missing atoms were added. MART-1 is an exact source copy.
+invented, and no missing atoms were added. The BHRF1 partial-diffusion input is an exact source copy, retaining both chains
+and every saved condition.
 
 Source terminal OXT atoms remain absent: one in the PTE inverse-folding input,
-one each in the H3pS10 and BHRF1 targets, and four in MART-1. Studio may request a save override for these missing atoms. These are source-preserving example inputs;
+one each in the H3pS10 and BHRF1 targets, and two in the BHRF1 partial-diffusion complex. Studio may request a save override for these missing atoms. These are source-preserving example inputs;
 structural/annotation checks do not establish generation quality.
 
 The current RFD4 validation pipeline was also run on the five updated inputs.
-PTE scaffolding, H3pS10, and BHRF1 pass pipeline and index-group checks. PTE
+PTE scaffolding, H3pS10, and both BHRF1 inputs pass pipeline and index-group checks. PTE
 inverse folding passes the pipeline but retains the source numbering gap near
 KCX (105 is atomized; 106 is absent). The separate index-group gap check reports
 104 to 107. Existing saved motif coordinate targets are retained, including their
 small differences from the generated hit's displayed coordinates.
 
-MART-1 is deliberately unchanged and fails the current bond-length check at
-three peptide bonds: A GLU275–PRO276 (2.41 Å), B MET1–ILE2 (2.79 Å), and C
-THR9–VAL10 (2.79 Å). Review before generation; no silent coordinate repair or
-bond deletion was performed. PTE custom-ligand sanitization also emits diagnostic
+The BHRF1 partial-diffusion complex retains its source conditioning: target
+sequence and absolute backbone coordinates, plus the existing binder coordinates
+as the starting structure. This differs from the separate BHRF1 protein-binder
+example, which uses internal target coordinates and an expandable design chain.
+PTE custom-ligand sanitization also emits diagnostic
 warnings; the authored bond graph and formal charges are preserved. The detailed
 results are in `hit-example-validation.json` alongside the packaged CIFs.
 Generation outputs have not been tested.

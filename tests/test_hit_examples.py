@@ -36,13 +36,17 @@ def test_catalog_is_complete_and_partial_diffusion_is_not_inverse_folding():
     assert by_id["ptm_binder"]["task"] == "unconditional"
 
 
-def test_provenance_hashes_and_unchanged_mart():
+def test_provenance_hashes_and_unchanged_bhrf1_complex():
     provenance = json.loads((EXAMPLES / "hit-example-provenance.json").read_text())
     for name, record in provenance.items():
         assert hashlib.sha256((EXAMPLES / name).read_bytes()).hexdigest() == record["sha256"]
-    mart = provenance["partial_diffusion.cif"]
-    assert mart["unchanged_source_bytes"]
-    assert mart["sha256"] == mart["source_sha256"] == "70d668ee699ff005eb065fdc5de20b9fbe622dbdd9f673a27d15fd3ccc898d26"
+    complex_record = provenance["partial_diffusion.cif"]
+    assert complex_record["unchanged_source_bytes"]
+    assert (
+        complex_record["sha256"]
+        == complex_record["source_sha256"]
+        == "a0ba838ceacc226eecdf4a7016df78168f94e047315e299897ccc1170c09d69f"
+    )
 
 
 def test_pte_inverse_folding_conditions_only_motif_sequence_and_backbone_plus_tips():
@@ -135,3 +139,19 @@ def test_binders_keep_only_target_and_free_design_segment(file, target_atoms, le
     assert not C_HOT.mask(a, default="generate").any()
     assert not C_HB.annotation(a, default="generate").any()
     assert not C_RAS.annotation(a, default="generate").any()
+
+
+def test_partial_diffusion_retains_bhrf1_binder_and_source_conditioning():
+    a = load("partial_diffusion.cif")
+    binder = a.chain_id == "A"
+    target = a.chain_id == "B"
+    assert len(a) == 2150
+    assert binder.sum() == 884 and target.sum() == 1266
+    assert len(get_residue_starts(a[binder])) == 111
+    assert len(get_residue_starts(a[target])) == 157
+    assert np.isfinite(a.coord).all()
+    np.testing.assert_array_equal(C_SEQ.mask(a, default="generate"), target)
+    np.testing.assert_array_equal(
+        C_CRD.mask(a, default="generate"), target & np.isin(a.atom_name, ["N", "CA", "C", "O"])
+    )
+    assert not C_CRD.mask(a, default="generate")[binder].any()

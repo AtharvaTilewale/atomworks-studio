@@ -54,7 +54,7 @@ controls:
 
 Use **Combine CIF** to merge another file into the active document. The
 **Main → Examples** panel includes BHRF1 protein binding, H3pS10 PTM binding,
-PTE enzyme scaffolding and inverse folding, MART-1 c23 partial diffusion,
+PTE enzyme scaffolding and inverse folding, BHRF1 complex partial diffusion,
 antibody, VHH, motif scaffolding, SAM binding, and unconditional design.
 The same packaged catalog is used by the Gradio Space. Bundled examples always
 use the annotated-CIF preset, independently of the settings for uploaded files.

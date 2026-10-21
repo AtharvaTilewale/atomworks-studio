@@ -138,7 +138,7 @@ def save(doc, output):
     return restored
 
 
-def build(pte, ptm, mart, bhrf1, output):
+def build(pte, ptm, bhrf1, output):
     output.mkdir(parents=True, exist_ok=True)
     prepared = {
         "inverse_folding.cif": (pte_inverse_folding(pte), pte),
@@ -162,13 +162,13 @@ def build(pte, ptm, mart, bhrf1, output):
             "studio_validation": restored.validate(full_pipeline=True),
             "roundtrip": "atom identities, coordinates, bonds, charges and saved annotations match",
         }
-    (output / "partial_diffusion.cif").write_bytes(mart.read_bytes())
+    (output / "partial_diffusion.cif").write_bytes(bhrf1.read_bytes())
     report["partial_diffusion.cif"] = {
-        "source_file": mart.name,
-        "sha256": hashlib.sha256(mart.read_bytes()).hexdigest(),
-        "source_sha256": hashlib.sha256(mart.read_bytes()).hexdigest(),
+        "source_file": bhrf1.name,
+        "sha256": hashlib.sha256(bhrf1.read_bytes()).hexdigest(),
+        "source_sha256": hashlib.sha256(bhrf1.read_bytes()).hexdigest(),
         "unchanged_source_bytes": True,
-        "studio_validation": document(mart).validate(full_pipeline=True),
+        "studio_validation": document(bhrf1).validate(full_pipeline=True),
     }
     (output / "hit-example-provenance.json").write_text(json.dumps(report, indent=2) + "\n")
     print(json.dumps(report, indent=2))
@@ -176,6 +176,6 @@ def build(pte, ptm, mart, bhrf1, output):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    for name in ("pte", "ptm", "mart", "bhrf1", "output"):
+    for name in ("pte", "ptm", "bhrf1", "output"):
         parser.add_argument("--" + name, required=True, type=Path)
     build(**vars(parser.parse_args()))

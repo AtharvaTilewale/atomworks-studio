@@ -9,9 +9,7 @@
       "check_index_group_molecule_consistency": []
     },
     "partial_diffusion.cif": {
-      "run_pipeline_validation": [
-        "[bond_length] 3 bond(s) exceed the polymerization limit of 2.0 \u00c5 or general limit of 4.0 \u00c5; maximum length is 2.79 \u00c5. First 3: A_1:GLU275:C -- A_1:PRO276:N = 2.41 \u00c5 (limit 2.0 \u00c5); B_1:MET1:C -- B_1:ILE2:N = 2.79 \u00c5 (limit 2.0 \u00c5); C_1:THR9:C -- C_1:VAL10:N = 2.79 \u00c5 (limit 2.0 \u00c5). Check source coordinates and residue numbering; preserve missing-residue gaps instead of bonding across them."
-      ],
+      "run_pipeline_validation": [],
       "check_index_group_res_id_gaps": [],
       "check_index_group_molecule_consistency": []
     },
