@@ -71,6 +71,7 @@ export class AnnotationController {
     }
     const groups = values.map((value, index) => ({
       label: value.label, atomIndices: value.atom_indices!, color: value.color ?? ANNOTATION_PALETTE[index],
+      dimUnhighlighted: annotation.name === "coordinate" || annotation.name === "coordinate_group",
       showAtoms: annotation.name === "coordinate_group" || annotation.unit === "atoms" || annotation.unit === "pairs",
     }));
     // Inspection must not leave unrelated editing-selection markers over the annotation.

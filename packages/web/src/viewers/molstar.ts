@@ -31,6 +31,7 @@ import "molstar/lib/mol-plugin-ui/skin/dark.scss";
 import { unpositionedAtomIndices } from "./unpositioned-atoms";
 
 import {
+  ANNOTATION_CONTEXT_COLOR,
   ANNOTATION_PALETTE,
   annotationRenderResult,
   normalizedAnnotationGroups,
@@ -307,26 +308,7 @@ export class MolstarAdapter implements ViewerAdapter {
     }
 
     try {
-      for (const [index, group] of normalized.entries()) {
-        const loci = this.lociFor(group.atomIndices);
-        const selectedCount = StructureElement.Loci.size(loci);
-        if (selectedCount !== group.atomIndices.length) {
-          throw new Error(
-            `Mol* selected ${selectedCount} atoms for ${group.label}; ` +
-              `AtomWorks reported ${group.atomIndices.length}.`,
-          );
-        }
-        const color = group.color ?? ANNOTATION_PALETTE[index % ANNOTATION_PALETTE.length];
-        await setStructureOverpaint(
-          this.viewer.plugin,
-          this.currentStructure().reference.components,
-          Color(color.value),
-          async (structure) =>
-            StructureElement.Schema.toLoci(structure, {
-              items: { atom_index: group.atomIndices },
-            }),
-        );
-      }
+      await this.applyAnnotationColors();
     } catch (error) {
       await clearStructureOverpaint(this.viewer.plugin, reference.components);
       throw error;
@@ -452,11 +434,35 @@ export class MolstarAdapter implements ViewerAdapter {
         async structure => StructureElement.Loci.all(structure));
     }
     // New components receive annotation colours without changing selection or camera.
+    await this.applyAnnotationColors();
+  }
+
+  private async applyAnnotationColors(): Promise<void> {
+    if (!this.viewer || !this.annotationGroups.length) return;
     const { reference } = this.currentStructure();
+    if (this.annotationGroups.some(group => group.dimUnhighlighted)) {
+      await setStructureOverpaint(this.viewer.plugin, reference.components,
+        Color(ANNOTATION_CONTEXT_COLOR), async structure => StructureElement.Loci.all(structure));
+    }
     for (const [index, group] of this.annotationGroups.entries()) {
-      await setStructureOverpaint(plugin, reference.components,
-        Color((group.color ?? ANNOTATION_PALETTE[index % ANNOTATION_PALETTE.length]).value),
-        async () => this.lociFor(group.atomIndices));
+      const loci = this.lociFor(group.atomIndices);
+      const selectedCount = StructureElement.Loci.size(loci);
+      if (selectedCount !== group.atomIndices.length) {
+        throw new Error(
+          `Mol* selected ${selectedCount} atoms for ${group.label}; ` +
+            `AtomWorks reported ${group.atomIndices.length}.`,
+        );
+      }
+      const color = group.color ?? ANNOTATION_PALETTE[index % ANNOTATION_PALETTE.length];
+      await setStructureOverpaint(
+        this.viewer.plugin,
+        reference.components,
+        Color(color.value),
+        async (structure) =>
+          StructureElement.Schema.toLoci(structure, {
+            items: { atom_index: group.atomIndices },
+          }),
+      );
     }
   }
 
