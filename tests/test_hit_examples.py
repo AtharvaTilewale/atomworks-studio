@@ -31,8 +31,8 @@ def test_catalog_is_complete_and_partial_diffusion_is_not_inverse_folding():
     assert len(catalog) == len({row["id"] for row in catalog}) == 10
     assert {row["file"] for row in catalog} == {path.name for path in EXAMPLES.glob("*.cif")}
     by_id = {row["id"]: row for row in catalog}
-    assert "inverse_folding" not in by_id
-    assert by_id["pte_partial_diffusion"]["task"] == by_id["partial_diffusion"]["task"] == "partial_diffusion"
+    assert by_id["inverse_folding"]["task"] == "inverse_folding"
+    assert by_id["partial_diffusion"]["task"] == "partial_diffusion"
     assert by_id["ptm_binder"]["task"] == "unconditional"
 
 
@@ -45,8 +45,8 @@ def test_provenance_hashes_and_unchanged_mart():
     assert mart["sha256"] == mart["source_sha256"] == "70d668ee699ff005eb065fdc5de20b9fbe622dbdd9f673a27d15fd3ccc898d26"
 
 
-def test_pte_partial_conditions_only_motif_sequence_and_backbone_plus_tips():
-    a = load("pte_partial_diffusion.cif")
+def test_pte_inverse_folding_conditions_only_motif_sequence_and_backbone_plus_tips():
+    a = load("inverse_folding.cif")
     protein = a.chain_id == "A"
     motif = protein & np.isin(a.res_id, [16, 45, 75, 79, 94, 98, 102, 105])
     np.testing.assert_array_equal(C_SEQ.mask(a, default="generate"), motif | ~protein)
@@ -87,7 +87,7 @@ def test_pte_scaffold_has_independent_islands_and_indexed_kcx_between_segments()
     assert not C_SEQ.mask(a, default="generate")[segments].any()
     assert not C_CRD.mask(a, default="generate")[segments].any()
     # Retained atom chemistry, coordinates and tip targets equal the complete hit.
-    original = load("pte_partial_diffusion.cif")
+    original = load("inverse_folding.cif")
 
     def keys(b):
         return list(zip(b.chain_id, b.res_id, b.res_name, b.atom_name, strict=True))

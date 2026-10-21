@@ -72,8 +72,8 @@ try {
   }
   await page.locator('#editor-tab-main').click();
   await page.locator('#examples-panel > summary').click();
-  await page.locator('[data-example="pte_partial_diffusion"]').click();
-  await page.waitForFunction(() => document.querySelector('#status-message')?.textContent.includes('Loaded Partial diffusion'));
+  await page.locator('[data-example="inverse_folding"]').click();
+  await page.waitForFunction(() => document.querySelector('#status-message')?.textContent.includes('Loaded Inverse folding'));
   assert.equal(await page.locator('#unpositioned-state').isVisible(), false);
   assert.equal(await page.locator('[data-representation="sticks"]').isEnabled(), true);
   assert.deepEqual(errors, []);

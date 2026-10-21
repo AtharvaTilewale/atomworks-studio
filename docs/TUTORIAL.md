@@ -1,6 +1,6 @@
 # Edit, save, and reopen a structure
 
-This walkthrough uses the bundled PTE p2H11 partial-diffusion example. Run Studio using the
+This walkthrough uses the bundled PTE p2H11 inverse-folding example. Run Studio using the
 [installation guide](INSTALLATION.md), then open its URL in your browser.
 No GPU is needed to edit or save a structure.
 
@@ -12,14 +12,14 @@ use the editor's **Guide** link to keep the instructions in a separate tab.
 
 ```{raw} html
 <div class="studio-example">
-  <button type="button" data-studio-example="pte_partial_diffusion">Open PTE p2H11 example</button>
+  <button type="button" data-studio-example="inverse_folding">Open PTE p2H11 example</button>
   <p role="status">Interactive editing is available when this guide is served by Studio at /guide/.</p>
 </div>
 ```
 
 ## Open and select
 
-1. In **Edit → Main → Examples**, choose **Partial diffusion · PTE p2H11**. Wait for the molecule and sequence to appear.
+1. In **Edit → Main → Examples**, choose **Inverse folding · PTE p2H11**. Wait for the molecule and sequence to appear.
 2. Set the command bar to **AtomWorks query**, enter `atom_name == 'CA'`, and
    choose **Select**. The selection count should read **220 atoms** for the bundled example.
 3. In the same **AtomWorks query** mode, enter `sel('*/*/*/CA')`. It selects the same atoms.

@@ -14,8 +14,8 @@ try {
   page.on("pageerror", error => errors.push(error.message));
   await page.goto(`${baseUrl}?viewer=molstar`);
   await page.waitForFunction(() => document.querySelector("#status")?.textContent.includes("Ready."));
-  await page.locator('[data-example="pte_partial_diffusion"]').click();
-  await page.waitForFunction(() => document.querySelector("#status")?.textContent.includes("Loaded Partial diffusion"));
+  await page.locator('[data-example="inverse_folding"]').click();
+  await page.waitForFunction(() => document.querySelector("#status")?.textContent.includes("Loaded Inverse folding"));
   await page.waitForFunction(() => !document.querySelector("#viewer-mode").disabled);
   assert.equal(await page.locator("#pick-scope").inputValue(), "atom");
   await page.locator("#pick-scope").selectOption("residue");

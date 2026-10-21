@@ -112,8 +112,8 @@ try {
     await demo.locator('#design-results').waitFor({state: 'hidden'});
     await ui.locator('#editor-tab-main').click();
     await ui.locator('#examples-panel').evaluate(element => element.open = true);
-    await ui.locator('[data-example="pte_partial_diffusion"]').click();
-    await demo.waitForFunction(() => [...document.querySelectorAll('input')].some(input => input.value === 'Partial diffusion (40%)'));
+    await ui.locator('[data-example="inverse_folding"]').click();
+    await demo.waitForFunction(() => [...document.querySelectorAll('input')].some(input => input.value === 'Inverse folding'));
     assert.equal(await demo.locator('#design-results').isVisible(), false);
   }
   assert.deepEqual(errors, []);

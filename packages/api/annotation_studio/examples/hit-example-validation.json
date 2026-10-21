@@ -20,7 +20,7 @@
       "check_index_group_res_id_gaps": [],
       "check_index_group_molecule_consistency": []
     },
-    "pte_partial_diffusion.cif": {
+    "inverse_folding.cif": {
       "run_pipeline_validation": [],
       "check_index_group_res_id_gaps": [
         "[res_id_gap] Residue numbering has 1 internal gap(s) within index groups: index group 0: res_id jumps from 104 to 107. Intra-group gaps are interpreted by the model as breaks within a contiguously-indexed region -- make sure this is intentional."

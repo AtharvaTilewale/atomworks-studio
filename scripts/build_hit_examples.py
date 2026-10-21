@@ -66,7 +66,7 @@ def retain(doc, mask):
     refresh_chain_derived_annotations(doc.array)
 
 
-def pte_partial(source):
+def pte_inverse_folding(source):
     doc = document(source)
     a = doc.array
     # Preserve the existing motif/ligand sequence masks and tip targets exactly.
@@ -141,7 +141,7 @@ def save(doc, output):
 def build(pte, ptm, mart, bhrf1, output):
     output.mkdir(parents=True, exist_ok=True)
     prepared = {
-        "pte_partial_diffusion.cif": (pte_partial(pte), pte),
+        "inverse_folding.cif": (pte_inverse_folding(pte), pte),
         "enzyme_design.cif": (pte_scaffold(pte), pte),
         "ptm_binder.cif": (binder(ptm, "B", 150, 150, False), ptm),
         "protein_binder.cif": (binder(bhrf1, "B", 50, 120, True), bhrf1),

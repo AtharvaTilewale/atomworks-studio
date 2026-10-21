@@ -1,5 +1,5 @@
 {
-  "pte_partial_diffusion.cif": {
+  "inverse_folding.cif": {
     "source_file": "PTE_p2H11__design.cif",
     "source_sha256": "b21808ee08b43d33ffedf9e59e7484030cb779da9bc62c257de25b7971aaedf4",
     "sha256": "919e302a340d695317affbbdec4a8f1a58777de30f993b8febbc9171f01af32a",

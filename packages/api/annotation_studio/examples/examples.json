@@ -24,10 +24,10 @@
     "id": "enzyme_design"
   },
   {
-    "label": "Partial diffusion · PTE p2H11",
-    "file": "pte_partial_diffusion.cif",
-    "task": "partial_diffusion",
-    "id": "pte_partial_diffusion"
+    "label": "Inverse folding · PTE p2H11",
+    "file": "inverse_folding.cif",
+    "task": "inverse_folding",
+    "id": "inverse_folding"
   },
   {
     "label": "Motif scaffolding · 1QJG",
