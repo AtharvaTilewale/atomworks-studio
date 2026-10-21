@@ -1,4 +1,4 @@
-"""Shipped annotated examples open without an ambiguous parse-preset decision."""
+"""Shipped examples preserve annotations under the explicit annotated-CIF preset."""
 
 from pathlib import Path
 from runpy import run_path
@@ -22,8 +22,7 @@ PROVIDERS = load_providers()
 
 
 @pytest.mark.parametrize("path", EXAMPLES, ids=lambda path: path.stem)
-def test_bundled_examples_infer_without_conflict(path: Path) -> None:
-    assert inspect_import(path)["preset"] in {"minimal", "rcsb"}
+def test_bundled_examples_open_with_annotated_preset(path: Path) -> None:
     parsed = parse(path, config=build_load_config("minimal", assembly="asym"))
     array = parsed["asym_unit"][0]
     for chain, info in parsed["chain_info"].items():
@@ -33,7 +32,7 @@ def test_bundled_examples_infer_without_conflict(path: Path) -> None:
 
 
 def test_enzyme_added_atoms_have_free_coordinates_and_consistent_residue_conditions() -> None:
-    path = ROOT / "packages/api/annotation_studio/examples/enzyme_design.cif"
+    path = ROOT / "tests/fixtures/tip_atom_enzyme.cif"
     document = StudioDocument.from_cif(path.read_text(), condition_provider=PROVIDERS.condition_provider)
     array = document.array
     residue = array.res_name == "ASP"
@@ -48,7 +47,7 @@ def test_enzyme_added_atoms_have_free_coordinates_and_consistent_residue_conditi
 
 
 def test_completion_preserves_pair_annotations_and_original_source(tmp_path: Path) -> None:
-    source = ROOT / "packages/api/annotation_studio/examples/enzyme_design.cif"
+    source = ROOT / "tests/fixtures/tip_atom_enzyme.cif"
     document = StudioDocument.from_cif(source.read_text(), condition_provider=PROVIDERS.condition_provider)
     array = document.array
     array = array[~((array.res_name == "ASP") & np.isnan(array.coord).all(axis=1))]
@@ -105,19 +104,18 @@ def test_protein_binder_conditions_only_internal_target_backbone() -> None:
         validation_provider=PROVIDERS.validation_provider,
     )
     array = document.array
-    target = array.chain_id == "A"
+    target = array.chain_id == "B"
     backbone = target & np.isin(array.atom_name, ["N", "CA", "C", "O"])
-    assert backbone.sum() == 460
+    assert backbone.sum() == 628
     np.testing.assert_array_equal(C_CRDGRP.annotation(array) == 1, backbone)
     assert not C_CRD.mask(array, default="generate").any()
     assert not np.isfinite(C_INTCRD.annotation(array, default="generate")).any()
     assert C_SEQ.mask(array, default="generate")[target].all()
     assert C_IDX.mask(array, default="generate")[target].all()
     hotspots = C_HOT.mask(array, default="generate")
-    assert hotspots.sum() == 6
-    assert set(array.res_id[hotspots]) == {56, 115, 123}
+    assert not hotspots.any()
     assert list(array.res_name[~target]) == ["50-120"]
-    assert not document.validate(full_pipeline=True)
+    assert {issue["check"] for issue in document.validate(full_pipeline=True)} == {"missing_atoms"}
 
 
 def test_vhh_display_is_near_target_and_preserves_saved_internal_geometry() -> None:

@@ -1,48 +1,54 @@
 [
   {
-    "label": "Protein binder \u00b7 PD-L1",
+    "label": "Protein binder · BHRF1",
     "file": "protein_binder.cif",
     "task": "unconditional",
     "id": "protein_binder"
   },
   {
-    "label": "Antibody \u00b7 MZB1 / adalimumab Fv",
+    "label": "PTM binder · H3pS10",
+    "file": "ptm_binder.cif",
+    "task": "unconditional",
+    "id": "ptm_binder"
+  },
+  {
+    "label": "Antibody · MZB1 / adalimumab Fv",
     "file": "antibody_design.cif",
     "task": "antibody_design",
     "id": "antibody_design"
   },
   {
-    "label": "Enzyme \u00b7 catalytic motif",
+    "label": "Enzyme scaffolding · PTE p2H11",
     "file": "enzyme_design.cif",
     "task": "enzyme_design",
     "id": "enzyme_design"
   },
   {
-    "label": "Inverse folding \u00b7 2KL8",
+    "label": "Inverse folding · PTE p2H11",
     "file": "inverse_folding.cif",
     "task": "inverse_folding",
     "id": "inverse_folding"
   },
   {
-    "label": "Motif scaffolding \u00b7 1QJG",
+    "label": "Motif scaffolding · 1QJG",
     "file": "motif_scaffolding.cif",
     "task": "motif_scaffolding",
     "id": "motif_scaffolding"
   },
   {
-    "label": "VHH \u00b7 PD-L1 CDRs",
+    "label": "VHH · PD-L1 CDRs",
     "file": "nanobody.cif",
     "task": "antibody_design",
     "id": "nanobody"
   },
   {
-    "label": "Partial diffusion \u00b7 2KL8",
-    "file": "inverse_folding.cif",
+    "label": "Partial diffusion · BHRF1",
+    "file": "partial_diffusion.cif",
     "task": "partial_diffusion",
     "id": "partial_diffusion"
   },
   {
-    "label": "Small-molecule binder \u00b7 SAM",
+    "label": "Small-molecule binder · SAM",
     "file": "small_molecule_binder.cif",
     "task": "small_molecule_binder",
     "id": "small_molecule_binder"
