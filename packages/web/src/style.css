@@ -431,3 +431,5 @@ body.host-vscode[data-host-theme="high-contrast-light"] {
 .error-text { color: #f87171 !important; font-weight: 600; }
 .import-dialog { width: min(560px, 90vw); max-height: 85vh; overflow-y: auto; }
 #import-settings p { line-height: 1.5; }
+
+#show-charges { flex: 0 0 auto; }

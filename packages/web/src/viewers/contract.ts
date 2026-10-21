@@ -121,6 +121,8 @@ export type AnnotationGroup = {
   dimUnhighlighted?: boolean;
 };
 
+export type AtomCharge = { atomIndex: number; charge: number };
+
 export type ViewerMarker = { label: string; position: [number, number, number]; color: number };
 
 export type AnnotationColor = {
@@ -171,6 +173,7 @@ export interface ViewerAdapter {
   showInteractions?(interactions: ViewerInteraction[]): Promise<void>;
   clearMeasurements?(): Promise<void>;
   showMarkers?(markers: ViewerMarker[]): Promise<void>;
+  showCharges(charges: AtomCharge[]): Promise<void>;
   destroy(): void;
 }
 
