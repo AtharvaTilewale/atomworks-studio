@@ -1,5 +1,6 @@
 """The example rebuild states the aromatic ligand bond orders it would otherwise copy as AROM."""
 
+import json
 from pathlib import Path
 from runpy import run_path
 
@@ -10,7 +11,8 @@ from biotite.structure.bonds import BondType
 
 ROOT = Path(__file__).resolve().parents[1]
 EXAMPLES = ROOT / "packages/api/annotation_studio/examples"
-state_aromatic_bond_orders = run_path(str(ROOT / "scripts/build_hit_examples.py"))["state_aromatic_bond_orders"]
+builder = run_path(str(ROOT / "scripts/build_hit_examples.py"))
+state_aromatic_bond_orders = builder["state_aromatic_bond_orders"]
 
 # enzyme_design and inverse_folding both carry the nitrophenyl phosphate ligand L:0,
 # whose benzene ring the design source stores with unstated (AROMATIC) bond orders.
@@ -48,14 +50,32 @@ def test_rebuild_restates_source_aromatic_ring_as_shipped(name):
     assert doc.protonate(7.4)["hydrogen_count"] > 0
 
 
-def test_provenance_ligand_note_is_the_one_the_rebuild_writes():
-    """Re-running the rebuild must regenerate, not delete, the checked-in ligand provenance note."""
-    import json
+def test_rebuild_writes_ligand_provenance(tmp_path, monkeypatch):
+    """Generated provenance records bond repairs only for the affected examples."""
 
-    ligand_bond_order_note = run_path(str(ROOT / "scripts/build_hit_examples.py"))["ligand_bond_order_note"]
-    provenance = json.loads((EXAMPLES / "hit-example-provenance.json").read_text())
-    for name, record in provenance.items():
+    def prepared(name):
+        doc = _load(name)
         if name in LIGAND_EXAMPLES:
-            assert record["ligand_bond_orders"] == ligand_bond_order_note(len(RING))
+            bonds = doc.array.bonds.as_array()
+            for i, j, order in bonds:
+                if order in (BondType.AROMATIC_SINGLE, BondType.AROMATIC_DOUBLE):
+                    if doc.array.res_name[i] == doc.array.res_name[j] == "L:0":
+                        doc.array.bonds.add_bond(i, j, BondType.AROMATIC)
+        return doc
+
+    # Use packaged documents at the preparation boundary; exercise the real repair,
+    # serialization and provenance-writing steps without requiring private source files.
+    build = builder["build"]
+    monkeypatch.setitem(build.__globals__, "pte_inverse_folding", lambda _source: prepared("inverse_folding.cif"))
+    monkeypatch.setitem(build.__globals__, "pte_scaffold", lambda _source: prepared("enzyme_design.cif"))
+    monkeypatch.setitem(build.__globals__, "binder", lambda source, *_args: prepared(source.name))
+    build(EXAMPLES / "inverse_folding.cif", EXAMPLES / "ptm_binder.cif", EXAMPLES / "protein_binder.cif", tmp_path)
+
+    generated = json.loads((tmp_path / "hit-example-provenance.json").read_text())
+    expected = json.loads((EXAMPLES / "hit-example-provenance.json").read_text())
+    assert set(generated) == set(expected)
+    for name, record in generated.items():
+        if name in LIGAND_EXAMPLES:
+            assert record["ligand_bond_orders"] == expected[name]["ligand_bond_orders"]
         else:
-            assert "ligand_bond_orders" not in record, f"{name}: the rebuild states no bonds there"
+            assert "ligand_bond_orders" not in record
