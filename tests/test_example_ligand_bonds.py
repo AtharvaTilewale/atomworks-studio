@@ -46,6 +46,12 @@ def test_rebuild_restates_source_aromatic_ring_as_shipped(name):
         array.bonds.add_bond(atom(first), atom(second), BondType.AROMATIC)
     assert state_aromatic_bond_orders(array) == len(RING)
     np.testing.assert_array_equal(array.bonds.as_array(), shipped)
+    ring_atoms = [atom(name) for name in sorted({name for edge in RING for name in edge})]
+    assert np.all(array.element[ring_atoms] == "C")
+    for index in ring_atoms:
+        partners, orders = array.bonds.get_bonds(index)
+        ring_orders = orders[np.isin(partners, ring_atoms)]
+        assert sorted(ring_orders) == [BondType.AROMATIC_SINGLE, BondType.AROMATIC_DOUBLE]
     # And the restated ligand can be protonated, which the AROM source could not.
     assert doc.protonate(7.4)["hydrogen_count"] > 0
 
