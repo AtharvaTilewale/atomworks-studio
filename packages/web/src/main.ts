@@ -454,9 +454,14 @@ async function initialize(): Promise<void> {
         // The server session is open even if it cannot be displayed; keep it savable and closable.
         persistSession(response);
         enableSessionControls(true);
-        await recoverRenderer(error);
-        await refreshFromServer(response.structure, false);
-        notifyHost("ready");
+        try {
+          // Notify the host even if recovery fails, so it still learns the session id; a terminal
+          // failure still rejects for the caller, and a successful recovery notifies only once.
+          await recoverRenderer(error);
+          await refreshFromServer(response.structure, false);
+        } finally {
+          notifyHost("ready");
+        }
       } finally {
         workspace.inert = false;
       }
@@ -543,6 +548,8 @@ async function initialize(): Promise<void> {
         persistSession(restored);
         enableSessionControls(true);
         log(`Restored session could not be displayed: ${String(error)}`, "error");
+        // Notify the host so an embedded parent still receives the session id instead of timing out.
+        notifyHost("ready");
       } else {
         sessionId = null;
         if (error instanceof ApiError && (error.status === 404 || error.status === 403)) {
