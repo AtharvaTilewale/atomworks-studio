@@ -179,7 +179,12 @@ def inspect_import(source: Path | StringIO | BytesIO, *, file_type: str | None =
             Counter(zip(atoms.chain_id, atoms.res_id, atoms.ins_code, atoms.res_name, atoms.atom_name, strict=True))
             for atoms in (original, completed)
         ]
-        added = sum((atom_sets[1] - atom_sets[0]).values())
+        missing = atom_sets[1] - atom_sets[0]
+        # A terminal OXT is the one heavy atom that design outputs routinely omit, and it
+        # only ever appears at a chain end. Reporting it as an ambiguous import would force
+        # a preset choice on almost every annotated design file, so count it separately.
+        terminal_oxt = sum(count for key, count in missing.items() if key[-1] == "OXT")
+        added = sum(missing.values()) - terminal_oxt
     except Exception as error:
         return {
             "preset": None,
@@ -193,6 +198,12 @@ def inspect_import(source: Path | StringIO | BytesIO, *, file_type: str | None =
             "Adding atoms changes annotation indices, so both cannot be enabled together. "
             "Choose Annotated CIF to keep annotations and the existing atom list, or Unannotated input "
             "to discard saved annotations and add missing atoms. Custom settings are also available.",
+        }
+    if terminal_oxt:
+        return {
+            "preset": "minimal",
+            "message": f"Saved StandardAnnotations found; {terminal_oxt} terminal OXT atoms are missing and are "
+            "not added. Using Annotated CIF.",
         }
     return {
         "preset": "minimal",
