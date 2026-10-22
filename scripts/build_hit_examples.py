@@ -116,6 +116,14 @@ def state_aromatic_bond_orders(array) -> int:
     return len(aromatic)
 
 
+def ligand_bond_order_note(stated: int) -> str:
+    """Provenance text recorded for an example whose aromatic bond orders the rebuild stated."""
+    return (
+        f"{stated} aromatic bonds of unstated order are stated as a Kekule structure "
+        "(AROMATIC_SINGLE/AROMATIC_DOUBLE, aromatic flag kept) so protonation can run."
+    )
+
+
 def pte_inverse_folding(source):
     doc = document(source)
     a = doc.array
@@ -126,7 +134,6 @@ def pte_inverse_folding(source):
     values[backbone & ~old_fixed] = a.coord[backbone & ~old_fixed]
     C_CRD.set_annotation(a, values)
     C_CRDGRP.set_annotation(a, C_CRDGRP.default_annotation(a))
-    state_aromatic_bond_orders(a)
     return doc
 
 
@@ -166,7 +173,6 @@ def pte_scaffold(source):
     for left, right, _ in a.bonds.as_array():
         if indexed[left] != indexed[right]:
             a.bonds.remove_bond(int(left), int(right))
-    state_aromatic_bond_orders(a)
     return doc
 
 
@@ -200,6 +206,9 @@ def build(pte, ptm, bhrf1, output):
     }
     report = {}
     for name, (doc, source) in prepared.items():
+        # Sources describe aromatic ligand rings with unstated (AROM) bond orders; state them so the
+        # shipped examples can be protonated, and record that in the report.
+        stated = state_aromatic_bond_orders(doc.array)
         restored = save(doc, output / name)
         a = restored.array
         report[name] = {
@@ -214,6 +223,8 @@ def build(pte, ptm, bhrf1, output):
             "studio_validation": restored.validate(full_pipeline=True),
             "roundtrip": "atom identities, coordinates, bonds, charges and saved annotations match",
         }
+        if stated:
+            report[name]["ligand_bond_orders"] = ligand_bond_order_note(stated)
     (output / "partial_diffusion.cif").write_bytes(bhrf1.read_bytes())
     report["partial_diffusion.cif"] = {
         "source_file": bhrf1.name,

@@ -46,3 +46,16 @@ def test_rebuild_restates_source_aromatic_ring_as_shipped(name):
     np.testing.assert_array_equal(array.bonds.as_array(), shipped)
     # And the restated ligand can be protonated, which the AROM source could not.
     assert doc.protonate(7.4)["hydrogen_count"] > 0
+
+
+def test_provenance_ligand_note_is_the_one_the_rebuild_writes():
+    """Re-running the rebuild must regenerate, not delete, the checked-in ligand provenance note."""
+    import json
+
+    ligand_bond_order_note = run_path(str(ROOT / "scripts/build_hit_examples.py"))["ligand_bond_order_note"]
+    provenance = json.loads((EXAMPLES / "hit-example-provenance.json").read_text())
+    for name, record in provenance.items():
+        if name in LIGAND_EXAMPLES:
+            assert record["ligand_bond_orders"] == ligand_bond_order_note(len(RING))
+        else:
+            assert "ligand_bond_orders" not in record, f"{name}: the rebuild states no bonds there"

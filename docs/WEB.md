@@ -244,7 +244,8 @@ annotations and atom list. Existing atom records with unresolved coordinates cou
 adding missing records does not predict their coordinates.
 
 A missing terminal OXT is the exception: design outputs routinely omit it, so an annotated file
-whose only missing heavy atoms are chain-terminal OXT still uses **Annotated CIF**, and the import
+whose only missing heavy atoms are OXT on a free C-terminal carboxyl (the end of a chain, or of a
+separately placed segment such as a motif residue) still uses **Annotated CIF**, and the import
 message says how many are left absent.
 
 When a file has both saved StandardAnnotations and other missing heavy atoms, Studio asks you to

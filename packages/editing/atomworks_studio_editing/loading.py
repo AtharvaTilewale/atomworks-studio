@@ -158,6 +158,33 @@ def heavy_atom_inventory(
     return original, completed
 
 
+def terminal_oxt_count(missing: Counter, completed: AtomArray) -> int:
+    """Count missing OXT atoms on residues whose carboxyl carbon is not linked to another residue.
+
+    A free C-terminal carboxyl (the end of a chain, or of a separately placed segment such as a
+    motif island) is the one place design outputs routinely omit a heavy atom, its OXT. AtomWorks
+    completion only keeps an added OXT where no peptide link is built, so the rule here is checked
+    on the completed bond graph: an OXT is exempt only if its residue's backbone ``C`` has no bond to
+    an atom of a different residue. Any other missing OXT still counts as a missing heavy atom.
+    ``missing`` is keyed by (chain_id, res_id, ins_code, res_name, atom_name).
+    """
+    residue = list(zip(completed.chain_id, completed.res_id, completed.ins_code, strict=True))
+    carbon = {residue[i]: i for i in range(len(completed)) if completed.atom_name[i] == "C"}
+
+    def free_carboxyl(key: tuple) -> bool:
+        index = carbon.get(key)
+        if index is None or completed.bonds is None:
+            return False
+        partners, _types = completed.bonds.get_bonds(index)
+        return all(residue[int(partner)] == key for partner in partners)
+
+    return sum(
+        count
+        for (chain, res_id, ins_code, _res_name, atom_name), count in missing.items()
+        if atom_name == "OXT" and free_carboxyl((chain, res_id, ins_code))
+    )
+
+
 def inspect_import(source: Path | StringIO | BytesIO, *, file_type: str | None = None) -> dict:
     """Infer an import preset without changing the source or loading a document.
 
@@ -180,10 +207,7 @@ def inspect_import(source: Path | StringIO | BytesIO, *, file_type: str | None =
             for atoms in (original, completed)
         ]
         missing = atom_sets[1] - atom_sets[0]
-        # A terminal OXT is the one heavy atom that design outputs routinely omit, and it
-        # only ever appears at a chain end. Reporting it as an ambiguous import would force
-        # a preset choice on almost every annotated design file, so count it separately.
-        terminal_oxt = sum(count for key, count in missing.items() if key[-1] == "OXT")
+        terminal_oxt = terminal_oxt_count(missing, completed)
         added = sum(missing.values()) - terminal_oxt
     except Exception as error:
         return {
@@ -200,10 +224,11 @@ def inspect_import(source: Path | StringIO | BytesIO, *, file_type: str | None =
             "to discard saved annotations and add missing atoms. Custom settings are also available.",
         }
     if terminal_oxt:
+        atoms = "terminal OXT atom is" if terminal_oxt == 1 else "terminal OXT atoms are"
         return {
             "preset": "minimal",
-            "message": f"Saved StandardAnnotations found; {terminal_oxt} terminal OXT atoms are missing and are "
-            "not added. Using Annotated CIF.",
+            "message": f"Saved StandardAnnotations found; {terminal_oxt} {atoms} missing and not added. "
+            "Using Annotated CIF.",
         }
     return {
         "preset": "minimal",

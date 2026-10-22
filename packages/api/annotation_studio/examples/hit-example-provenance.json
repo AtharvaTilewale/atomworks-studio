@@ -16,7 +16,7 @@
       }
     ],
     "roundtrip": "atom identities, coordinates, bonds, charges and saved annotations match",
-    "ligand_bond_orders": "Aromatic ring bonds of the nitrophenyl phosphate ligand are stated as alternating single/double with the aromatic flag retained, so protonation can run."
+    "ligand_bond_orders": "6 aromatic bonds of unstated order are stated as a Kekule structure (AROMATIC_SINGLE/AROMATIC_DOUBLE, aromatic flag kept) so protonation can run."
   },
   "enzyme_design.cif": {
     "source_file": "PTE_p2H11__design.cif",
@@ -29,7 +29,7 @@
     "unindexed_residues": 7,
     "studio_validation": [],
     "roundtrip": "atom identities, coordinates, bonds, charges and saved annotations match",
-    "ligand_bond_orders": "Aromatic ring bonds of the nitrophenyl phosphate ligand are stated as alternating single/double with the aromatic flag retained, so protonation can run."
+    "ligand_bond_orders": "6 aromatic bonds of unstated order are stated as a Kekule structure (AROMATIC_SINGLE/AROMATIC_DOUBLE, aromatic flag kept) so protonation can run."
   },
   "ptm_binder.cif": {
     "source_file": "H3S10_hit04__design.cif",
