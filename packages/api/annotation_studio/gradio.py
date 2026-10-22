@@ -5,6 +5,7 @@ import html
 import logging
 import tempfile
 import zipfile
+from collections import OrderedDict
 from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol
@@ -25,6 +26,11 @@ class GenerationProvider(Protocol):
     def controls(self) -> dict[str, gr.Component]: ...
     def validate(self, options: dict) -> dict: ...
     def example_options(self, example: dict) -> dict: ...
+
+
+# A public host serves many short-lived browser tabs; cap the per-tab result registry so it
+# cannot grow without bound. Evicting a client releases its tracked sessions.
+MAX_TRACKED_CLIENTS = 64
 
 
 HOST_BRIDGE = """
@@ -137,8 +143,9 @@ def create_demo(
 ) -> gr.Blocks:
     """Export current edits, call a model off the API loop, and inspect returned CIFs."""
     handoff = StudioHandoff(studio, editor_path)
-    # Result sessions each browser tab created, released when that tab generates again.
-    results_by_client: dict[str, list[str]] = {}
+    # Result sessions each browser tab created, released when that tab generates again or when
+    # the bounded registry evicts the tab.
+    results_by_client: OrderedDict[str, list[str]] = OrderedDict()
     with gr.Blocks(delete_cache=(3600, 3600)) as demo:
         gr.Markdown(f"# {provider.title}")
         session = gr.Textbox(visible=False)
@@ -186,6 +193,7 @@ def create_demo(
         ) -> tuple:
             headers = identity_headers(request)
             client = getattr(request, "session_hash", None)
+            opened: list[str] = []  # result sessions created in this call, for cleanup on failure
             try:
                 progress(None, desc="Checking current edits…")
                 options = provider.validate(dict(zip(controls, values, strict=True)))
@@ -205,14 +213,22 @@ def create_demo(
                         path = Path(directory) / f"design-{index}.cif"
                         path.write_text(cif)
                         result_id, _ = await handoff.open(path.name, cif, headers)
+                        opened.append(result_id)
                         paths[result_id] = download.move_resource_to_block_cache(path)
                         choices.append((f"Design {index}", result_id))
                 result_id = choices[1][1]
-                if client:
-                    # Keep the session generated from (it may itself be an earlier design).
-                    previous = [key for key in results_by_client.get(client, []) if key != session_id]
-                    results_by_client[client] = [key for _, key in choices[1:]]
-                    await handoff.close(previous, headers)
+                if client is not None:
+                    previous = results_by_client.get(client, [])
+                    # Keep the session generated from when it was one of this tab's tracked results,
+                    # so a later generation from a different source still releases it.
+                    retained = [session_id] if session_id in previous else []
+                    stale = [key for key in previous if key not in opened and key not in retained]
+                    results_by_client[client] = opened + retained
+                    results_by_client.move_to_end(client)
+                    while len(results_by_client) > MAX_TRACKED_CLIENTS:
+                        _evicted, evicted_ids = results_by_client.popitem(last=False)
+                        stale.extend(key for key in evicted_ids if key not in opened)
+                    await handoff.close(stale, headers)
                 warnings = "; ".join(issue["message"] for issue in snapshot["issues"])
                 message = f"Generated from input revision {snapshot['revision']}. {warnings}".strip()
                 return (
@@ -227,6 +243,11 @@ def create_demo(
                 )
             except Exception as error:
                 logging.getLogger(__name__).exception("Studio generation failed")
+                if opened:
+                    try:
+                        await handoff.close(opened, headers)
+                    except Exception:
+                        logging.getLogger(__name__).exception("Releasing partial generation sessions failed")
                 message = error.message if isinstance(error, gr.Error) else "The model request failed. Please retry."
                 failure = gr.Markdown(value=f"**Generation failed.** {html.escape(message)} Your input is unchanged.")
                 return gr.skip(), gr.skip(), gr.skip(), gr.skip(), gr.skip(), failure, gr.skip(), gr.skip()
